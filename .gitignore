@@ -1,0 +1,36 @@
+# Build directories
+build/
+
+# Python virtual environment
+.venv/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Doxygen generated
+docs/_doxygen/
+
+# Sphinx generated
+docs/_build/
+docs/_static/
+docs/_templates/
+
+# Compiled objects
+*.o
+*.a
+*.so
+*.dylib
+
+# CMake
+CMakeFiles/
+cmake_install.cmake
+CMakeCache.txt
+compile_commands.json
+
+# OS
+.DS_Store
+Thumbs.db

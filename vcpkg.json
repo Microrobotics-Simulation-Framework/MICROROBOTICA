@@ -1,0 +1,20 @@
+{
+    "$schema": "https://raw.githubusercontent.com/microsoft/vcpkg-tool/main/docs/vcpkg.schema.json",
+    "name": "microbotica",
+    "version": "0.1.0",
+    "description": "MICROROBOTs Iterative Simulation for Clinical Adoption",
+    "license": "AGPL-3.0-or-later",
+    "dependencies": [
+        {
+            "name": "nlohmann-json",
+            "version>=": "3.11.0"
+        },
+        "spdlog",
+        "zeromq",
+        "cppzmq",
+        "catch2",
+        "pybind11"
+    ],
+    "overrides": [],
+    "builtin-baseline": ""
+}

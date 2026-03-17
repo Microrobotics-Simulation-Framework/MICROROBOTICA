@@ -1,0 +1,26 @@
+# Doxyfile for MICROBOTICA
+# Generates XML output for Sphinx/Breathe integration
+
+PROJECT_NAME           = "MICROBOTICA"
+PROJECT_NUMBER         = 0.1.0
+PROJECT_BRIEF          = "MICROROBOTs Iterative Simulation for Clinical Adoption"
+
+INPUT                  = src/
+RECURSIVE              = YES
+FILE_PATTERNS          = *.h *.cpp
+
+GENERATE_HTML          = NO
+GENERATE_LATEX         = NO
+GENERATE_XML           = YES
+XML_OUTPUT             = docs/_doxygen/xml
+
+EXTRACT_ALL            = YES
+EXTRACT_PRIVATE        = NO
+EXTRACT_STATIC         = YES
+
+JAVADOC_AUTOBRIEF      = YES
+QT_AUTOBRIEF           = YES
+
+QUIET                  = YES
+WARNINGS               = YES
+WARN_IF_UNDOCUMENTED   = NO

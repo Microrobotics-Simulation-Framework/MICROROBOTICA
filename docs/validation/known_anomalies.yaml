@@ -1,0 +1,115 @@
+# MICROBOTICA Known Anomalies Registry
+# Updated with each release per IEC 62304 SOUP anomaly assessment requirements
+# Schema version: 1.0
+
+schema_version: "1.0"
+microbotica_version: "0.1.0"
+generated_date: "2026-03-17"
+
+anomalies:
+  - anomaly_id: "MBCA-ANO-001"
+    title: "ResultsApplicator silently drops ResultFrame fields with unknown prim paths"
+    description: >
+      When a ResultFrame contains a prim path that does not exist in the
+      current USD stage, ResultsApplicator silently ignores it. No warning
+      is logged and no error is raised. This means if the physics backend
+      adds a new output field that the scene does not expect, the data is
+      silently lost.
+    affected_components: ["ResultsApplicator"]
+    affected_versions: "0.1.0 – current"
+    severity: "major"
+    safety_relevance: "context_dependent"
+    safety_relevance_rationale: >
+      In a research context, silently dropped fields are a minor annoyance.
+      In a clinical context, a dropped field could mean that a critical
+      simulation output (e.g., drug concentration at a target site) is not
+      displayed to the operator, who may make decisions based on incomplete
+      information. The downstream manufacturer must assess whether any
+      ResultFrame fields in their context of use are safety-critical.
+    workaround: "Ensure scene prims match expected ResultFrame fields before simulation"
+    resolution_status: "open"
+    resolution_verification: "MBCA-VER-004"
+    detected_by: "manual_review"
+    memory_safety_relevant: false
+    github_issue: null
+    date_reported: "2026-03-17"
+
+  - anomaly_id: "MBCA-ANO-002"
+    title: "ScriptingEngine::execute() blocks the Qt main thread for script duration"
+    description: >
+      When a Python script is executed via the scripting console, the
+      ScriptingEngine::execute() call runs on the Qt main thread and
+      blocks the event loop for the entire duration of the script. The
+      UI is completely unresponsive during execution.
+    affected_components: ["ConsoleWidget", "MicrobotaModule"]
+    affected_versions: "0.1.0 – current"
+    severity: "minor"
+    safety_relevance: "context_dependent"
+    safety_relevance_rationale: >
+      In a research context, brief UI freezes during script execution
+      are a minor inconvenience. In a clinical context where an operator
+      needs to interrupt a running simulation or respond to an emergency,
+      a blocking script could delay a safety-critical user action. The
+      downstream manufacturer must assess whether uninterruptible script
+      execution is acceptable in their context of use.
+    workaround: "Keep scripts short; avoid long-running computations in the console"
+    resolution_status: "open"
+    resolution_verification: null
+    detected_by: "manual_review"
+    memory_safety_relevant: false
+    github_issue: null
+    date_reported: "2026-03-17"
+
+  - anomaly_id: "MBCA-ANO-003"
+    title: "USD results layer left in partially-written state on physics process crash"
+    description: >
+      If the PhysicsProcess backend terminates unexpectedly while
+      ResultsApplicator::apply() is mid-write, the USD results layer
+      may contain a mix of current-frame and previous-frame values.
+      The partially-written results layer remains visible in the viewport
+      until the user manually reloads the scene or clears the results layer.
+    affected_components: ["ResultsApplicator", "SceneManager", "SimulationController"]
+    affected_versions: "0.1.0 – current"
+    severity: "major"
+    safety_relevance: "context_dependent"
+    safety_relevance_rationale: >
+      Stale position data from a prior frame may be displayed as current,
+      potentially misrepresenting a microrobot's last known state to the
+      operator. In a clinical context, an operator relying on the displayed
+      position to make a treatment decision could be misled by stale data.
+      The downstream manufacturer must implement crash detection and
+      automatic results layer clearing.
+    workaround: "Reload the scene to clear the results layer after a backend crash"
+    resolution_status: "open"
+    resolution_verification: null
+    detected_by: "manual_review"
+    memory_safety_relevant: true
+    github_issue: null
+    date_reported: "2026-03-17"
+
+  - anomaly_id: "MBCA-ANO-004"
+    title: "PhysicsProcess::receiveResult() blocks indefinitely on backend hang"
+    description: >
+      PhysicsProcess::receiveResult() is a blocking call with no timeout.
+      If the physics backend enters an infinite loop, deadlocks, or becomes
+      unresponsive without closing the connection, receiveResult() will
+      block indefinitely. The entire application may become unresponsive
+      with no recovery path other than process termination.
+    affected_components: ["PhysicsProcess", "SimulationController"]
+    affected_versions: "0.1.0 – current"
+    severity: "major"
+    safety_relevance: "context_dependent"
+    safety_relevance_rationale: >
+      In a clinical context, an unrecoverable application hang during a
+      live procedure would prevent the operator from accessing simulation
+      output or controlling the simulation. The downstream manufacturer
+      must implement a timeout mechanism and a watchdog that detects
+      backend unresponsiveness and triggers a controlled shutdown of
+      the simulation session.
+    workaround: "Terminate the application process if it becomes unresponsive"
+    resolution_status: "open"
+    resolution_verification: null
+    detected_by: "manual_review"
+    memory_safety_relevant: false
+    github_issue: null
+    date_reported: "2026-03-17"

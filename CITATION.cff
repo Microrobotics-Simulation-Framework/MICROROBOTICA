@@ -1,0 +1,20 @@
+cff-version: 1.2.0
+title: "MICROBOTICA: MICROROBOTs Iterative Simulation for Clinical Adoption"
+type: software
+version: 0.1.0
+date-released: "2026-03-17"
+license: AGPL-3.0-or-later
+repository-code: "https://github.com/MSF/MICROROBOTICA"
+abstract: >-
+  Open-source research simulator for microrobot-assisted drug delivery
+  in cerebrospinal fluid and other confined biological geometries.
+  Built on C++17/Qt 6 with OpenUSD as the primary scene format.
+  Layer 3 of the MADDENING/MIME/MICROBOTICA open-source stack.
+keywords:
+  - microrobotics
+  - simulation
+  - OpenUSD
+  - drug delivery
+  - cerebrospinal fluid
+authors:
+  - name: "MICROBOTICA Contributors"

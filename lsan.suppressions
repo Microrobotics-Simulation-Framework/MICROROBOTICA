@@ -1,0 +1,6 @@
+# LSan (Leak Sanitizer) suppressions for MICROBOTICA
+# CPython and pybind11 have known shutdown-order leaks that are not real bugs.
+leak:libpython
+leak:pybind11
+leak:Py_Finalize
+leak:_PyObject_GC_New

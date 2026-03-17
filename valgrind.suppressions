@@ -1,0 +1,10 @@
+# Valgrind suppressions for MICROBOTICA
+# Populate with Qt/Python/OpenUSD suppressions when Valgrind CI is enabled in Phase 1.
+#
+# Usage:
+#   valgrind --suppressions=valgrind.suppressions ./build/debug/tests/microbotica_tests
+#
+# Known categories to suppress:
+# - Qt internal allocations (QObject, QMetaObject)
+# - Python interpreter shutdown leaks
+# - OpenUSD plugin registry singleton leaks

@@ -1,0 +1,7 @@
+# TSan (Thread Sanitizer) suppressions for MICROBOTICA
+# Populate with Qt/Python dispatch suppressions when TSan CI is enabled in Phase 1.
+#
+# Known categories to suppress:
+# - Qt signal/slot dispatch internals
+# - Python GIL acquisition patterns
+# - pybind11 type registry access
