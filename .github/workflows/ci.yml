@@ -1,0 +1,65 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+env:
+  BASE_IMAGE: ghcr.io/microrobotics-simulation-framework/microrobotica:base
+
+jobs:
+  build-test:
+    name: Build & Test
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/microrobotics-simulation-framework/microrobotica:base
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure (Debug)
+        run: cmake --preset linux-debug
+
+      - name: Build
+        run: cmake --build build/debug
+
+      - name: Build tests
+        run: cmake --build build/debug --target microbotica_tests
+
+      - name: Run tests
+        run: cd build/debug && ctest --output-on-failure
+
+      - name: Compliance — check_anomalies.py
+        run: python scripts/check_anomalies.py
+
+      - name: Compliance — check_citations.py
+        run: python scripts/check_citations.py
+
+      - name: Compliance — harvest_component_meta.py
+        run: python scripts/harvest_component_meta.py > /dev/null
+
+  asan-ubsan:
+    name: ASan + UBSan
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/microrobotics-simulation-framework/microrobotica:base
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure (ASan)
+        run: cmake --preset linux-asan
+
+      - name: Build tests
+        run: cmake --build build/asan --target microbotica_tests
+
+      - name: Run tests under ASan/UBSan
+        run: LSAN_OPTIONS=suppressions=lsan.suppressions ./build/asan/tests/microbotica_tests
