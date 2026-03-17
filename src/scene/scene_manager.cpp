@@ -3,6 +3,10 @@
 #include "core/stability.h"
 #include <spdlog/spdlog.h>
 
+#ifdef MICROBOTICA_HAS_USD
+#include <pxr/usd/usd/primRange.h>
+#endif
+
 namespace microbotica::scene {
 
 SceneManager::SceneManager(core::AuditLogger& logger, QObject* parent)
@@ -28,15 +32,28 @@ bool SceneManager::loadScene(const std::string& filePath)
         return false;
     }
 
+    // Three-layer composition stack:
+    //   Root (session) layer — empty, used to compose sublayers
+    //     Sublayer 0: Results layer (strongest — simulation output)
+    //     Sublayer 1: Override layer (middle — user scripting writes)
+    //     Sublayer 2: Base layer (weakest — original scene file)
+    //
+    // The stage's root layer becomes the session layer.
+    // The file's content is accessed via its sublayer path.
     baseLayer_ = stage_->GetRootLayer();
 
-    // Create in-memory override sublayer
-    overrideLayer_ = SdfLayer::CreateAnonymous("override");
-    stage_->GetRootLayer()->InsertSubLayerPath(overrideLayer_->GetIdentifier());
-
-    // Create in-memory results sublayer (strongest opinion)
+    // Create a new anonymous root layer that composes everything
+    auto sessionLayer = SdfLayer::CreateAnonymous("session");
     resultsLayer_ = SdfLayer::CreateAnonymous("results");
-    stage_->GetRootLayer()->InsertSubLayerPath(resultsLayer_->GetIdentifier());
+    overrideLayer_ = SdfLayer::CreateAnonymous("override");
+
+    // Build sublayer stack: results (strongest) → override → base (weakest)
+    sessionLayer->InsertSubLayerPath(baseLayer_->GetIdentifier());
+    sessionLayer->InsertSubLayerPath(overrideLayer_->GetIdentifier(), 0);
+    sessionLayer->InsertSubLayerPath(resultsLayer_->GetIdentifier(), 0);
+
+    // Replace the stage's root layer with our session layer
+    stage_ = UsdStage::Open(sessionLayer);
 
     applicator_ = std::make_unique<ResultsApplicator>(resultsLayer_, stage_);
     sceneLoaded_ = true;

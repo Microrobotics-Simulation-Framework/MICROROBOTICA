@@ -78,8 +78,8 @@ RUN cd /tmp/OpenUSD && python3 build_scripts/build_usd.py \
     --no-prman \
     --no-openimageio \
     --no-opencolorio \
-    --build-args USD,"-DPXR_BUILD_USD_TOOLS=OFF" \
-    ${USD_INSTALL} \
+    --no-materialx \
+    /opt/usd \
     && rm -rf /tmp/OpenUSD
 
 ENV PXR_ROOT=${USD_INSTALL}
