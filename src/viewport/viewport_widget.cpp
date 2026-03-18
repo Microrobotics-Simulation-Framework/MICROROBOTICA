@@ -4,7 +4,6 @@
 
 #include "core/stability.h"
 #include <spdlog/spdlog.h>
-#include <QOpenGLContext>
 
 namespace microbotica::viewport {
 
@@ -16,18 +15,10 @@ ViewportWidget::ViewportWidget(QWidget* parent)
     softwareViewport_ = new SoftwareViewport(this);
     addWidget(softwareViewport_);
 
-    // Only create the OpenGL viewport if a GL context can be created.
-    // This prevents "failed to create drawable" crashes in headless/Docker
-    // environments without GPU access.
-    QOpenGLContext testCtx;
-    if (testCtx.create()) {
-        localViewport_ = new LocalViewport(this);
-        addWidget(localViewport_);
-        spdlog::info("ViewportWidget: OpenGL available, LocalViewport created");
-    } else {
-        spdlog::warn("ViewportWidget: OpenGL not available, using SoftwareViewport only");
-    }
-
+    // Start with SoftwareViewport only. LocalViewport (QOpenGLWidget) is
+    // created lazily on first setRenderMode(LocalHydra) call. This avoids
+    // "failed to create drawable" in Docker/headless environments where
+    // QOpenGLWidget construction triggers an unusable GLX drawable.
     setCurrentWidget(softwareViewport_);
     currentMode_ = core::RenderMode::Software;
 }
@@ -57,12 +48,13 @@ void ViewportWidget::setRenderMode(core::RenderMode mode)
 
     switch (mode) {
     case core::RenderMode::LocalHydra:
-        if (localViewport_) {
-            setCurrentWidget(localViewport_);
-        } else {
-            spdlog::warn("ViewportWidget: LocalHydra requested but OpenGL not available, staying on Software");
-            mode = core::RenderMode::Software;
+        // Lazily create LocalViewport on first request
+        if (!localViewport_) {
+            localViewport_ = new LocalViewport(this);
+            addWidget(localViewport_);
+            spdlog::info("ViewportWidget: LocalViewport created on demand");
         }
+        setCurrentWidget(localViewport_);
         break;
     case core::RenderMode::Software:
     case core::RenderMode::CloudStream:

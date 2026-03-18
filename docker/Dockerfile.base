@@ -70,6 +70,8 @@ RUN git clone --depth 1 --branch ${USD_VERSION} \
 
 # Build USD with core + imaging but no heavyweight render delegates.
 # UsdGeom (xformOps) and UsdImaging are needed; Embree/Prman/OIIO are not.
+# --onetbb: use modern oneTBB instead of deprecated Intel TBB (eliminates
+#   "tbb/task.h is deprecated" warnings that propagate through USD headers).
 RUN cd /tmp/OpenUSD && python3 build_scripts/build_usd.py \
     --no-tests \
     --no-examples \
@@ -82,6 +84,7 @@ RUN cd /tmp/OpenUSD && python3 build_scripts/build_usd.py \
     --no-openimageio \
     --no-opencolorio \
     --no-materialx \
+    --onetbb \
     /opt/usd \
     && rm -rf /tmp/OpenUSD
 
