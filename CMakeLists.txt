@@ -98,7 +98,7 @@ target_link_libraries(microbotica PRIVATE
     pybind11::embed
 )
 if(OpenUSD_FOUND)
-    target_include_directories(microbotica PRIVATE ${OpenUSD_INCLUDE_DIRS})
+    target_include_directories(microbotica SYSTEM PRIVATE ${OpenUSD_INCLUDE_DIRS})
     target_link_libraries(microbotica PRIVATE ${OpenUSD_LIBRARIES})
 endif()
 target_enable_warnings(microbotica)

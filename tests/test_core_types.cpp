@@ -121,5 +121,5 @@ TEST_CASE("VerificationRegistry: starts empty", "[unit][core]") {
     // Note: static init from REGISTER macros may have populated this
     // in other test files, but the function should at least be callable
     auto& reg = benchmarkRegistry();
-    REQUIRE(reg.size() >= 0); // just test it's callable
+    (void)reg; // just test it's callable without crashing
 }

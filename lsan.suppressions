@@ -4,3 +4,10 @@ leak:libpython
 leak:pybind11
 leak:Py_Finalize
 leak:_PyObject_GC_New
+
+# OpenUSD has known singleton/registry leaks at shutdown.
+# These are static registries that live for the process lifetime.
+leak:libusd_tf
+leak:Tf_RegistryManagerImpl
+leak:TfType
+leak:TfSingleton
