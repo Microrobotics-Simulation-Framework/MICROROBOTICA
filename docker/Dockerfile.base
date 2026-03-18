@@ -26,7 +26,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     qt6-base-dev libqt6openglwidgets6t64 \
     libxkbcommon-dev \
     # Mesa software rendering (for headless/Docker GUI)
-    libgl1-mesa-dri libegl1-mesa libgbm1 \
+    libgl1-mesa-dri libegl-mesa0 libgbm1 \
     # C++ libraries
     nlohmann-json3-dev \
     libspdlog-dev \
