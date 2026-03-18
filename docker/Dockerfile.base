@@ -90,8 +90,8 @@ RUN cd /tmp/OpenUSD && python3 build_scripts/build_usd.py \
 
 ENV PXR_ROOT=${USD_INSTALL}
 ENV PATH="${USD_INSTALL}/bin:${PATH}"
-ENV LD_LIBRARY_PATH="${USD_INSTALL}/lib:${LD_LIBRARY_PATH}"
-ENV CMAKE_PREFIX_PATH="${USD_INSTALL}:${CMAKE_PREFIX_PATH}"
+ENV LD_LIBRARY_PATH="${USD_INSTALL}/lib"
+ENV CMAKE_PREFIX_PATH="${USD_INSTALL}"
 
 # Verify USD installation
 RUN ls ${USD_INSTALL}/include/pxr/usd/usd/api.h && echo "OpenUSD headers OK" \

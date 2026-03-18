@@ -17,13 +17,13 @@ public:
     void select(const std::string& path) {
         if (path != selectedPath_) {
             selectedPath_ = path;
-            emit primSelected(selectedPath_);
+            primSelected(selectedPath_);
         }
     }
 
     void clear() {
         selectedPath_.clear();
-        emit primSelected(selectedPath_);
+        primSelected(selectedPath_);
     }
 
 signals:
