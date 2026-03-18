@@ -1,5 +1,6 @@
 #include <catch2/catch_test_macros.hpp>
 #include "core/verification_registry.h"
+#include "test_config.h"
 
 #ifdef MICROBOTICA_HAS_USD
 #include "scene/scene_manager.h"
@@ -25,7 +26,7 @@ TEST_CASE("Position values map exactly to xformOp:translate",
           "[verification][data-integrity]") {
 #ifdef MICROBOTICA_HAS_USD
     microbotica::scene::SceneManager mgr;
-    REQUIRE(mgr.loadScene("tests/fixtures/test_scene.usda"));
+    REQUIRE(mgr.loadScene(microbotica::test::fixturePath("test_scene.usda")));
 
     microbotica::core::ResultFrame frame;
     frame.simTime = 1.0;
@@ -77,7 +78,7 @@ TEST_CASE("Warning logged for unknown prim paths",
     // when a ResultFrame contains an actor mapped to a non-existent prim path.
     // The warning logging was implemented to fix MBCA-ANO-001.
     microbotica::scene::SceneManager mgr;
-    REQUIRE(mgr.loadScene("tests/fixtures/test_scene.usda"));
+    REQUIRE(mgr.loadScene(microbotica::test::fixturePath("test_scene.usda")));
 
     microbotica::core::ResultFrame frame;
     frame.simTime = 1.0;

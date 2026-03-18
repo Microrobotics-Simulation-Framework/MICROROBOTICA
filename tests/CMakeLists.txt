@@ -19,6 +19,7 @@ add_executable(microbotica_tests
 
 target_include_directories(microbotica_tests PRIVATE
     ${CMAKE_SOURCE_DIR}/src
+    ${CMAKE_SOURCE_DIR}/tests
 )
 
 target_link_libraries(microbotica_tests PRIVATE
@@ -27,6 +28,11 @@ target_link_libraries(microbotica_tests PRIVATE
     Qt6::Core
     Qt6::Widgets
     pybind11::embed
+)
+
+# Pass source dir so tests can find fixture files with absolute paths
+target_compile_definitions(microbotica_tests PRIVATE
+    MICROBOTICA_SOURCE_DIR="${CMAKE_SOURCE_DIR}"
 )
 
 target_enable_warnings(microbotica_tests)
@@ -39,4 +45,6 @@ endif()
 
 include(CTest)
 include(Catch)
-catch_discover_tests(microbotica_tests)
+catch_discover_tests(microbotica_tests
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)

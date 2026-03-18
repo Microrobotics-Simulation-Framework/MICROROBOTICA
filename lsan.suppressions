@@ -10,7 +10,14 @@ leak:_PyObject_GC_New
 leak:libusd_tf
 leak:libusd_trace
 leak:libusd_arch
+leak:libusd_sdf
 leak:Tf_RegistryManagerImpl
 leak:TfType
 leak:TfSingleton
 leak:TraceEventList
+leak:Sdf_IdentityRegistry
+leak:Sdf_ChangeManager
+
+# TBB (used by OpenUSD) has known task_stream singleton leaks.
+leak:tbb
+leak:task_stream

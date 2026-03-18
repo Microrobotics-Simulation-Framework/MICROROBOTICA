@@ -1,5 +1,6 @@
 #include <catch2/catch_test_macros.hpp>
 #include "core/verification_registry.h"
+#include "test_config.h"
 
 #ifdef MICROBOTICA_HAS_USD
 #include "scene/scene_manager.h"
@@ -25,7 +26,7 @@ TEST_CASE("Base layer is never written by ResultsApplicator",
           "[verification][layer-separation]") {
 #ifdef MICROBOTICA_HAS_USD
     microbotica::scene::SceneManager mgr;
-    REQUIRE(mgr.loadScene("tests/fixtures/test_scene.usda"));
+    REQUIRE(mgr.loadScene(microbotica::test::fixturePath("test_scene.usda")));
 
     auto baseLayer = mgr.baseLayer();
     std::string baseContentBefore;
@@ -66,7 +67,7 @@ TEST_CASE("Results layer is not persisted to disk",
           "[verification][layer-separation]") {
 #ifdef MICROBOTICA_HAS_USD
     microbotica::scene::SceneManager mgr;
-    REQUIRE(mgr.loadScene("tests/fixtures/test_scene.usda"));
+    REQUIRE(mgr.loadScene(microbotica::test::fixturePath("test_scene.usda")));
 
     auto resultsLayer = mgr.resultsLayer();
     REQUIRE(resultsLayer);
