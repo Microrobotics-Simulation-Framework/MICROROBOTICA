@@ -28,24 +28,39 @@ framework) → MIME (microrobotics engine) → MICROBOTICA (simulator UI).
 > verification and validation. See
 > [Regulatory Documentation](docs/regulatory/) for details.
 
-## Quick Start
+## Quick Start (Docker — recommended)
 
 ```bash
-# Prerequisites: Qt 6, OpenUSD 24.08, CMake 3.25+, GCC 13+
+docker pull ghcr.io/microrobotics-simulation-framework/microrobotica:base
+
+docker run -it --rm \
+  -v $(pwd):/workspace/microbotica \
+  -w /workspace/microbotica \
+  -e PXR_ROOT=/opt/usd \
+  ghcr.io/microrobotics-simulation-framework/microrobotica:base \
+  bash
+
+# Inside the container:
 cmake --preset linux-debug
 cmake --build build/debug
-./build/debug/microbotica
+cd build/debug && ctest --output-on-failure
 ```
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for native setup, GUI forwarding,
+and IDE integration.
 
 ## Documentation
 
 | Document | Description |
 |----------|-------------|
-| [User Guide](docs/user_guide/) | Installation, tutorials, concepts |
-| [Component Guide](docs/component_guide/) | Architectural component docs |
-| [Developer Guide](docs/developer_guide/) | Contributing, testing, code style |
+| [Architecture](ARCHITECTURE.md) | System architecture and module map |
+| [Design Decisions](DESIGN.md) | Key design decisions and rationale |
+| [Contributing](CONTRIBUTING.md) | Build setup, Docker, IDE, conventions |
+| [User Guide](docs/user_guide/) | Concepts and usage |
+| [Developer Guide](docs/developer_guide/) | Testing, component authoring |
+| [Component Guide](docs/component_guide/) | Interface and implementation docs |
 | [Validation](docs/validation/) | V&V evidence, SOUP package |
-| [Regulatory](docs/regulatory/) | Intended use, EU MDR/FDA guidance |
+| [Regulatory](docs/regulatory/) | Intended use, EU MDR guidance |
 | [CHANGELOG](CHANGELOG.md) | Version history |
 
 ## Citation

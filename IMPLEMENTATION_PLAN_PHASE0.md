@@ -392,7 +392,7 @@ Walk through every item in `DOCUMENTATION_ARCHITECTURE.md` Appendix D Phase 0 ch
 - [x]`known_anomalies.yaml` validates
 - [x]`soup_package.md` skeleton has Sections 1-3
 - [x]`ComponentMeta` on all `src/core/` interfaces
-- [ ] GitHub labels created (manual step — create `known-anomaly`, `anomaly:critical`, `anomaly:major`, `anomaly:minor`, `safety-relevant`, `soup-assessment` labels on GitHub)
+- [x]GitHub labels created (`known-anomaly`, `anomaly:critical`, `anomaly:major`, `anomaly:minor`, `safety-relevant`, `soup-assessment`)
 - [x]CI scripts all pass
 - [x]`CMakePresets.json` has `linux-asan` preset
 - [x]`lsan.suppressions` exists
