@@ -30,6 +30,11 @@ endif()
 find_package(Qt6 REQUIRED COMPONENTS Core Widgets OpenGLWidgets)
 qt_standard_project_setup()
 
+# Prevent Qt keyword macros (emit, signals, slots) from conflicting with
+# third-party headers (oneTBB's profiling.h has an emit() method).
+# Use Q_EMIT, Q_SIGNALS, Q_SLOTS in our code instead.
+add_compile_definitions(QT_NO_EMIT)
+
 # pybind11 (required for scripting)
 find_package(pybind11 REQUIRED)
 find_package(Python3 REQUIRED COMPONENTS Interpreter Development)

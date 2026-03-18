@@ -54,7 +54,7 @@ void SimulationController::launchPhysics(const core::PhysicsConfig& config) {
 
     spdlog::info("SimulationController: Physics launched");
     logger_->logEvent("simulation_start", {{"backend", backend_->backendName()}});
-    emit simulationStarted();
+    simulationStarted();
 }
 
 void SimulationController::requestNextFrame() {
@@ -63,7 +63,7 @@ void SimulationController::requestNextFrame() {
         running_.store(false);
         spdlog::error("SimulationController: Backend crashed: {}", errorMessage_);
         sceneMgr_.crashRecovery();
-        emit backendCrashed(QString::fromStdString(errorMessage_));
+        backendCrashed(QString::fromStdString(errorMessage_));
         errorFlag_.store(false);
         return;
     }
@@ -80,7 +80,7 @@ void SimulationController::requestNextFrame() {
         sceneMgr_.applyResultFrame(*frame, config_);
         logger_->logResultFrame(frameCount_, frame->simTime, false);
 
-        emit frameReady(*frame);
+        frameReady(*frame);
     }
 }
 
@@ -98,7 +98,7 @@ void SimulationController::stop() {
 
     spdlog::info("SimulationController: Stopped after {} frames", frameCount_);
     logger_->logEvent("simulation_stop", {{"frames", frameCount_}});
-    emit simulationStopped();
+    simulationStopped();
 }
 
 void SimulationController::teardown() {

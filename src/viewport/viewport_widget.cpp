@@ -63,7 +63,7 @@ void ViewportWidget::setRenderMode(core::RenderMode mode)
     }
 
     currentMode_ = mode;
-    emit renderModeChanged(mode);
+    renderModeChanged(mode);
 }
 
 } // namespace microbotica::viewport

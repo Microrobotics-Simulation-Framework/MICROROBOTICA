@@ -61,7 +61,7 @@ bool SceneManager::loadScene(const std::string& filePath)
     spdlog::info("SceneManager: Loaded scene {} with three-layer stack", filePath);
     logger_->logEvent("scene_load", {{"path", filePath}});
 
-    emit sceneLoaded();
+    sceneLoaded();
     return true;
 #else
     spdlog::warn("SceneManager: USD not available, scene loading disabled");
@@ -76,7 +76,7 @@ void SceneManager::applyResultFrame(const core::ResultFrame& frame,
 #ifdef MICROBOTICA_HAS_USD
     if (!applicator_) return;
     applicator_->apply(frame, config);
-    emit stageChanged();
+    stageChanged();
 #else
     (void)frame;
     (void)config;
@@ -89,10 +89,10 @@ void SceneManager::crashRecovery()
     if (resultsLayer_) {
         resultsLayer_->Clear();
         spdlog::info("SceneManager: Crash recovery — results layer cleared");
-        emit stageChanged();
+        stageChanged();
     }
 #endif
-    emit backendCrashed();
+    backendCrashed();
 }
 
 bool SceneManager::saveOverrideLayer(const std::string& path)

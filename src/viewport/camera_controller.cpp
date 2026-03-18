@@ -59,7 +59,7 @@ bool CameraController::eventFilter(QObject* watched, QEvent* event)
             azimuth_ += delta.x() * orbitSensitivity_;
             elevation_ += delta.y() * orbitSensitivity_;
             elevation_ = std::clamp(elevation_, kMinElevation, kMaxElevation);
-            emit cameraChanged();
+            cameraChanged();
             if (auto* w = qobject_cast<QWidget*>(watched)) {
                 w->update();
             }
@@ -69,7 +69,7 @@ bool CameraController::eventFilter(QObject* watched, QEvent* event)
         if (panning_) {
             panX_ += delta.x() * panSensitivity_ * (orbitDistance_ * 0.1);
             panY_ -= delta.y() * panSensitivity_ * (orbitDistance_ * 0.1);
-            emit cameraChanged();
+            cameraChanged();
             if (auto* w = qobject_cast<QWidget*>(watched)) {
                 w->update();
             }
@@ -86,7 +86,7 @@ bool CameraController::eventFilter(QObject* watched, QEvent* event)
         orbitDistance_ -= steps * zoomSensitivity_ * orbitDistance_;
         orbitDistance_ = std::clamp(orbitDistance_, kMinOrbitDistance, kMaxOrbitDistance);
 
-        emit cameraChanged();
+        cameraChanged();
         if (auto* w = qobject_cast<QWidget*>(watched)) {
             w->update();
         }
@@ -103,26 +103,26 @@ bool CameraController::eventFilter(QObject* watched, QEvent* event)
 void CameraController::setOrbitDistance(double d)
 {
     orbitDistance_ = std::clamp(d, kMinOrbitDistance, kMaxOrbitDistance);
-    emit cameraChanged();
+    cameraChanged();
 }
 
 void CameraController::setAzimuth(double a)
 {
     azimuth_ = a;
-    emit cameraChanged();
+    cameraChanged();
 }
 
 void CameraController::setElevation(double e)
 {
     elevation_ = std::clamp(e, kMinElevation, kMaxElevation);
-    emit cameraChanged();
+    cameraChanged();
 }
 
 void CameraController::setPan(double x, double y)
 {
     panX_ = x;
     panY_ = y;
-    emit cameraChanged();
+    cameraChanged();
 }
 
 void CameraController::resetToDefault()
@@ -132,7 +132,7 @@ void CameraController::resetToDefault()
     elevation_ = 0.3;
     panX_ = 0.0;
     panY_ = 0.0;
-    emit cameraChanged();
+    cameraChanged();
 }
 
 } // namespace microbotica::viewport

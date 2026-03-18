@@ -45,7 +45,7 @@ void SceneHierarchyPanel::onTreeItemClicked(QTreeWidgetItem* item, int /*column*
 
     const std::string path = item->data(0, Qt::UserRole).toString().toStdString();
     selection_.select(path);
-    emit primSelected(path);
+    primSelected(path);
 }
 
 } // namespace microbotica::panels
