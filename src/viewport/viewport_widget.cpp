@@ -3,6 +3,8 @@
 #include "viewport/software_viewport.h"
 
 #include "core/stability.h"
+#include <spdlog/spdlog.h>
+#include <QOpenGLContext>
 
 namespace microbotica::viewport {
 
@@ -11,13 +13,21 @@ ViewportWidget::ViewportWidget(QWidget* parent)
 {
     MBCA_EXPERIMENTAL_WARN("ViewportWidget");
 
-    localViewport_ = new LocalViewport(this);
     softwareViewport_ = new SoftwareViewport(this);
-
-    addWidget(localViewport_);
     addWidget(softwareViewport_);
 
-    // Default to software fallback until explicitly switched.
+    // Only create the OpenGL viewport if a GL context can be created.
+    // This prevents "failed to create drawable" crashes in headless/Docker
+    // environments without GPU access.
+    QOpenGLContext testCtx;
+    if (testCtx.create()) {
+        localViewport_ = new LocalViewport(this);
+        addWidget(localViewport_);
+        spdlog::info("ViewportWidget: OpenGL available, LocalViewport created");
+    } else {
+        spdlog::warn("ViewportWidget: OpenGL not available, using SoftwareViewport only");
+    }
+
     setCurrentWidget(softwareViewport_);
     currentMode_ = core::RenderMode::Software;
 }
@@ -27,14 +37,15 @@ ViewportWidget::~ViewportWidget() = default;
 #ifdef MICROBOTICA_HAS_USD
 void ViewportWidget::setStage(UsdStageRefPtr stage)
 {
-    localViewport_->setStage(stage);
+    if (localViewport_) {
+        localViewport_->setStage(stage);
+    }
     softwareViewport_->setStageLoaded(stage != nullptr);
 }
 #else
 void ViewportWidget::setStage(void* /*stage*/)
 {
-    // USD not available; nothing to do for local viewport.
-    // Software viewport remains in placeholder state.
+    // USD not available; software viewport remains in placeholder state.
 }
 #endif
 
@@ -46,11 +57,15 @@ void ViewportWidget::setRenderMode(core::RenderMode mode)
 
     switch (mode) {
     case core::RenderMode::LocalHydra:
-        setCurrentWidget(localViewport_);
+        if (localViewport_) {
+            setCurrentWidget(localViewport_);
+        } else {
+            spdlog::warn("ViewportWidget: LocalHydra requested but OpenGL not available, staying on Software");
+            mode = core::RenderMode::Software;
+        }
         break;
     case core::RenderMode::Software:
     case core::RenderMode::CloudStream:
-        // CloudStream not yet implemented — fall back to Software.
         setCurrentWidget(softwareViewport_);
         break;
     }
