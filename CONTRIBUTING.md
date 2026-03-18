@@ -70,39 +70,17 @@ cmake --preset linux-debug && cmake --build build/debug
 
 #### IDE integration: VS Code + Dev Containers
 
-The Docker image works with VS Code's Dev Containers extension for a full IDE experience:
+The repository includes a ready-to-use `.devcontainer/devcontainer.json`. No manual configuration needed:
 
 1. Install the [Dev Containers](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers) extension
-2. Create `.devcontainer/devcontainer.json` in the repo root:
-
-```json
-{
-    "name": "MICROBOTICA",
-    "image": "ghcr.io/microrobotics-simulation-framework/microrobotica:base",
-    "containerEnv": {
-        "PXR_ROOT": "/opt/usd"
-    },
-    "customizations": {
-        "vscode": {
-            "extensions": [
-                "ms-vscode.cpptools",
-                "ms-vscode.cmake-tools",
-                "ms-python.python"
-            ],
-            "settings": {
-                "cmake.configureArgs": ["--preset", "linux-debug"],
-                "C_Cpp.default.compileCommands": "${workspaceFolder}/build/debug/compile_commands.json"
-            }
-        }
-    },
-    "workspaceMount": "source=${localWorkspaceFolder},target=/workspace/microbotica,type=bind",
-    "workspaceFolder": "/workspace/microbotica"
-}
-```
-
-3. Open the repo in VS Code, press `Ctrl+Shift+P` → "Dev Containers: Reopen in Container"
-4. VS Code will start inside the container with IntelliSense, CMake Tools, and debugging configured
-5. First build takes ~30 seconds; subsequent builds are incremental (~5 seconds)
+2. Open the repo in VS Code
+3. Press `Ctrl+Shift+P` → "Dev Containers: Reopen in Container"
+4. VS Code pulls the GHCR base image, starts the container, and automatically
+   runs `cmake --preset linux-debug` + builds the test target
+5. IntelliSense, CMake Tools, and Python support are pre-configured via the
+   extensions listed in `.devcontainer/devcontainer.json`
+6. First open takes ~2–5 minutes (image pull + initial build); subsequent
+   opens are instant (cached image), incremental builds take ~5 seconds
 
 #### IDE integration: CLion
 

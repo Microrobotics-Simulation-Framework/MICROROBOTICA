@@ -1,0 +1,32 @@
+{
+    "name": "MICROBOTICA",
+    "image": "ghcr.io/microrobotics-simulation-framework/microrobotica:base",
+    "containerEnv": {
+        "PXR_ROOT": "/opt/usd"
+    },
+    "customizations": {
+        "vscode": {
+            "extensions": [
+                "ms-vscode.cpptools",
+                "ms-vscode.cmake-tools",
+                "ms-python.python",
+                "twxs.cmake",
+                "redhat.vscode-yaml"
+            ],
+            "settings": {
+                "cmake.configureArgs": ["--preset", "linux-debug"],
+                "cmake.buildDirectory": "${workspaceFolder}/build/debug",
+                "C_Cpp.default.compileCommands": "${workspaceFolder}/build/debug/compile_commands.json",
+                "C_Cpp.default.cppStandard": "c++17",
+                "python.defaultInterpreterPath": "/opt/venv/bin/python3",
+                "editor.formatOnSave": false,
+                "files.associations": {
+                    "*.usda": "plaintext"
+                }
+            }
+        }
+    },
+    "workspaceMount": "source=${localWorkspaceFolder},target=/workspace/microbotica,type=bind",
+    "workspaceFolder": "/workspace/microbotica",
+    "postCreateCommand": "cmake --preset linux-debug && cmake --build build/debug --target microbotica_tests"
+}

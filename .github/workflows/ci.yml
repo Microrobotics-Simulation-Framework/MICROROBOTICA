@@ -7,7 +7,6 @@ on:
     branches: [main]
 
 env:
-  BASE_IMAGE: ghcr.io/microrobotics-simulation-framework/microrobotica:base
   PXR_ROOT: /opt/usd
 
 jobs:
@@ -60,10 +59,10 @@ jobs:
         run: cmake --preset linux-asan
 
       - name: Build tests
-        env:
-          # catch_discover_tests runs the binary at build time; suppress USD/Python leaks
-          LSAN_OPTIONS: suppressions=${{ github.workspace }}/lsan.suppressions
-        run: cmake --build build/asan --target microbotica_tests
+        # catch_discover_tests runs the binary at build time to list tests.
+        # Must suppress USD/Python shutdown leaks or LSan will fail the discovery.
+        # Use $PWD (shell-expanded inside the container) to get the correct path.
+        run: LSAN_OPTIONS="suppressions=$PWD/lsan.suppressions" cmake --build build/asan --target microbotica_tests
 
       - name: Run tests under ASan/UBSan
-        run: LSAN_OPTIONS=suppressions=lsan.suppressions ./build/asan/tests/microbotica_tests
+        run: LSAN_OPTIONS="suppressions=$PWD/lsan.suppressions" ./build/asan/tests/microbotica_tests

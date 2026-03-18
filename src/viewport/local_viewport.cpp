@@ -11,6 +11,7 @@
 #include <pxr/base/gf/frustum.h>
 #include <pxr/base/gf/matrix4d.h>
 #include <pxr/base/gf/vec4d.h>
+#include <pxr/usd/usd/prim.h>
 #endif
 
 namespace microbotica::viewport {
@@ -103,12 +104,13 @@ void LocalViewport::paintGL()
     frustum.SetRotation(
         GfRotation(GfMatrix4d().SetLookAt(eye, target, up).ExtractRotation()));
 
-    GfMatrix4d viewMatrix = frustum.ComputeViewMatrix();
-    GfMatrix4d projMatrix = frustum.ComputeProjectionMatrix();
-
     UsdImagingGLRenderParams params;
     params.frame = UsdTimeCode::Default();
     params.drawMode = UsdImagingGLDrawMode::DRAW_SHADED_SMOOTH;
+
+    engine_->SetCameraState(
+        frustum.ComputeViewMatrix(),
+        frustum.ComputeProjectionMatrix());
 
     f->glViewport(0, 0, w * devicePixelRatio(), h * devicePixelRatio());
     engine_->SetRenderViewport(GfVec4d(0, 0, w * devicePixelRatio(),
