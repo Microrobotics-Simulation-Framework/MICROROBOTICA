@@ -1197,6 +1197,7 @@ The following verification benchmarks are defined for Phase 0. These are archite
 | `MBCA-VER-006` | `MBCA-COMP-001` | Regression | StubPhysicsProcess produces monotonically increasing simTime |
 | `MBCA-VER-007` | `MBCA-COMP-011` | DataIntegrity | Orientation values map exactly to USD `xformOp:orient` |
 | `MBCA-VER-008` | `MBCA-COMP-011` | DataIntegrity | MeshData vertexColors map exactly to `primvars:displayColor` |
+| `MBCA-VER-009` | `MBCA-IMPL-010` | ProtocolFidelity | ResultFrame JSON survives ZMQ PUB/SUB transport without corruption |
 
 **Note on MBCA-VER-004**: This benchmark documents the *desired* behaviour that fixes `MBCA-ANO-001` — the verification test should currently fail until the fix is implemented. This is intentional: verification tests are written against the correct behaviour, not the current behaviour. A failing MBCA-VER-004 in CI is expected until the ResultsApplicator logging fix lands. This benchmark is the `resolution_verification` target for `MBCA-ANO-001`. When `MBCA-VER-004` passes in CI, `MBCA-ANO-001` may be updated to `resolution_status: "fixed"` with `resolution_verification: "MBCA-VER-004"`.
 
@@ -1619,6 +1620,7 @@ The `test_layer_stack.cpp` verification test suite (seed exists in Phase 0) must
 | `set_attribute()` writes only to override layer | Scripting cannot contaminate base or results | MBCA-VER-005 |
 | Orientation values map exactly to USD xformOp:orient | Orientation data integrity through the rendering pipeline | MBCA-VER-007 |
 | MeshData vertexColors map exactly to primvars:displayColor | Vertex-color data integrity through the rendering pipeline | MBCA-VER-008 |
+| ResultFrame JSON survives ZMQ PUB/SUB transport | IPC protocol fidelity through the ZMQ transport | MBCA-VER-009 |
 
 ### Component Guide Entry
 
@@ -1830,6 +1832,7 @@ Summary of [N] known anomalies:
 | StubPhysicsProcess | MBCA-VER-006 | simTime monotonically increasing | PASS |
 | ResultsApplicator | MBCA-VER-007 | Orientation values map exactly to xformOp:orient | PASS |
 | ResultsApplicator | MBCA-VER-008 | MeshData vertexColors map exactly to primvars:displayColor | PASS |
+| MimePhysicsProcess | MBCA-VER-009 | ResultFrame JSON survives ZMQ PUB/SUB transport | PASS |
 
 ## 5. IEC 62304 Lifecycle Activities Performed
 

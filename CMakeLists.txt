@@ -39,10 +39,27 @@ add_compile_definitions(QT_NO_EMIT)
 find_package(pybind11 REQUIRED)
 find_package(Python3 REQUIRED COMPONENTS Interpreter Development)
 
-# ZeroMQ (optional for now — Phase 1 IPC)
-find_package(PkgConfig QUIET)
-if(PkgConfig_FOUND)
-    pkg_check_modules(ZMQ QUIET libzmq)
+# ZeroMQ (optional — MIME IPC adapter)
+# Try cppzmq CMake config first (installed by cppzmq-dev), then pkg-config fallback
+find_package(cppzmq QUIET)
+if(cppzmq_FOUND)
+    set(ZMQ_FOUND TRUE)
+    set(ZMQ_TARGET cppzmq)
+    message(STATUS "ZeroMQ found via cppzmq CMake config")
+else()
+    find_package(PkgConfig QUIET)
+    if(PkgConfig_FOUND)
+        pkg_check_modules(ZMQ QUIET libzmq)
+        if(ZMQ_FOUND)
+            set(ZMQ_TARGET ${ZMQ_LINK_LIBRARIES})
+            message(STATUS "ZeroMQ found via pkg-config: ${ZMQ_LINK_LIBRARIES}")
+        endif()
+    endif()
+endif()
+if(ZMQ_FOUND)
+    add_compile_definitions(MICROBOTICA_HAS_ZMQ=1)
+else()
+    message(STATUS "ZeroMQ not found — MIME adapter will be stubbed")
 endif()
 
 # OpenUSD (optional — scene management)
@@ -75,6 +92,8 @@ add_executable(microbotica)
 target_sources(microbotica PRIVATE
     src/main.cpp
     src/stubs/stub_physics_process.cpp
+    src/connection/connection_manager.cpp
+    src/mime_adapter/mime_physics_process.cpp
     src/scene/scene_manager.cpp
     src/scene/results_applicator.cpp
     src/scene/prim_selection.cpp
@@ -105,6 +124,9 @@ target_link_libraries(microbotica PRIVATE
 if(OpenUSD_FOUND)
     target_include_directories(microbotica SYSTEM PRIVATE ${OpenUSD_INCLUDE_DIRS})
     target_link_libraries(microbotica PRIVATE ${OpenUSD_LIBRARIES})
+endif()
+if(ZMQ_FOUND)
+    target_link_libraries(microbotica PRIVATE ${ZMQ_TARGET})
 endif()
 target_enable_warnings(microbotica)
 

@@ -22,6 +22,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `MBCA-VER-008`: MeshData vertexColors map exactly to primvars:displayColor (DataIntegrity) — requires USD
 - `MBCA-SAN-001`: ASan+UBSan clean on commit `e901899` — 41 tests, 1268 assertions, 0 errors (local Docker, CI unavailable — see `docs/validation/sanitizer_runs.yaml`)
 
+- **ConnectionManager** (MBCA-COMP-050): Resolves ZMQ endpoints across Local/Manual/Cloud modes
+- **MimePhysicsProcess** (MBCA-IMPL-010): Receives ResultFrames from MIME backend over ZMQ PUB/SUB
+- **MimeComputeBackend** (MBCA-IMPL-011): Factory creating MimePhysicsProcess with ConnectionManager endpoint resolution
+- **ConnectionConfig**: Mode enum (Local/Manual/Cloud) with endpoint, cluster name, and port configuration
+- **`scripts/sky_resolve.py`**: SkyPilot Python API → JSON resolver for Cloud mode (single cluster + `--list`)
+- **ZMQ IPC protocol**: REQ/REP (commands) + PUB/SUB (ResultFrame JSON stream) with 10s heartbeat timeout
+
+### Verification
+
+- `MBCA-VER-009`: ResultFrame JSON survives ZMQ PUB/SUB transport without corruption (ProtocolFidelity) — requires ZMQ
+- `MBCA-SAN-002`: ASan+UBSan clean — 60 tests, 1324 assertions, 0 errors (local Docker, CI unavailable — see `docs/validation/sanitizer_runs.yaml`)
+
 ## [0.1.0] — 2026-03-17
 
 ### Added

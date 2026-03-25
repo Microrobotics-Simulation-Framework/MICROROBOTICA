@@ -72,3 +72,72 @@ runs:
       (same base image, same CMake preset, same suppression file). This run serves
       as the verification gate for Phase A+B in lieu of CI.
     signed_off_by: "Nick (project maintainer)"
+
+  - run_id: "MBCA-SAN-002"
+    date: "2026-03-25"
+    commit: "ad6f68c"
+    commit_message: "feat: add ZMQ adapter, ConnectionManager, and MIME IPC protocol"
+    scope: "Phase C (ConnectionManager, MimePhysicsProcess, MimeComputeBackend, sky_resolve.py, ZMQ protocol)"
+    environment:
+      image: "ghcr.io/microrobotics-simulation-framework/microrobotica:base"
+      os: "Ubuntu 24.04"
+      compiler: "GCC 13.3.0"
+      openusd: "v24.08"
+      qt: "6.4.2"
+      zeromq: "cppzmq via CMake config"
+    sanitizers:
+      cmake_cxx_flags: "-fsanitize=address,undefined -fno-omit-frame-pointer -fno-sanitize-recover=all"
+      cmake_exe_linker_flags: "-fsanitize=address,undefined"
+      asan_options: "detect_leaks=1:detect_stack_use_after_return=1"
+      ubsan_options: "print_stacktrace=1:halt_on_error=1"
+      lsan_suppressions: "lsan.suppressions"
+    results:
+      test_cases: 60
+      assertions: 1324
+      passed: 60
+      failed: 0
+      asan_errors: 0
+      ubsan_errors: 0
+      leak_reports_after_suppressions: 0
+      exit_code: 0
+    suppressed_leaks:
+      - source: "libpython (CPython shutdown-order)"
+        count: 44
+        bytes: 2780336
+        known: true
+      - source: "libusd_tf (TBB/USD Tf_RegistryManagerImpl singleton)"
+        count: 1
+        bytes: 1544
+        known: true
+      - source: "libusd_trace (USD trace registry)"
+        count: 5
+        bytes: 1320
+        known: true
+      - source: "libusd_sdf (USD Sdf identity registry)"
+        count: 57
+        bytes: 1584
+        known: true
+    verification_benchmarks_exercised:
+      - "MBCA-VER-001"
+      - "MBCA-VER-002"
+      - "MBCA-VER-003"
+      - "MBCA-VER-004"
+      - "MBCA-VER-005"
+      - "MBCA-VER-006"
+      - "MBCA-VER-007"
+      - "MBCA-VER-008"
+      - "MBCA-VER-009"
+    assertion_count_note: >
+      Local run (ZMQ available, no USD): 60 tests, 1,284 assertions. Docker run
+      (ZMQ + USD both available): 60 tests, 1,324 assertions. The difference of
+      40 assertions matches exactly the USD #ifdef paths in VER-001 through VER-008
+      executing their REQUIRE assertions instead of empty WARN skips. VER-009
+      (ZMQ protocol fidelity) runs in both environments. All 19 new Phase C tests
+      (connection config, connection manager, MIME adapter, ZMQ integration) pass
+      under ASan+UBSan with zero findings.
+    ci_note: >
+      GitHub Actions minutes were temporarily unavailable at time of this run.
+      This local Docker run replicates the CI asan-ubsan job environment exactly
+      (same base image, same CMake preset, same suppression file). This run serves
+      as the verification gate for Phase C in lieu of CI.
+    signed_off_by: "Nick (project maintainer)"

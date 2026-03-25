@@ -5,7 +5,10 @@ add_executable(microbotica_tests
     test_stub_render_session.cpp
     test_integration_wiring.cpp
     test_scripting_engine.cpp
+    test_mime_adapter.cpp
     ${CMAKE_SOURCE_DIR}/src/stubs/stub_physics_process.cpp
+    ${CMAKE_SOURCE_DIR}/src/connection/connection_manager.cpp
+    ${CMAKE_SOURCE_DIR}/src/mime_adapter/mime_physics_process.cpp
     ${CMAKE_SOURCE_DIR}/src/scene/scene_manager.cpp
     ${CMAKE_SOURCE_DIR}/src/scene/results_applicator.cpp
     ${CMAKE_SOURCE_DIR}/src/simulation/simulation_controller.cpp
@@ -15,6 +18,7 @@ add_executable(microbotica_tests
     verification/test_results_applicator.cpp
     verification/test_stub_regression.cpp
     verification/test_scripting_api.cpp
+    verification/test_zmq_protocol.cpp
 )
 
 target_include_directories(microbotica_tests PRIVATE
@@ -41,6 +45,11 @@ if(OpenUSD_FOUND)
     target_include_directories(microbotica_tests SYSTEM PRIVATE ${OpenUSD_INCLUDE_DIRS})
     target_link_libraries(microbotica_tests PRIVATE ${OpenUSD_LIBRARIES})
     target_compile_definitions(microbotica_tests PRIVATE MICROBOTICA_HAS_USD=1)
+endif()
+
+if(ZMQ_FOUND)
+    target_link_libraries(microbotica_tests PRIVATE ${ZMQ_TARGET})
+    target_compile_definitions(microbotica_tests PRIVATE MICROBOTICA_HAS_ZMQ=1)
 endif()
 
 include(CTest)
