@@ -1,5 +1,8 @@
 #include "experiment/experiment_loader.h"
 #include <fstream>
+#include <filesystem>
+#include <array>
+#include <cstdio>
 #include <spdlog/spdlog.h>
 
 namespace microbotica::experiment {
@@ -9,7 +12,49 @@ ExperimentLoader::ExperimentLoader() {
 }
 
 std::optional<ExperimentConfig> ExperimentLoader::load(const std::string& experiment_dir) const {
+    std::string yaml_path = experiment_dir + "/experiment.yaml";
     std::string json_path = experiment_dir + "/experiment.json";
+
+    // Auto-regenerate JSON if YAML is newer or JSON is missing
+    bool need_regen = false;
+    if (!std::filesystem::exists(json_path)) {
+        need_regen = true;
+    } else if (std::filesystem::exists(yaml_path)) {
+        auto yaml_time = std::filesystem::last_write_time(yaml_path);
+        auto json_time = std::filesystem::last_write_time(json_path);
+        if (yaml_time > json_time) {
+            need_regen = true;
+        }
+    }
+
+    if (need_regen && std::filesystem::exists(yaml_path)) {
+        spdlog::info("ExperimentLoader: experiment.yaml is newer than experiment.json — regenerating");
+        std::string cmd = "python3 -c \""
+            "import json, yaml, sys; "
+            "data = yaml.safe_load(open(sys.argv[1])); "
+            "json.dump(data, open(sys.argv[2], 'w'), indent=2, default=str)\" "
+            "\"" + yaml_path + "\" \"" + json_path + "\" 2>&1";
+
+        auto pipe_closer = [](FILE* f) { if (f) pclose(f); };
+        std::unique_ptr<FILE, decltype(pipe_closer)> pipe(popen(cmd.c_str(), "r"), pipe_closer);
+        if (pipe) {
+            std::array<char, 256> buf;
+            std::string output;
+            while (fgets(buf.data(), static_cast<int>(buf.size()), pipe.get()) != nullptr) {
+                output += buf.data();
+            }
+            if (!output.empty()) {
+                spdlog::warn("ExperimentLoader: yaml_to_json output: {}", output);
+            }
+        }
+
+        if (!std::filesystem::exists(json_path)) {
+            spdlog::error("ExperimentLoader: Failed to regenerate experiment.json from YAML "
+                          "(is PyYAML installed?)");
+            return std::nullopt;
+        }
+    }
+
     return loadFromJson(json_path);
 }
 

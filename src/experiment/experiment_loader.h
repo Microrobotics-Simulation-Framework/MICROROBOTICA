@@ -33,14 +33,15 @@ public:
             .design_rationale  = "Uses JSON (not YAML) on the C++ side to avoid adding yaml-cpp "
                                  "as a dependency. The canonical source is experiment.yaml; "
                                  "experiment.json is a derived artifact.",
-            .assumptions       = {"experiment.json was generated from experiment.yaml by "
-                                  "scripts/yaml_to_json.py and is in sync"},
+            .assumptions       = {"PyYAML is installed in the Python environment for auto-regeneration",
+                                  "experiment.yaml is the canonical source; experiment.json is derived"},
             .limitations       = {"Does not validate that referenced files (setup.py, world.usda) exist",
-                                  "Does not parse or execute Python files"},
+                                  "Does not parse or execute Python files",
+                                  "Auto-regeneration requires python3 and PyYAML on PATH"},
             .validated_regimes = {},
             .hazard_hints      = {
-                "If experiment.json is stale (YAML edited but JSON not regenerated), "
-                "the C++ side may load outdated configuration.",
+                "If PyYAML is not installed, auto-regeneration fails silently and the "
+                "loader falls back to a potentially stale experiment.json.",
             },
             .references        = {},
             .deprecation_notice = std::nullopt,
@@ -49,7 +50,9 @@ public:
     }
 
     /// Load an experiment from a directory.
-    /// Reads <experiment_dir>/experiment.json.
+    /// If experiment.yaml is newer than experiment.json (or JSON is missing),
+    /// auto-regenerates JSON via inline Python (requires PyYAML). Falls back
+    /// to reading existing JSON if Python is unavailable.
     /// @param experiment_dir  Path to the experiment directory
     /// @return ExperimentConfig on success, std::nullopt on failure
     std::optional<ExperimentConfig> load(const std::string& experiment_dir) const;
