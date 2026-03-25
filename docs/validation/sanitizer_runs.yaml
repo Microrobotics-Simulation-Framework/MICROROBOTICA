@@ -210,4 +210,14 @@ runs:
       This local Docker run replicates the CI asan-ubsan job environment exactly
       (same base image, same CMake preset, same suppression file). This run serves
       as the verification gate for Phase D in lieu of CI.
+    compile_only_components:
+      - component: "SshTunnel (MBCA-COMP-051)"
+        reason: >
+          SshTunnel was compile-verified and code-reviewed only. No runtime test
+          exists because the Docker test environment has no SSH target. The class
+          compiles and links under ASan+UBSan without errors, and its QProcess
+          lifecycle logic (open/close/onProcessFinished) follows the same pattern
+          as Qt's own examples, but no test exercises an actual SSH connection.
+          Runtime validation is deferred to first cloud deployment against a live
+          SkyPilot cluster.
     signed_off_by: "Nick (project maintainer)"
