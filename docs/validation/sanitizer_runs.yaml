@@ -1,0 +1,74 @@
+# MICROBOTICA Sanitizer Verification Log
+# Records ASan/UBSan/TSan verification runs per IEC 62304 §5.5.3 (verification of software units).
+# Each entry documents a sanitizer run against a specific commit, environment, and result.
+# Schema version: 1.0
+
+schema_version: "1.0"
+
+runs:
+  - run_id: "MBCA-SAN-001"
+    date: "2026-03-25"
+    commit: "e901899"
+    commit_message: "feat: add orientation and vertex-color support to ResultFrame pipeline"
+    scope: "Phase A+B (Quatf, MeshData, orientations, meshes, orient ops, vertex colors)"
+    environment:
+      image: "ghcr.io/microrobotics-simulation-framework/microrobotica:base"
+      os: "Ubuntu 24.04"
+      compiler: "GCC 13.3.0"
+      openusd: "v24.08"
+      qt: "6.4.2"
+    sanitizers:
+      cmake_cxx_flags: "-fsanitize=address,undefined -fno-omit-frame-pointer -fno-sanitize-recover=all"
+      cmake_exe_linker_flags: "-fsanitize=address,undefined"
+      asan_options: "detect_leaks=1:detect_stack_use_after_return=1"
+      ubsan_options: "print_stacktrace=1:halt_on_error=1"
+      lsan_suppressions: "lsan.suppressions"
+    results:
+      test_cases: 41
+      assertions: 1268
+      passed: 41
+      failed: 0
+      asan_errors: 0
+      ubsan_errors: 0
+      leak_reports_after_suppressions: 0
+      exit_code: 0
+    suppressed_leaks:
+      - source: "libpython (CPython shutdown-order)"
+        count: 44
+        bytes: 2780336
+        known: true
+      - source: "libusd_tf (TBB/USD Tf_RegistryManagerImpl singleton)"
+        count: 1
+        bytes: 1544
+        known: true
+      - source: "libusd_trace (USD trace registry)"
+        count: 5
+        bytes: 1320
+        known: true
+      - source: "libusd_sdf (USD Sdf identity registry)"
+        count: 57
+        bytes: 1584
+        known: true
+    verification_benchmarks_exercised:
+      - "MBCA-VER-001"
+      - "MBCA-VER-002"
+      - "MBCA-VER-003"
+      - "MBCA-VER-004"
+      - "MBCA-VER-005"
+      - "MBCA-VER-006"
+      - "MBCA-VER-007"
+      - "MBCA-VER-008"
+    assertion_count_note: >
+      The local non-USD run reported 1,228 assertions; the Docker USD run reported
+      1,268 assertions. The difference of 40 assertions is exactly accounted for by
+      the 8 verification tests (VER-001 through VER-008) executing their USD #ifdef
+      code paths (with REQUIRE assertions) instead of the #else branches (which
+      contain only a WARN and zero assertions). Non-verification tests contribute
+      226 assertions in both environments — identical. No assertions were added or
+      removed between the two runs; the difference is purely USD availability.
+    ci_note: >
+      GitHub Actions minutes were temporarily unavailable at time of this run.
+      This local Docker run replicates the CI asan-ubsan job environment exactly
+      (same base image, same CMake preset, same suppression file). This run serves
+      as the verification gate for Phase A+B in lieu of CI.
+    signed_off_by: "Nick (project maintainer)"

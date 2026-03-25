@@ -20,6 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `MBCA-VER-007`: Orientation values map exactly to xformOp:orient (DataIntegrity) — requires USD
 - `MBCA-VER-008`: MeshData vertexColors map exactly to primvars:displayColor (DataIntegrity) — requires USD
+- `MBCA-SAN-001`: ASan+UBSan clean on commit `e901899` — 41 tests, 1268 assertions, 0 errors (local Docker, CI unavailable — see `docs/validation/sanitizer_runs.yaml`)
 
 ## [0.1.0] — 2026-03-17
 
