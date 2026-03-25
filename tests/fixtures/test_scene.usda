@@ -10,6 +10,17 @@ def Xform "World"
     def Xform "Robot"
     {
         double3 xformOp:translate = (0, 0, 0)
-        uniform token[] xformOpOrder = ["xformOp:translate"]
+        quatd xformOp:orient = (1, 0, 0, 0)
+        uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient"]
+    }
+
+    def Mesh "FlowField"
+    {
+        int[] faceVertexCounts = [4]
+        int[] faceVertexIndices = [0, 1, 2, 3]
+        point3f[] points = [(0, 0, 0), (1, 0, 0), (1, 1, 0), (0, 1, 0)]
+        color3f[] primvars:displayColor = [(0, 0, 0), (0, 0, 0), (0, 0, 0), (0, 0, 0)] (
+            interpolation = "vertex"
+        )
     }
 }

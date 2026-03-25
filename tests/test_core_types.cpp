@@ -42,6 +42,90 @@ TEST_CASE("ResultFrame: JSON roundtrip", "[unit][core]") {
     REQUIRE(restored.scalars.at("step") == 42.0);
 }
 
+TEST_CASE("Quatf: construct and populate", "[unit][core]") {
+    Quatf q{0.707, 0.0, 0.0, 0.707};
+    REQUIRE(q.w == 0.707);
+    REQUIRE(q.x == 0.0);
+    REQUIRE(q.y == 0.0);
+    REQUIRE(q.z == 0.707);
+}
+
+TEST_CASE("Quatf: default is identity", "[unit][core]") {
+    Quatf q;
+    REQUIRE(q.w == 1.0);
+    REQUIRE(q.x == 0.0);
+    REQUIRE(q.y == 0.0);
+    REQUIRE(q.z == 0.0);
+}
+
+TEST_CASE("Quatf: JSON roundtrip", "[unit][core]") {
+    Quatf original{0.5, 0.5, 0.5, 0.5};
+    nlohmann::json j = original;
+    auto restored = j.get<Quatf>();
+    REQUIRE(restored.w == original.w);
+    REQUIRE(restored.x == original.x);
+    REQUIRE(restored.y == original.y);
+    REQUIRE(restored.z == original.z);
+}
+
+TEST_CASE("MeshData: JSON roundtrip", "[unit][core]") {
+    MeshData md;
+    md.vertexColors = {{1.0, 0.0, 0.0}, {0.0, 1.0, 0.0}, {0.0, 0.0, 1.0}};
+
+    nlohmann::json j = md;
+    auto restored = j.get<MeshData>();
+    REQUIRE(restored.vertexColors.size() == 3);
+    REQUIRE(restored.vertexColors[0].x == 1.0);
+    REQUIRE(restored.vertexColors[1].y == 1.0);
+    REQUIRE(restored.vertexColors[2].z == 1.0);
+}
+
+TEST_CASE("ResultFrame: construct with orientations and meshes", "[unit][core]") {
+    ResultFrame frame;
+    frame.simTime = 1.0;
+    frame.positions["robot"] = Vec3f{1.0, 2.0, 3.0};
+    frame.orientations["robot"] = Quatf{0.707, 0.0, 0.0, 0.707};
+    frame.scalars["frequency"] = 60.0;
+    frame.meshes["flow"] = MeshData{{{1.0, 0.0, 0.0}, {0.0, 1.0, 0.0}}};
+
+    REQUIRE(frame.orientations.at("robot").w == 0.707);
+    REQUIRE(frame.meshes.at("flow").vertexColors.size() == 2);
+}
+
+TEST_CASE("ResultFrame: JSON roundtrip with all fields", "[unit][core]") {
+    ResultFrame original;
+    original.simTime = 3.0;
+    original.positions["robot"] = Vec3f{1.0, 2.0, 3.0};
+    original.orientations["robot"] = Quatf{0.5, 0.5, 0.5, 0.5};
+    original.scalars["step"] = 10.0;
+    original.meshes["flow"] = MeshData{{{1.0, 0.0, 0.0}, {0.0, 1.0, 0.0}}};
+
+    nlohmann::json j = original;
+    auto restored = j.get<ResultFrame>();
+
+    REQUIRE(restored.simTime == 3.0);
+    REQUIRE(restored.positions.at("robot").x == 1.0);
+    REQUIRE(restored.orientations.at("robot").w == 0.5);
+    REQUIRE(restored.scalars.at("step") == 10.0);
+    REQUIRE(restored.meshes.at("flow").vertexColors.size() == 2);
+}
+
+TEST_CASE("ResultFrame: backward compat — missing orientations and meshes", "[unit][core]") {
+    // Simulate a JSON frame from an old sender without orientations/meshes
+    nlohmann::json j = {
+        {"simTime", 1.5},
+        {"positions", {{"robot", {{"x", 1.0}, {"y", 2.0}, {"z", 3.0}}}}},
+        {"scalars", {{"freq", 60.0}}}
+    };
+
+    auto frame = j.get<ResultFrame>();
+    REQUIRE(frame.simTime == 1.5);
+    REQUIRE(frame.positions.at("robot").x == 1.0);
+    REQUIRE(frame.orientations.empty());
+    REQUIRE(frame.meshes.empty());
+    REQUIRE(frame.scalars.at("freq") == 60.0);
+}
+
 TEST_CASE("PhysicsConfig: JSON roundtrip", "[unit][core]") {
     PhysicsConfig config;
     config.actorToPrimPath["robot"] = "/World/Robot";

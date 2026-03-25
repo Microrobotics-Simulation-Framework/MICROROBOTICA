@@ -31,9 +31,10 @@ TEST_CASE("StubPhysicsProcess: launch and receive 10 frames", "[unit][stub-physi
         REQUIRE(frame->simTime > lastTime);
         lastTime = frame->simTime;
         REQUIRE(frame->positions.count("robot") == 1);
+        REQUIRE(frame->orientations.count("robot") == 1);
         REQUIRE(frame->scalars.count("step_out_frequency") == 1);
 
-        // Verify no NaN or Inf
+        // Verify no NaN or Inf in positions
         const auto& pos = frame->positions.at("robot");
         REQUIRE_FALSE(std::isnan(pos.x));
         REQUIRE_FALSE(std::isnan(pos.y));
@@ -41,6 +42,13 @@ TEST_CASE("StubPhysicsProcess: launch and receive 10 frames", "[unit][stub-physi
         REQUIRE_FALSE(std::isinf(pos.x));
         REQUIRE_FALSE(std::isinf(pos.y));
         REQUIRE_FALSE(std::isinf(pos.z));
+
+        // Verify no NaN or Inf in orientations
+        const auto& q = frame->orientations.at("robot");
+        REQUIRE_FALSE(std::isnan(q.w));
+        REQUIRE_FALSE(std::isnan(q.x));
+        REQUIRE_FALSE(std::isnan(q.y));
+        REQUIRE_FALSE(std::isnan(q.z));
     }
 
     proc.stop();

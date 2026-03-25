@@ -24,12 +24,14 @@ public:
             .stability         = core::StabilityLevel::Experimental,
             .description       = "Stub physics process producing synthetic sinusoidal data for testing.",
             .preconditions     = {},
-            .postconditions    = {"Produces ResultFrames at ~60 Hz with monotonic simTime"},
+            .postconditions    = {"Produces ResultFrames at ~60 Hz with monotonic simTime",
+                                  "Each frame includes position and orientation per actor"},
             .invariants        = {},
             .design_rationale  = "Allows end-to-end testing of the simulation pipeline "
                                  "without a real physics backend.",
             .assumptions       = {"No real physics computation; data is purely synthetic"},
             .limitations       = {"Positions follow sin(t) — not physically meaningful",
+                                  "Orientations rotate around Z at 1 rad/s — not physically meaningful",
                                   "No parameter handling (sendParameters is a no-op)"},
             .validated_regimes = {},
             .hazard_hints      = {

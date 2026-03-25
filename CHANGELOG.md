@@ -5,6 +5,22 @@ All notable changes to MICROBOTICA will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **ResultFrame**: `Quatf` struct and `orientations` map for quaternion orientation data (Phase A)
+- **ResultFrame**: `MeshData` struct and `meshes` map for per-vertex color data (Phase B)
+- **ResultsApplicator**: `xformOp:orient` writing from `ResultFrame::orientations` (MBCA-COMP-011 v1.1.0)
+- **ResultsApplicator**: `primvars:displayColor` writing from `ResultFrame::meshes` with vertex count validation
+- **StubPhysicsProcess**: Emits rotating quaternion orientation per actor (Z-axis rotation at 1 rad/s)
+- **Test fixture**: `test_scene.usda` extended with orient op and FlowField mesh prim
+
+### Verification
+
+- `MBCA-VER-007`: Orientation values map exactly to xformOp:orient (DataIntegrity) — requires USD
+- `MBCA-VER-008`: MeshData vertexColors map exactly to primvars:displayColor (DataIntegrity) — requires USD
+
 ## [0.1.0] — 2026-03-17
 
 ### Added

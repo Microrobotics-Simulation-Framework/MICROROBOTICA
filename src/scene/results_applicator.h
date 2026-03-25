@@ -17,8 +17,9 @@ namespace microbotica::scene {
 ///
 /// MBCA-COMP-011
 ///
-/// Maps ResultFrame::positions to xformOp:translate and scalars
-/// to custom attributes on the results layer.
+/// Maps ResultFrame::positions to xformOp:translate, orientations to
+/// xformOp:orient, meshes to primvars:displayColor, and scalars to
+/// custom attributes on the results layer.
 class ResultsApplicator {
 public:
 #ifdef MICROBOTICA_HAS_USD
@@ -28,12 +29,14 @@ public:
     static const core::ComponentMeta& interfaceMeta() {
         static const core::ComponentMeta meta{
             .component_id      = "MBCA-COMP-011",
-            .component_version = "1.0.0",
+            .component_version = "1.1.0",
             .stability         = core::StabilityLevel::Experimental,
-            .description       = "Maps ResultFrame data to USD results layer xformOp:translate.",
+            .description       = "Maps ResultFrame data to USD results layer (translate, orient, vertex colors).",
             .preconditions     = {"Results layer exists and is writable",
                                   "Stage contains the prim paths referenced in PhysicsConfig"},
             .postconditions    = {"Position values are written to xformOp:translate",
+                                  "Orientation values are written to xformOp:orient",
+                                  "Mesh vertex colors are written to primvars:displayColor",
                                   "Unknown prim paths trigger a warning log"},
             .invariants        = {"Base layer is never written to",
                                   "Override layer is never written to"},

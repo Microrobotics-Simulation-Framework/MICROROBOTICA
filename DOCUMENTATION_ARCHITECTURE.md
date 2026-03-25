@@ -1195,6 +1195,8 @@ The following verification benchmarks are defined for Phase 0. These are archite
 | `MBCA-VER-004` | `MBCA-COMP-011` | DataIntegrity | ResultsApplicator logs a warning for unknown prim paths (not silent) |
 | `MBCA-VER-005` | `MBCA-COMP-040` | UIBehavior | `microrobotica.scene().set_attribute()` writes to override layer only |
 | `MBCA-VER-006` | `MBCA-COMP-001` | Regression | StubPhysicsProcess produces monotonically increasing simTime |
+| `MBCA-VER-007` | `MBCA-COMP-011` | DataIntegrity | Orientation values map exactly to USD `xformOp:orient` |
+| `MBCA-VER-008` | `MBCA-COMP-011` | DataIntegrity | MeshData vertexColors map exactly to `primvars:displayColor` |
 
 **Note on MBCA-VER-004**: This benchmark documents the *desired* behaviour that fixes `MBCA-ANO-001` — the verification test should currently fail until the fix is implemented. This is intentional: verification tests are written against the correct behaviour, not the current behaviour. A failing MBCA-VER-004 in CI is expected until the ResultsApplicator logging fix lands. This benchmark is the `resolution_verification` target for `MBCA-ANO-001`. When `MBCA-VER-004` passes in CI, `MBCA-ANO-001` may be updated to `resolution_status: "fixed"` with `resolution_verification: "MBCA-VER-004"`.
 
@@ -1615,6 +1617,8 @@ The `test_layer_stack.cpp` verification test suite (seed exists in Phase 0) must
 | ResultFrame position maps exactly to USD xformOp:translate | Data integrity through the rendering pipeline | MBCA-VER-003 |
 | ResultsApplicator logs warning for unknown prim paths | No silent data loss (fixes MBCA-ANO-001) | MBCA-VER-004 |
 | `set_attribute()` writes only to override layer | Scripting cannot contaminate base or results | MBCA-VER-005 |
+| Orientation values map exactly to USD xformOp:orient | Orientation data integrity through the rendering pipeline | MBCA-VER-007 |
+| MeshData vertexColors map exactly to primvars:displayColor | Vertex-color data integrity through the rendering pipeline | MBCA-VER-008 |
 
 ### Component Guide Entry
 
@@ -1824,6 +1828,8 @@ Summary of [N] known anomalies:
 | ResultsApplicator | MBCA-VER-004 | Warning logged for unknown prim paths | FAIL (expected — see MBCA-ANO-001) |
 | MicrobotaModule | MBCA-VER-005 | set_attribute() writes to override layer only | PASS |
 | StubPhysicsProcess | MBCA-VER-006 | simTime monotonically increasing | PASS |
+| ResultsApplicator | MBCA-VER-007 | Orientation values map exactly to xformOp:orient | PASS |
+| ResultsApplicator | MBCA-VER-008 | MeshData vertexColors map exactly to primvars:displayColor | PASS |
 
 ## 5. IEC 62304 Lifecycle Activities Performed
 

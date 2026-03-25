@@ -62,12 +62,21 @@ void StubPhysicsProcess::workerLoop() {
         core::ResultFrame frame;
         frame.simTime = t;
 
-        // Generate sinusoidal position for each mapped actor
+        // Generate sinusoidal position and rotating orientation for each mapped actor
         for (const auto& [actor, primPath] : config_.actorToPrimPath) {
             frame.positions[actor] = core::Vec3f{
                 std::sin(t * 2.0),
                 std::cos(t * 2.0),
                 std::sin(t * 0.5) * 0.1
+            };
+
+            // Rotation around Z axis: q = (cos(θ/2), 0, 0, sin(θ/2))
+            double angle = t * 1.0; // 1 rad/s
+            frame.orientations[actor] = core::Quatf{
+                std::cos(angle / 2.0),
+                0.0,
+                0.0,
+                std::sin(angle / 2.0)
             };
         }
 
@@ -77,6 +86,14 @@ void StubPhysicsProcess::workerLoop() {
                 std::sin(t * 2.0),
                 std::cos(t * 2.0),
                 std::sin(t * 0.5) * 0.1
+            };
+
+            double angle = t * 1.0;
+            frame.orientations["robot"] = core::Quatf{
+                std::cos(angle / 2.0),
+                0.0,
+                0.0,
+                std::sin(angle / 2.0)
             };
         }
 
