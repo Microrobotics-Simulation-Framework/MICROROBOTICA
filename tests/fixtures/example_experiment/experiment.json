@@ -1,0 +1,94 @@
+{
+  "schema_version": "1.0",
+  "mime_version_min": "0.2.0",
+  "physics": {
+    "setup": "physics/setup.py",
+    "params": "physics/params.py"
+  },
+  "control": {
+    "controller": "control/controller.py"
+  },
+  "scene": {
+    "world": "scene/world.usda",
+    "actors": {
+      "rigid_body": {
+        "prim_path": "/World/Actors/UMR",
+        "prim_type": "Capsule",
+        "state_fields": [
+          "position",
+          "orientation"
+        ]
+      },
+      "ext_field": {
+        "prim_path": "/World/Actors/FieldArrow",
+        "prim_type": "Cone",
+        "state_fields": [
+          "field_vector"
+        ]
+      }
+    },
+    "environment": {
+      "vessel": {
+        "prim_path": "/World/Environment/Vessel",
+        "source": "parametric",
+        "geometry": {
+          "type": "cylinder",
+          "radius": 0.0047,
+          "length": 0.02,
+          "axis": "Z"
+        }
+      }
+    },
+    "analysis": {
+      "flow_field": {
+        "prim_path": "/World/Analysis/FlowField",
+        "type": "mesh_cross_section",
+        "resolution": [
+          64,
+          64
+        ]
+      }
+    }
+  },
+  "cloud": {
+    "job_config": "jobs/h100.yaml",
+    "cluster_name": "mime-experiment"
+  },
+  "sweep": {
+    "strategy": "grid",
+    "parameters": {
+      "CONFINEMENT_RATIO": [
+        0.15,
+        0.22,
+        0.3,
+        0.4
+      ]
+    }
+  },
+  "metadata": {
+    "title": "UMR confinement in cylindrical channel",
+    "description": "Characterises step-out frequency as a function of confinement ratio for a helical UMR in a cylindrical Poiseuille flow.\n",
+    "authors": [
+      {
+        "name": "Nick Zot",
+        "orcid": "0000-0002-XXXX-XXXX"
+      }
+    ],
+    "license": "CC-BY-4.0",
+    "tags": [
+      "umr",
+      "confinement",
+      "step-out",
+      "lbm",
+      "poiseuille"
+    ],
+    "doi": null,
+    "benchmarks": [
+      {
+        "benchmark_id": "B1",
+        "claim": "Step-out frequency within +/-5% of regularised Stokeslet reference",
+        "result": null
+      }
+    ]
+  }
+}

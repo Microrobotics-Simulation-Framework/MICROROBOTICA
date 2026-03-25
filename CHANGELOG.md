@@ -31,11 +31,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **MimeStubPhysicsProcess** (MBCA-IMPL-012): Stub emitting UMR confinement demo data (position, orientation, vertex colors) at ~2 Hz
 - **SshTunnel** (MBCA-COMP-051): QProcess-based SSH tunnel manager for Cloud mode with `tunnelDied` signal for preemption detection
 - **UMR confinement demo scene**: `umr_confinement.usda` with `/World/Actors/UMR`, `/World/Actors/FieldArrow`, `/World/Environment/Vessel`, `/World/Analysis/FlowField`
+- **ExperimentLoader** (MBCA-COMP-060): Loads experiment.json (derived from experiment.yaml), validates schema v1.0, rejects absolute paths, builds PhysicsConfig::actorToPrimPath
+- **ExperimentRunner** (MBCA-COMP-061): QProcess-based MIME subprocess launcher with crash detection
+- **CloudJobLauncher** (MBCA-COMP-062): SkyPilot job launcher using existing jobs/*.yaml format
+- **Connection dialog**: Three-button "No MIME detected" QMessageBox (Launch locally / Enter endpoint / Launch on cloud)
+- **`experiment.yaml` schema v1.0**: Physics/control/scene/cloud/sweep/metadata sections; `mime_version_min` at top level; `scripts/yaml_to_json.py` for C++ consumption
+- **Example experiment fixture**: `tests/fixtures/example_experiment/` with full directory structure
 
 ### Verification
 
 - `MBCA-VER-009`: ResultFrame JSON survives ZMQ PUB/SUB transport without corruption (ProtocolFidelity) — requires ZMQ
 - `MBCA-VER-010`: MimeStubPhysicsProcess data arrives at USD prims via demo scene pipeline (DataIntegrity) — requires USD
+- `MBCA-SAN-004`: ASan+UBSan clean — 77 tests, 1568 assertions, 0 errors (local Docker, CI unavailable — see `docs/validation/sanitizer_runs.yaml`)
 - `MBCA-SAN-003`: ASan+UBSan clean — 65 tests, 1523 assertions, 0 errors (local Docker, CI unavailable — see `docs/validation/sanitizer_runs.yaml`)
 - `MBCA-SAN-002`: ASan+UBSan clean — 60 tests, 1324 assertions, 0 errors (local Docker, CI unavailable — see `docs/validation/sanitizer_runs.yaml`)
 

@@ -96,6 +96,10 @@ target_sources(microbotica PRIVATE
     src/connection/ssh_tunnel.cpp
     src/mime_adapter/mime_physics_process.cpp
     src/mime_adapter/mime_stub_physics_process.cpp
+    src/experiment/experiment_loader.cpp
+    src/experiment/experiment_runner.cpp
+    src/experiment/cloud_job_launcher.cpp
+    src/experiment/connection_dialog.cpp
     src/scene/scene_manager.cpp
     src/scene/results_applicator.cpp
     src/scene/prim_selection.cpp

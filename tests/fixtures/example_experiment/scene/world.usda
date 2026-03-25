@@ -1,0 +1,84 @@
+#usda 1.0
+(
+    defaultPrim = "World"
+    metersPerUnit = 1.0
+    upAxis = "Z"
+    doc = """UMR confinement demo scene for MICROBOTICA Phase D integration testing.
+    Hierarchy follows the /World/Actors/, /World/Environment/, /World/Analysis/ convention."""
+)
+
+def Xform "World"
+{
+    def Scope "Actors"
+    {
+        def Capsule "UMR" (
+            customData = {
+                string mimeNodeName = "rigid_body"
+            }
+        )
+        {
+            double height = 0.001
+            double radius = 0.0003
+            token axis = "Z"
+            double3 xformOp:translate = (0, 0, 0)
+            quatd xformOp:orient = (1, 0, 0, 0)
+            uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient"]
+        }
+
+        def Cone "FieldArrow" (
+            customData = {
+                string mimeNodeName = "ext_field"
+            }
+        )
+        {
+            double height = 0.005
+            double radius = 0.001
+            token axis = "Z"
+            double3 xformOp:translate = (0, 0, 0)
+            quatd xformOp:orient = (1, 0, 0, 0)
+            uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient"]
+        }
+    }
+
+    def Scope "Environment"
+    {
+        def Cylinder "Vessel" (
+            customData = {
+                string mimeRole = "physics_boundary"
+                string mimeBoundaryType = "bounce_back"
+            }
+        )
+        {
+            double height = 0.02
+            double radius = 0.0047
+            token axis = "Z"
+            double3 xformOp:translate = (0, 0, 0)
+            uniform token[] xformOpOrder = ["xformOp:translate"]
+        }
+    }
+
+    def Scope "Analysis"
+    {
+        def Mesh "FlowField" (
+            customData = {
+                string mimeRole = "visualization"
+                string mimeVizType = "mesh_cross_section"
+            }
+        )
+        {
+            int[] faceVertexCounts = [4]
+            int[] faceVertexIndices = [0, 1, 2, 3]
+            point3f[] points = [(-0.0047, -0.0047, 0), (0.0047, -0.0047, 0), (0.0047, 0.0047, 0), (-0.0047, 0.0047, 0)]
+            color3f[] primvars:displayColor = [(0, 0, 1), (0, 0, 1), (0, 0, 1), (0, 0, 1)] (
+                interpolation = "vertex"
+            )
+        }
+    }
+
+    def Camera "Camera"
+    {
+        float focalLength = 50
+        double3 xformOp:translate = (0.02, -0.02, 0.015)
+        uniform token[] xformOpOrder = ["xformOp:translate"]
+    }
+}
