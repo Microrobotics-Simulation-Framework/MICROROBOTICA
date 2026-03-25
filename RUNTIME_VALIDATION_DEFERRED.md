@@ -50,6 +50,8 @@ This document consolidates information previously scattered across individual MB
 
 ## ConnectionDialog (connection_dialog.h/.cpp)
 
+Intentionally unregistered — no MBCA-COMP ID. This is a pure UI helper function (a `QMessageBox` with custom buttons), not a component with physics, IPC, or data-integrity logic. It has no ComponentMeta, no preconditions/postconditions, and no verification benchmark. It is listed here only because it cannot be exercised headlessly.
+
 | Field | Value |
 |---|---|
 | **Sanitizer record** | MBCA-SAN-004 |
