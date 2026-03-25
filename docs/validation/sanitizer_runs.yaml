@@ -141,3 +141,73 @@ runs:
       (same base image, same CMake preset, same suppression file). This run serves
       as the verification gate for Phase C in lieu of CI.
     signed_off_by: "Nick (project maintainer)"
+
+  - run_id: "MBCA-SAN-003"
+    date: "2026-03-25"
+    commit: "26b8914"
+    commit_message: "feat: add MimeStubPhysicsProcess, SSH tunnel, UMR demo scene, e2e test"
+    scope: "Phase D (MimeStubPhysicsProcess, SshTunnel, UMR confinement demo, end-to-end verification)"
+    environment:
+      image: "ghcr.io/microrobotics-simulation-framework/microrobotica:base"
+      os: "Ubuntu 24.04"
+      compiler: "GCC 13.3.0"
+      openusd: "v24.08"
+      qt: "6.4.2"
+      zeromq: "cppzmq via CMake config"
+    sanitizers:
+      cmake_cxx_flags: "-fsanitize=address,undefined -fno-omit-frame-pointer -fno-sanitize-recover=all"
+      cmake_exe_linker_flags: "-fsanitize=address,undefined"
+      asan_options: "detect_leaks=1:detect_stack_use_after_return=1"
+      ubsan_options: "print_stacktrace=1:halt_on_error=1"
+      lsan_suppressions: "lsan.suppressions"
+    results:
+      test_cases: 65
+      assertions: 1523
+      passed: 65
+      failed: 0
+      asan_errors: 0
+      ubsan_errors: 0
+      leak_reports_after_suppressions: 0
+      exit_code: 0
+    suppressed_leaks:
+      - source: "libpython (CPython shutdown-order)"
+        count: 44
+        bytes: 2780336
+        known: true
+      - source: "libusd_tf (TBB/USD Tf_RegistryManagerImpl singleton)"
+        count: 1
+        bytes: 1544
+        known: true
+      - source: "libusd_trace (USD trace registry)"
+        count: 5
+        bytes: 1320
+        known: true
+      - source: "libusd_sdf (USD Sdf identity registry)"
+        count: 75
+        bytes: 2016
+        known: true
+    verification_benchmarks_exercised:
+      - "MBCA-VER-001"
+      - "MBCA-VER-002"
+      - "MBCA-VER-003"
+      - "MBCA-VER-004"
+      - "MBCA-VER-005"
+      - "MBCA-VER-006"
+      - "MBCA-VER-007"
+      - "MBCA-VER-008"
+      - "MBCA-VER-009"
+      - "MBCA-VER-010"
+    assertion_count_note: >
+      Local run (ZMQ available, no USD): 65 tests, 1,452 assertions. Docker run
+      (ZMQ + USD both available): 65 tests, 1,523 assertions. The difference of
+      71 assertions matches USD #ifdef paths executing in VER-001 through VER-008
+      and VER-010 (the new end-to-end demo scene test). VER-010 exercises the
+      full MimeStubPhysicsProcess -> ResultsApplicator -> USD pipeline with the
+      umr_confinement.usda demo scene, verifying position, orientation, and
+      vertex-color data arrives at the correct USD prims.
+    ci_note: >
+      GitHub Actions minutes were temporarily unavailable at time of this run.
+      This local Docker run replicates the CI asan-ubsan job environment exactly
+      (same base image, same CMake preset, same suppression file). This run serves
+      as the verification gate for Phase D in lieu of CI.
+    signed_off_by: "Nick (project maintainer)"

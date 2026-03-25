@@ -28,10 +28,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **ConnectionConfig**: Mode enum (Local/Manual/Cloud) with endpoint, cluster name, and port configuration
 - **`scripts/sky_resolve.py`**: SkyPilot Python API → JSON resolver for Cloud mode (single cluster + `--list`)
 - **ZMQ IPC protocol**: REQ/REP (commands) + PUB/SUB (ResultFrame JSON stream) with 10s heartbeat timeout
+- **MimeStubPhysicsProcess** (MBCA-IMPL-012): Stub emitting UMR confinement demo data (position, orientation, vertex colors) at ~2 Hz
+- **SshTunnel** (MBCA-COMP-051): QProcess-based SSH tunnel manager for Cloud mode with `tunnelDied` signal for preemption detection
+- **UMR confinement demo scene**: `umr_confinement.usda` with `/World/Actors/UMR`, `/World/Actors/FieldArrow`, `/World/Environment/Vessel`, `/World/Analysis/FlowField`
 
 ### Verification
 
 - `MBCA-VER-009`: ResultFrame JSON survives ZMQ PUB/SUB transport without corruption (ProtocolFidelity) — requires ZMQ
+- `MBCA-VER-010`: MimeStubPhysicsProcess data arrives at USD prims via demo scene pipeline (DataIntegrity) — requires USD
+- `MBCA-SAN-003`: ASan+UBSan clean — 65 tests, 1523 assertions, 0 errors (local Docker, CI unavailable — see `docs/validation/sanitizer_runs.yaml`)
 - `MBCA-SAN-002`: ASan+UBSan clean — 60 tests, 1324 assertions, 0 errors (local Docker, CI unavailable — see `docs/validation/sanitizer_runs.yaml`)
 
 ## [0.1.0] — 2026-03-17

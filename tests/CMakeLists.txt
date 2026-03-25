@@ -6,9 +6,12 @@ add_executable(microbotica_tests
     test_integration_wiring.cpp
     test_scripting_engine.cpp
     test_mime_adapter.cpp
+    test_mime_stub.cpp
     ${CMAKE_SOURCE_DIR}/src/stubs/stub_physics_process.cpp
     ${CMAKE_SOURCE_DIR}/src/connection/connection_manager.cpp
+    ${CMAKE_SOURCE_DIR}/src/connection/ssh_tunnel.cpp
     ${CMAKE_SOURCE_DIR}/src/mime_adapter/mime_physics_process.cpp
+    ${CMAKE_SOURCE_DIR}/src/mime_adapter/mime_stub_physics_process.cpp
     ${CMAKE_SOURCE_DIR}/src/scene/scene_manager.cpp
     ${CMAKE_SOURCE_DIR}/src/scene/results_applicator.cpp
     ${CMAKE_SOURCE_DIR}/src/simulation/simulation_controller.cpp
@@ -19,6 +22,7 @@ add_executable(microbotica_tests
     verification/test_stub_regression.cpp
     verification/test_scripting_api.cpp
     verification/test_zmq_protocol.cpp
+    verification/test_e2e_mime_stub.cpp
 )
 
 target_include_directories(microbotica_tests PRIVATE
