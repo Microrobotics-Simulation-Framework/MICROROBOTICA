@@ -5,6 +5,7 @@
 
 #include <QPainter>
 #include <QOpenGLFunctions>
+#include <QSurfaceFormat>
 #include <spdlog/spdlog.h>
 
 #ifdef MICROBOTICA_HAS_USD
@@ -21,6 +22,18 @@ LocalViewport::LocalViewport(QWidget* parent)
     : QOpenGLWidget(parent)
 {
     MBCA_EXPERIMENTAL_WARN("LocalViewport");
+
+    // Request a Compatibility Profile context. USD's HgiGL (Storm) uses
+    // GL state (glPushAttrib etc.) that only exists in Compatibility Profile.
+    // NVIDIA 535.x exposes GL 4.6 in Compat but only 4.5 in Core Profile.
+    // Without this, Storm spams "invalid enum" errors on every frame.
+    QSurfaceFormat fmt;
+    fmt.setVersion(4, 6);
+    fmt.setProfile(QSurfaceFormat::CompatibilityProfile);
+    fmt.setDepthBufferSize(24);
+    fmt.setStencilBufferSize(8);
+    fmt.setSamples(4);
+    setFormat(fmt);
 
     cameraController_ = new CameraController(this);
     installEventFilter(cameraController_);
@@ -63,21 +76,25 @@ void LocalViewport::initializeGL()
         const char* vendor = reinterpret_cast<const char*>(f->glGetString(GL_VENDOR));
         const char* renderer = reinterpret_cast<const char*>(f->glGetString(GL_RENDERER));
         const char* version = reinterpret_cast<const char*>(f->glGetString(GL_VERSION));
-        spdlog::info("LocalViewport GL: vendor={}, renderer={}, version={}",
-                     vendor ? vendor : "unknown",
-                     renderer ? renderer : "unknown",
-                     version ? version : "unknown");
-
-        // Storm (HgiGL) requires OpenGL 4.6. Check the actual GL version.
-        // If < 4.6, mark as failed immediately — don't even try Render(),
-        // because HgiGL will spam GL errors every frame and may crash.
         auto fmt = ctx->format();
         int major = fmt.majorVersion();
         int minor = fmt.minorVersion();
+        const char* profile = (fmt.profile() == QSurfaceFormat::CompatibilityProfile)
+                              ? "Compatibility" : "Core";
+        spdlog::info("LocalViewport GL: vendor={}, renderer={}, version={} "
+                     "(context: {}.{} {} Profile)",
+                     vendor ? vendor : "unknown",
+                     renderer ? renderer : "unknown",
+                     version ? version : "unknown",
+                     major, minor, profile);
+
+        // Storm (HgiGL) requires OpenGL 4.6 Compatibility Profile.
+        // If < 4.6, mark as failed — don't try Render().
         if (major < 4 || (major == 4 && minor < 6)) {
-            spdlog::error("LocalViewport: GL {}.{} is below the 4.6 minimum "
-                          "required by Hydra/Storm. Falling back to Software viewport.",
-                          major, minor);
+            spdlog::error("LocalViewport: GL {}.{} {} Profile is below the "
+                          "4.6 minimum required by Hydra/Storm. "
+                          "Falling back to Software viewport.",
+                          major, minor, profile);
             renderFailed_ = true;
             Q_EMIT renderFailed();
             return;
