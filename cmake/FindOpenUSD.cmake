@@ -61,7 +61,7 @@ foreach(_lib IN LISTS _USD_CORE_LIBS)
 endforeach()
 
 # Imaging libraries (optional)
-set(_USD_IMAGING_LIBS usdImaging hd hdSt usdImagingGL)
+set(_USD_IMAGING_LIBS usdImaging hd hdSt hgi hgiGL glf usdImagingGL)
 set(OpenUSD_HAS_IMAGING TRUE)
 
 foreach(_lib IN LISTS _USD_IMAGING_LIBS)
