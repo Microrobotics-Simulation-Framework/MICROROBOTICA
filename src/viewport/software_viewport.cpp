@@ -33,9 +33,17 @@ void SoftwareViewport::setImage(const QImage& image)
     setPixmap(QPixmap::fromImage(image));
 }
 
+void SoftwareViewport::setStatusMessage(const QString& message)
+{
+    statusMessage_ = message;
+    updatePlaceholderText();
+}
+
 void SoftwareViewport::updatePlaceholderText()
 {
-    if (!stageLoaded_) {
+    if (!statusMessage_.isEmpty()) {
+        setText(statusMessage_);
+    } else if (!stageLoaded_) {
         setText(QStringLiteral("Software Viewport \u2014 No active scene"));
     } else {
         setText(QStringLiteral("Software Viewport \u2014 Scene loaded"));

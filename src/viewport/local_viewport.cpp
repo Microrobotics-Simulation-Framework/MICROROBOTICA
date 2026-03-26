@@ -5,6 +5,7 @@
 
 #include <QPainter>
 #include <QOpenGLFunctions>
+#include <spdlog/spdlog.h>
 
 #ifdef MICROBOTICA_HAS_USD
 #include <pxr/base/gf/camera.h>
@@ -55,6 +56,18 @@ void LocalViewport::initializeGL()
     QOpenGLFunctions* f = QOpenGLContext::currentContext()->functions();
     f->glClearColor(0.18f, 0.18f, 0.20f, 1.0f);
     f->glEnable(GL_DEPTH_TEST);
+
+    // Log GL diagnostics so we can tell what renderer is active
+    auto* ctx = QOpenGLContext::currentContext();
+    if (ctx && ctx->isValid()) {
+        const char* vendor = reinterpret_cast<const char*>(f->glGetString(GL_VENDOR));
+        const char* renderer = reinterpret_cast<const char*>(f->glGetString(GL_RENDERER));
+        const char* version = reinterpret_cast<const char*>(f->glGetString(GL_VERSION));
+        spdlog::info("LocalViewport GL: vendor={}, renderer={}, version={}",
+                     vendor ? vendor : "unknown",
+                     renderer ? renderer : "unknown",
+                     version ? version : "unknown");
+    }
 }
 
 void LocalViewport::paintGL()

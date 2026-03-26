@@ -78,6 +78,10 @@ private:
     LocalViewport* localViewport_ = nullptr;
     SoftwareViewport* softwareViewport_ = nullptr;
     core::RenderMode currentMode_ = core::RenderMode::Software;
+
+#ifdef MICROBOTICA_HAS_USD
+    UsdStageRefPtr pendingStage_;  ///< Cached for deferred delivery to LocalViewport
+#endif
 };
 
 } // namespace microbotica::viewport

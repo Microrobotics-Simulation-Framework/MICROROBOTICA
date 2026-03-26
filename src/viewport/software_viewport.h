@@ -27,10 +27,14 @@ public:
     /// Check whether a stage is considered loaded.
     bool isStageLoaded() const { return stageLoaded_; }
 
+    /// Display a custom status message (e.g., GL context unavailable).
+    void setStatusMessage(const QString& message);
+
 private:
     void updatePlaceholderText();
 
     bool stageLoaded_ = false;
+    QString statusMessage_;
 };
 
 } // namespace microbotica::viewport

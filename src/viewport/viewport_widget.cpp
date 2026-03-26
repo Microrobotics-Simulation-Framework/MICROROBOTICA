@@ -3,6 +3,7 @@
 #include "viewport/software_viewport.h"
 
 #include "core/stability.h"
+#include <QOpenGLContext>
 #include <spdlog/spdlog.h>
 
 namespace microbotica::viewport {
@@ -28,6 +29,7 @@ ViewportWidget::~ViewportWidget() = default;
 #ifdef MICROBOTICA_HAS_USD
 void ViewportWidget::setStage(UsdStageRefPtr stage)
 {
+    pendingStage_ = stage;
     if (localViewport_) {
         localViewport_->setStage(stage);
     }
@@ -47,15 +49,39 @@ void ViewportWidget::setRenderMode(core::RenderMode mode)
     }
 
     switch (mode) {
-    case core::RenderMode::LocalHydra:
+    case core::RenderMode::LocalHydra: {
         // Lazily create LocalViewport on first request
         if (!localViewport_) {
+            // Check for a usable OpenGL context before creating QOpenGLWidget.
+            // In Docker/headless without GPU passthrough, QOpenGLWidget creation
+            // triggers "failed to create drawable" and may crash.
+            QOpenGLContext testCtx;
+            if (!testCtx.create()) {
+                spdlog::warn("ViewportWidget: No usable OpenGL context — "
+                             "falling back to Software viewport. "
+                             "Run with GPU access (--gpus all) or Mesa "
+                             "(LIBGL_ALWAYS_SOFTWARE=1) for Hydra rendering.");
+                softwareViewport_->setStatusMessage(
+                    "Hydra/Storm unavailable — no OpenGL context.\n"
+                    "Run Docker with --gpus all or set LIBGL_ALWAYS_SOFTWARE=1");
+                // Stay on Software mode
+                return;
+            }
+
             localViewport_ = new LocalViewport(this);
             addWidget(localViewport_);
             spdlog::info("ViewportWidget: LocalViewport created on demand");
+
+#ifdef MICROBOTICA_HAS_USD
+            // Forward any stage that was set before LocalViewport existed
+            if (pendingStage_) {
+                localViewport_->setStage(pendingStage_);
+            }
+#endif
         }
         setCurrentWidget(localViewport_);
         break;
+    }
     case core::RenderMode::Software:
     case core::RenderMode::CloudStream:
         setCurrentWidget(softwareViewport_);
@@ -63,7 +89,7 @@ void ViewportWidget::setRenderMode(core::RenderMode mode)
     }
 
     currentMode_ = mode;
-    renderModeChanged(mode);
+    Q_EMIT renderModeChanged(mode);
 }
 
 } // namespace microbotica::viewport
