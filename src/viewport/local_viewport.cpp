@@ -67,6 +67,21 @@ void LocalViewport::initializeGL()
                      vendor ? vendor : "unknown",
                      renderer ? renderer : "unknown",
                      version ? version : "unknown");
+
+        // Storm (HgiGL) requires OpenGL 4.6. Check the actual GL version.
+        // If < 4.6, mark as failed immediately — don't even try Render(),
+        // because HgiGL will spam GL errors every frame and may crash.
+        auto fmt = ctx->format();
+        int major = fmt.majorVersion();
+        int minor = fmt.minorVersion();
+        if (major < 4 || (major == 4 && minor < 6)) {
+            spdlog::error("LocalViewport: GL {}.{} is below the 4.6 minimum "
+                          "required by Hydra/Storm. Falling back to Software viewport.",
+                          major, minor);
+            renderFailed_ = true;
+            Q_EMIT renderFailed();
+            return;
+        }
     }
 }
 
@@ -93,17 +108,7 @@ void LocalViewport::paintGL()
     }
 
     if (!engine_) {
-        // Drain any pre-existing GL errors before engine creation
-        while (f->glGetError() != GL_NO_ERROR) {}
-
         engine_ = std::make_unique<UsdImagingGLEngine>();
-
-        // Check if engine creation itself produced GL errors
-        GLenum err = f->glGetError();
-        if (err != GL_NO_ERROR) {
-            spdlog::warn("LocalViewport: GL error 0x{:04X} during UsdImagingGLEngine creation "
-                         "— Storm may not work on this GL context", err);
-        }
     }
 
     const int w = width();
@@ -148,29 +153,7 @@ void LocalViewport::paintGL()
     engine_->SetRenderViewport(GfVec4d(0, 0, w * devicePixelRatio(),
                                             h * devicePixelRatio()));
 
-    // Drain GL errors before render so we only catch new ones
-    while (f->glGetError() != GL_NO_ERROR) {}
-
     engine_->Render(stage_->GetPseudoRoot(), params);
-
-    // After the first render, check if HgiGL produced errors.
-    // USD's HgiGL uses glGetError internally and logs "Runtime Error" but
-    // doesn't throw — it just spams errors every frame. We detect this on
-    // the first frame and fall back to Software mode.
-    if (!firstRenderDone_) {
-        firstRenderDone_ = true;
-        GLenum postErr = f->glGetError();
-        if (postErr != GL_NO_ERROR) {
-            spdlog::error("LocalViewport: GL error 0x{:04X} after first Render() — "
-                          "Hydra/Storm is not compatible with this GL context. "
-                          "Falling back to Software viewport.", postErr);
-            renderFailed_ = true;
-            engine_.reset();
-            Q_EMIT renderFailed();
-            return;
-        }
-        spdlog::info("LocalViewport: First render succeeded — Hydra/Storm active");
-    }
 
 #else
     // USD not available — paint a placeholder message.

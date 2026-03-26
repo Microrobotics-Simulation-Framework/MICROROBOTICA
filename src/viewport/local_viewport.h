@@ -47,7 +47,6 @@ private:
     CameraController* cameraController_ = nullptr;
     bool usdAvailable_ = false;
     bool renderFailed_ = false;
-    bool firstRenderDone_ = false;
 
 #ifdef MICROBOTICA_HAS_USD
     UsdStageRefPtr stage_;
