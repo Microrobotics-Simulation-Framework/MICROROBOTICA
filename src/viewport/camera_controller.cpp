@@ -4,6 +4,7 @@
 
 #include <QMouseEvent>
 #include <QWheelEvent>
+#include <QKeyEvent>
 #include <QWidget>
 
 #include <algorithm>
@@ -29,7 +30,7 @@ bool CameraController::eventFilter(QObject* watched, QEvent* event)
             lastMousePos_ = me->pos();
             return true;
         }
-        if (me->button() == Qt::MiddleButton) {
+        if (me->button() == Qt::MiddleButton || me->button() == Qt::RightButton) {
             panning_ = true;
             lastMousePos_ = me->pos();
             return true;
@@ -43,7 +44,7 @@ bool CameraController::eventFilter(QObject* watched, QEvent* event)
             orbiting_ = false;
             return true;
         }
-        if (me->button() == Qt::MiddleButton && panning_) {
+        if ((me->button() == Qt::MiddleButton || me->button() == Qt::RightButton) && panning_) {
             panning_ = false;
             return true;
         }
@@ -93,6 +94,62 @@ bool CameraController::eventFilter(QObject* watched, QEvent* event)
         return true;
     }
 
+    case QEvent::KeyPress: {
+        auto* ke = static_cast<QKeyEvent*>(event);
+        const double orbitStep = 0.05;   // ~3 degrees
+        const double zoomFactor = 0.15;
+
+        switch (ke->key()) {
+        case Qt::Key_Left:
+            azimuth_ -= orbitStep;
+            break;
+        case Qt::Key_Right:
+            azimuth_ += orbitStep;
+            break;
+        case Qt::Key_Up:
+            elevation_ += orbitStep;
+            elevation_ = std::clamp(elevation_, kMinElevation, kMaxElevation);
+            break;
+        case Qt::Key_Down:
+            elevation_ -= orbitStep;
+            elevation_ = std::clamp(elevation_, kMinElevation, kMaxElevation);
+            break;
+        case Qt::Key_Plus:
+        case Qt::Key_Equal:
+            orbitDistance_ *= (1.0 - zoomFactor);
+            orbitDistance_ = std::clamp(orbitDistance_, kMinOrbitDistance, kMaxOrbitDistance);
+            break;
+        case Qt::Key_Minus:
+            orbitDistance_ *= (1.0 + zoomFactor);
+            orbitDistance_ = std::clamp(orbitDistance_, kMinOrbitDistance, kMaxOrbitDistance);
+            break;
+        case Qt::Key_Home:
+        case Qt::Key_F:
+            resetToDefault();
+            break;
+        case Qt::Key_W:
+            panY_ += orbitDistance_ * 0.05;
+            break;
+        case Qt::Key_S:
+            panY_ -= orbitDistance_ * 0.05;
+            break;
+        case Qt::Key_A:
+            panX_ -= orbitDistance_ * 0.05;
+            break;
+        case Qt::Key_D:
+            panX_ += orbitDistance_ * 0.05;
+            break;
+        default:
+            return QObject::eventFilter(watched, event);
+        }
+
+        cameraChanged();
+        if (auto* w = qobject_cast<QWidget*>(watched)) {
+            w->update();
+        }
+        return true;
+    }
+
     default:
         break;
     }
@@ -130,6 +187,15 @@ void CameraController::resetToDefault()
     orbitDistance_ = 0.02;  // 20 mm — suitable for microscale scenes
     azimuth_ = 0.0;
     elevation_ = 0.3;
+    panX_ = 0.0;
+    panY_ = 0.0;
+    cameraChanged();
+}
+
+void CameraController::frameRadius(double radius)
+{
+    // Place camera at ~3x the bounding radius for a good view
+    orbitDistance_ = std::clamp(radius * 3.0, kMinOrbitDistance, kMaxOrbitDistance);
     panX_ = 0.0;
     panY_ = 0.0;
     cameraChanged();

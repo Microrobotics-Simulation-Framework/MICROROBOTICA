@@ -46,6 +46,9 @@ public:
     /// Reset camera to default position.
     void resetToDefault();
 
+    /// Frame the scene — set orbit distance to show objects of the given radius.
+    void frameRadius(double radius);
+
     // --- Sensitivity tuning ---
 
     void setOrbitSensitivity(double s) { orbitSensitivity_ = s; }

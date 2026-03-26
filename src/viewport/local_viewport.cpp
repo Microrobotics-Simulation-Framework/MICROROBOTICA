@@ -13,7 +13,11 @@
 #include <pxr/base/gf/frustum.h>
 #include <pxr/base/gf/matrix4d.h>
 #include <pxr/base/gf/vec4d.h>
+#include <pxr/base/gf/vec4f.h>
+#include <pxr/base/gf/vec3f.h>
 #include <pxr/usd/usd/prim.h>
+#include <pxr/imaging/glf/simpleLight.h>
+#include <pxr/imaging/glf/simpleMaterial.h>
 #endif
 
 namespace microbotica::viewport {
@@ -166,6 +170,8 @@ void LocalViewport::paintGL()
     UsdImagingGLRenderParams params;
     params.frame = UsdTimeCode::Default();
     params.drawMode = UsdImagingGLDrawMode::DRAW_SHADED_SMOOTH;
+    params.enableLighting = true;
+    params.enableSceneMaterials = true;
 
     engine_->SetCameraState(
         frustum.ComputeViewMatrix(),
@@ -174,6 +180,41 @@ void LocalViewport::paintGL()
     f->glViewport(0, 0, w * devicePixelRatio(), h * devicePixelRatio());
     engine_->SetRenderViewport(GfVec4d(0, 0, w * devicePixelRatio(),
                                             h * devicePixelRatio()));
+
+    // Camera-following key light + fill light + ambient.
+    // Without this, Storm renders everything black (no lights in scene).
+    {
+        GlfSimpleLight keyLight(GfVec4f(
+            static_cast<float>(eye[0]),
+            static_cast<float>(eye[1]),
+            static_cast<float>(eye[2]),
+            1.0f));
+        keyLight.SetDiffuse(GfVec4f(0.9f, 0.9f, 0.9f, 1.0f));
+        keyLight.SetAmbient(GfVec4f(0.0f, 0.0f, 0.0f, 1.0f));
+        keyLight.SetSpecular(GfVec4f(0.4f, 0.4f, 0.4f, 1.0f));
+
+        // Fill light from opposite side (dimmer)
+        GlfSimpleLight fillLight(GfVec4f(
+            static_cast<float>(-eye[0]),
+            static_cast<float>(eye[1] + dist * 0.5),
+            static_cast<float>(-eye[2]),
+            1.0f));
+        fillLight.SetDiffuse(GfVec4f(0.3f, 0.3f, 0.35f, 1.0f));
+        fillLight.SetAmbient(GfVec4f(0.0f, 0.0f, 0.0f, 1.0f));
+        fillLight.SetSpecular(GfVec4f(0.0f, 0.0f, 0.0f, 1.0f));
+
+        GlfSimpleLightVector lights = { keyLight, fillLight };
+
+        GlfSimpleMaterial material;
+        material.SetAmbient(GfVec4f(0.1f, 0.1f, 0.1f, 1.0f));
+        material.SetDiffuse(GfVec4f(0.8f, 0.8f, 0.8f, 1.0f));
+        material.SetSpecular(GfVec4f(0.3f, 0.3f, 0.3f, 1.0f));
+        material.SetShininess(32.0f);
+
+        GfVec4f sceneAmbient(0.08f, 0.08f, 0.1f, 1.0f);
+
+        engine_->SetLightingState(lights, material, sceneAmbient);
+    }
 
     engine_->Render(stage_->GetPseudoRoot(), params);
 

@@ -80,8 +80,12 @@ void ViewportWidget::setRenderMode(core::RenderMode mode)
                 spdlog::warn("ViewportWidget: No usable GL 4.6 Compatibility context — "
                              "falling back to Software viewport");
                 softwareViewport_->setStatusMessage(
-                    "Hydra/Storm unavailable — OpenGL 4.6 not available.\n"
-                    "Run Docker with --gpus all for GPU-accelerated rendering.");
+                    "3D Viewport — Software Mode\n\n"
+                    "Hydra/Storm requires OpenGL 4.6 (GPU).\n"
+                    "Scene is loaded and simulation will run — use the\n"
+                    "scene hierarchy panel to inspect prims.\n\n"
+                    "For GPU rendering, run with:\n"
+                    "  docker run --gpus all ...");
                 return;
             }
 
@@ -94,8 +98,10 @@ void ViewportWidget::setRenderMode(core::RenderMode mode)
                     this, [this]() {
                 spdlog::warn("ViewportWidget: Hydra render failed — switching to Software viewport");
                 softwareViewport_->setStatusMessage(
-                    "Scene loaded OK. Hydra/Storm render failed (GL errors).\n"
-                    "Storm requires OpenGL 4.6. Your GL driver may be too old.\n"
+                    "3D Viewport — Software Mode\n\n"
+                    "Hydra/Storm could not initialize on this GL context.\n"
+                    "Scene is loaded and simulation will run — use the\n"
+                    "scene hierarchy panel to inspect prims.\n\n"
                     "Try updating your GPU driver or running with --gpus all.");
                 setCurrentWidget(softwareViewport_);
                 currentMode_ = core::RenderMode::Software;
