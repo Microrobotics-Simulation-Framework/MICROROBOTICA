@@ -411,9 +411,8 @@ void MainWindow::onSettings()
 
 void MainWindow::onFrameReady(const core::ResultFrame& frame)
 {
-    sceneMgr_->applyResultFrame(frame, simController_->physicsConfig());
-
-    // Trigger viewport repaint so the new transforms are rendered
+    // Frame already applied to USD stage by SimulationController::requestNextFrame().
+    // Just trigger the viewport repaint and update the status bar.
     viewportWidget_->update();
 
     const double t = frame.simTime;

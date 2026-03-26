@@ -68,19 +68,26 @@ void SimulationController::requestNextFrame() {
         return;
     }
 
-    // Non-blocking poll
-    auto frame = frameQueue_.try_pop();
-    if (frame.has_value()) {
-        // Ignore sentinel frames (simTime < 0)
-        if (frame->simTime < 0.0) return;
+    // Drain the queue to the latest frame. If multiple frames have
+    // accumulated (timer jitter, slow paintGL), skip intermediate ones
+    // to keep the viewport showing the most recent state.
+    std::optional<core::ResultFrame> latest;
+    int skipped = 0;
+    while (auto frame = frameQueue_.try_pop()) {
+        if (frame->simTime < 0.0) continue; // sentinel
+        if (latest.has_value()) skipped++;
+        latest = std::move(*frame);
+    }
 
-        currentTime_.store(frame->simTime);
-        frameCount_++;
+    if (latest.has_value()) {
+        currentTime_.store(latest->simTime);
+        frameCount_ += skipped + 1;
 
-        sceneMgr_.applyResultFrame(*frame, config_);
-        logger_->logResultFrame(frameCount_, frame->simTime, false);
+        // Apply only the latest frame to the scene
+        sceneMgr_.applyResultFrame(*latest, config_);
+        logger_->logResultFrame(frameCount_, latest->simTime, false);
 
-        frameReady(*frame);
+        Q_EMIT frameReady(*latest);
     }
 }
 
