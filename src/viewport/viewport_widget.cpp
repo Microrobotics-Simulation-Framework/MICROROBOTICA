@@ -127,4 +127,10 @@ void ViewportWidget::setRenderMode(core::RenderMode mode)
     Q_EMIT renderModeChanged(mode);
 }
 
+void ViewportWidget::setContinuousRendering(bool enabled) {
+    if (localViewport_) {
+        localViewport_->setContinuousRendering(enabled);
+    }
+}
+
 } // namespace microbotica::viewport

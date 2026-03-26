@@ -33,20 +33,25 @@ public:
     /// Access the camera controller for this viewport.
     CameraController* cameraController() const { return cameraController_; }
 
+    /// Enable/disable continuous rendering (self-driving render loop).
+    /// When enabled, paintGL() calls update() at the end of each frame,
+    /// creating a requestAnimationFrame-style loop synced to the display.
+    void setContinuousRendering(bool enabled);
+    bool isContinuousRendering() const { return continuousRendering_; }
+
 protected:
     void initializeGL() override;
     void paintGL() override;
     void resizeGL(int w, int h) override;
 
 Q_SIGNALS:
-    /// Emitted after the first Render() if HgiGL produces GL errors,
-    /// indicating Storm cannot render on this GL context.
     void renderFailed();
 
 private:
     CameraController* cameraController_ = nullptr;
     bool usdAvailable_ = false;
     bool renderFailed_ = false;
+    bool continuousRendering_ = false;
 
 #ifdef MICROBOTICA_HAS_USD
     UsdStageRefPtr stage_;

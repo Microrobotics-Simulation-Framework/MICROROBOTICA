@@ -52,6 +52,13 @@ LocalViewport::LocalViewport(QWidget* parent)
 #endif
 }
 
+void LocalViewport::setContinuousRendering(bool enabled) {
+    continuousRendering_ = enabled;
+    if (enabled) {
+        update(); // Kick off the loop
+    }
+}
+
 LocalViewport::~LocalViewport() = default;
 
 #ifdef MICROBOTICA_HAS_USD
@@ -227,6 +234,13 @@ void LocalViewport::paintGL()
                      QStringLiteral("OpenUSD not available"));
     painter.end();
 #endif
+
+    // Self-driving render loop: when continuous rendering is enabled
+    // (simulation running), schedule the next repaint immediately.
+    // This creates a vsync-paced loop instead of relying on QTimer.
+    if (continuousRendering_) {
+        update();
+    }
 }
 
 void LocalViewport::resizeGL(int w, int h)

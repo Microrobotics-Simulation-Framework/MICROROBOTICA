@@ -274,16 +274,18 @@ void MainWindow::wireSignals()
         }
     });
 
-    // Simulation state → run config panel
+    // Simulation state → run config panel + viewport continuous rendering
     connect(simController_.get(), &simulation::SimulationController::simulationStarted,
             this, [this]() {
         runConfigPanel_->setLaunchEnabled(false);
         runConfigPanel_->setConnectionStatus(tr("Running"));
+        viewportWidget_->setContinuousRendering(true);
     });
     connect(simController_.get(), &simulation::SimulationController::simulationStopped,
             this, [this]() {
         runConfigPanel_->setLaunchEnabled(true);
         runConfigPanel_->setConnectionStatus(tr("Idle"));
+        viewportWidget_->setContinuousRendering(false);
     });
 }
 

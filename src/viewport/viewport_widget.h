@@ -65,6 +65,9 @@ public:
     /// Get the current render mode.
     core::RenderMode renderMode() const { return currentMode_; }
 
+    /// Enable/disable continuous rendering on the active viewport.
+    void setContinuousRendering(bool enabled);
+
     /// Access the local (Hydra/OpenGL) viewport.
     LocalViewport* localViewport() const { return localViewport_; }
 
