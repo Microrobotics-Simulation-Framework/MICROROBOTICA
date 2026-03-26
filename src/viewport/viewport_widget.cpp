@@ -72,6 +72,18 @@ void ViewportWidget::setRenderMode(core::RenderMode mode)
             addWidget(localViewport_);
             spdlog::info("ViewportWidget: LocalViewport created on demand");
 
+            // If Hydra fails on the first frame, fall back to Software
+            connect(localViewport_, &LocalViewport::renderFailed,
+                    this, [this]() {
+                spdlog::warn("ViewportWidget: Hydra render failed — switching to Software viewport");
+                softwareViewport_->setStatusMessage(
+                    "Scene loaded OK. Hydra/Storm render failed (GL errors).\n"
+                    "Storm requires OpenGL 4.6. Your GL driver may be too old.\n"
+                    "Try updating your GPU driver or running with --gpus all.");
+                setCurrentWidget(softwareViewport_);
+                currentMode_ = core::RenderMode::Software;
+            });
+
 #ifdef MICROBOTICA_HAS_USD
             // Forward any stage that was set before LocalViewport existed
             if (pendingStage_) {

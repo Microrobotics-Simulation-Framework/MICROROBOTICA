@@ -75,14 +75,35 @@ void LocalViewport::paintGL()
     QOpenGLFunctions* f = QOpenGLContext::currentContext()->functions();
     f->glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
+    // If a previous render produced GL errors, don't keep trying — show message.
+    if (renderFailed_) {
+        QPainter painter(this);
+        painter.setPen(Qt::white);
+        painter.setFont(QFont("Sans", 12));
+        painter.drawText(rect(), Qt::AlignCenter,
+            QStringLiteral("Hydra/Storm render failed (GL errors)\n"
+                           "Scene loaded OK — viewport will switch to Software mode"));
+        painter.end();
+        return;
+    }
+
 #ifdef MICROBOTICA_HAS_USD
     if (!stage_) {
-        // No stage loaded — just show the cleared background.
         return;
     }
 
     if (!engine_) {
+        // Drain any pre-existing GL errors before engine creation
+        while (f->glGetError() != GL_NO_ERROR) {}
+
         engine_ = std::make_unique<UsdImagingGLEngine>();
+
+        // Check if engine creation itself produced GL errors
+        GLenum err = f->glGetError();
+        if (err != GL_NO_ERROR) {
+            spdlog::warn("LocalViewport: GL error 0x{:04X} during UsdImagingGLEngine creation "
+                         "— Storm may not work on this GL context", err);
+        }
     }
 
     const int w = width();
@@ -93,12 +114,10 @@ void LocalViewport::paintGL()
 
     const double aspect = static_cast<double>(w) / static_cast<double>(h);
 
-    // Build view matrix from camera controller parameters.
     const double dist = cameraController_->orbitDistance();
     const double azim = cameraController_->azimuth();
     const double elev = cameraController_->elevation();
 
-    // Camera position in spherical coordinates.
     const double cosElev = std::cos(elev);
     GfVec3d eye(dist * cosElev * std::sin(azim),
                 dist * std::sin(elev),
@@ -129,7 +148,29 @@ void LocalViewport::paintGL()
     engine_->SetRenderViewport(GfVec4d(0, 0, w * devicePixelRatio(),
                                             h * devicePixelRatio()));
 
+    // Drain GL errors before render so we only catch new ones
+    while (f->glGetError() != GL_NO_ERROR) {}
+
     engine_->Render(stage_->GetPseudoRoot(), params);
+
+    // After the first render, check if HgiGL produced errors.
+    // USD's HgiGL uses glGetError internally and logs "Runtime Error" but
+    // doesn't throw — it just spams errors every frame. We detect this on
+    // the first frame and fall back to Software mode.
+    if (!firstRenderDone_) {
+        firstRenderDone_ = true;
+        GLenum postErr = f->glGetError();
+        if (postErr != GL_NO_ERROR) {
+            spdlog::error("LocalViewport: GL error 0x{:04X} after first Render() — "
+                          "Hydra/Storm is not compatible with this GL context. "
+                          "Falling back to Software viewport.", postErr);
+            renderFailed_ = true;
+            engine_.reset();
+            Q_EMIT renderFailed();
+            return;
+        }
+        spdlog::info("LocalViewport: First render succeeded — Hydra/Storm active");
+    }
 
 #else
     // USD not available — paint a placeholder message.

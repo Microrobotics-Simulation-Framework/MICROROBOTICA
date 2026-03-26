@@ -38,9 +38,16 @@ protected:
     void paintGL() override;
     void resizeGL(int w, int h) override;
 
+Q_SIGNALS:
+    /// Emitted after the first Render() if HgiGL produces GL errors,
+    /// indicating Storm cannot render on this GL context.
+    void renderFailed();
+
 private:
     CameraController* cameraController_ = nullptr;
     bool usdAvailable_ = false;
+    bool renderFailed_ = false;
+    bool firstRenderDone_ = false;
 
 #ifdef MICROBOTICA_HAS_USD
     UsdStageRefPtr stage_;
