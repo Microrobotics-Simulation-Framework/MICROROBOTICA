@@ -152,8 +152,13 @@ void LocalViewport::paintGL()
 
     GfVec3d up(0.0, 1.0, 0.0);
 
+    // Near/far planes scale with orbit distance so microscale scenes
+    // (millimeter objects at 20mm orbit) aren't clipped.
+    const double nearPlane = dist * 0.001;    // 0.1% of orbit distance
+    const double farPlane  = dist * 10000.0;
+
     GfFrustum frustum;
-    frustum.SetPerspective(45.0, aspect, 0.1, 10000.0);
+    frustum.SetPerspective(45.0, aspect, nearPlane, farPlane);
     frustum.SetPosition(eye);
     frustum.SetRotation(
         GfRotation(GfMatrix4d().SetLookAt(eye, target, up).ExtractRotation()));

@@ -127,7 +127,7 @@ void CameraController::setPan(double x, double y)
 
 void CameraController::resetToDefault()
 {
-    orbitDistance_ = 10.0;
+    orbitDistance_ = 0.02;  // 20 mm — suitable for microscale scenes
     azimuth_ = 0.0;
     elevation_ = 0.3;
     panX_ = 0.0;

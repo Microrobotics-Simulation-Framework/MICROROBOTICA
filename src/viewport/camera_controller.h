@@ -58,7 +58,9 @@ signals:
 
 private:
     // Camera parameters.
-    double orbitDistance_ = 10.0;
+    // Default orbit distance is 0.02 m (20 mm) — suitable for viewing
+    // millimeter-scale microrobotic scenes like umr_confinement.usda.
+    double orbitDistance_ = 0.02;
     double azimuth_ = 0.0;       // radians
     double elevation_ = 0.3;     // radians (~17 degrees)
     double panX_ = 0.0;
@@ -66,7 +68,7 @@ private:
 
     // Sensitivity multipliers.
     double orbitSensitivity_ = 0.005;
-    double panSensitivity_ = 0.01;
+    double panSensitivity_ = 0.001;
     double zoomSensitivity_ = 0.1;
 
     // Elevation clamp.
@@ -74,7 +76,7 @@ private:
     static constexpr double kMaxElevation =  1.5;  // ~+86 degrees
 
     // Orbit distance clamp.
-    static constexpr double kMinOrbitDistance = 0.1;
+    static constexpr double kMinOrbitDistance = 0.0001;  // 0.1 mm
     static constexpr double kMaxOrbitDistance = 100000.0;
 
     // Mouse tracking state.

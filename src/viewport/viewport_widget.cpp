@@ -52,19 +52,36 @@ void ViewportWidget::setRenderMode(core::RenderMode mode)
     case core::RenderMode::LocalHydra: {
         // Lazily create LocalViewport on first request
         if (!localViewport_) {
-            // Check for a usable OpenGL context before creating QOpenGLWidget.
-            // In Docker/headless without GPU passthrough, QOpenGLWidget creation
-            // triggers "failed to create drawable" and may crash.
+            // Probe for a usable GL 4.6 Compatibility context before creating
+            // QOpenGLWidget. If the driver can't provide it, stay on Software.
+            // This prevents "failed to create drawable" crashes on Mesa/headless.
+            QSurfaceFormat probeFmt;
+            probeFmt.setVersion(4, 6);
+            probeFmt.setProfile(QSurfaceFormat::CompatibilityProfile);
+
             QOpenGLContext testCtx;
-            if (!testCtx.create()) {
-                spdlog::warn("ViewportWidget: No usable OpenGL context — "
-                             "falling back to Software viewport. "
-                             "Run with GPU access (--gpus all) or Mesa "
-                             "(LIBGL_ALWAYS_SOFTWARE=1) for Hydra rendering.");
+            testCtx.setFormat(probeFmt);
+            bool ctxOk = testCtx.create();
+
+            if (ctxOk) {
+                auto actual = testCtx.format();
+                int maj = actual.majorVersion();
+                int min = actual.minorVersion();
+                if (maj < 4 || (maj == 4 && min < 6)) {
+                    ctxOk = false;
+                    spdlog::warn("ViewportWidget: GL probe got {}.{} {} — need 4.6 Compat",
+                                 maj, min,
+                                 actual.profile() == QSurfaceFormat::CompatibilityProfile
+                                     ? "Compatibility" : "Core");
+                }
+            }
+
+            if (!ctxOk) {
+                spdlog::warn("ViewportWidget: No usable GL 4.6 Compatibility context — "
+                             "falling back to Software viewport");
                 softwareViewport_->setStatusMessage(
-                    "Hydra/Storm unavailable — no OpenGL context.\n"
-                    "Run Docker with --gpus all or set LIBGL_ALWAYS_SOFTWARE=1");
-                // Stay on Software mode
+                    "Hydra/Storm unavailable — OpenGL 4.6 not available.\n"
+                    "Run Docker with --gpus all for GPU-accelerated rendering.");
                 return;
             }
 
