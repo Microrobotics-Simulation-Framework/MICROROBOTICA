@@ -27,6 +27,9 @@ class MimeConsolePanel;
 class RunConfigPanel;
 class SkyPilotMonitorPanel;
 class ProjectBrowserPanel;
+class GraphInspectorPanel;
+class ScriptEditorPanel;
+class ParameterPanel;
 } // namespace microbotica::panels
 
 namespace microbotica::app {
@@ -94,6 +97,9 @@ private:
     panels::RunConfigPanel* runConfigPanel_ = nullptr;
     panels::SkyPilotMonitorPanel* skypilotPanel_ = nullptr;
     panels::ProjectBrowserPanel* projectBrowser_ = nullptr;
+    panels::GraphInspectorPanel* graphInspector_ = nullptr;
+    panels::ScriptEditorPanel* scriptEditor_ = nullptr;
+    panels::ParameterPanel* parameterPanel_ = nullptr;
 
     // Status bar widgets
     QLabel* simTimeLabel_ = nullptr;

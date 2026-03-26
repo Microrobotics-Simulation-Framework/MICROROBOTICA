@@ -19,6 +19,9 @@
 #include "panels/run_config_panel.h"
 #include "panels/skypilot_monitor_panel.h"
 #include "panels/project_browser_panel.h"
+#include "panels/graph_inspector_panel.h"
+#include "panels/script_editor_panel.h"
+#include "panels/parameter_panel.h"
 #include "stubs/local_compute_backend.h"
 
 namespace microbotica::app {
@@ -138,6 +141,9 @@ void MainWindow::createMenuBar()
     viewMenu->addAction(runConfigPanel_->toggleViewAction());
     viewMenu->addAction(skypilotPanel_->toggleViewAction());
     viewMenu->addAction(projectBrowser_->toggleViewAction());
+    viewMenu->addAction(graphInspector_->toggleViewAction());
+    viewMenu->addAction(scriptEditor_->toggleViewAction());
+    viewMenu->addAction(parameterPanel_->toggleViewAction());
 
     // Help menu
     auto* helpMenu = menuBar()->addMenu(tr("&Help"));
@@ -194,10 +200,22 @@ void MainWindow::createDockWidgets()
     skypilotPanel_ = new panels::SkyPilotMonitorPanel(scripts_dir, this);
     addDockWidget(Qt::BottomDockWidgetArea, skypilotPanel_);
 
+    // Phase G panels
+    graphInspector_ = new panels::GraphInspectorPanel(this);
+    addDockWidget(Qt::BottomDockWidgetArea, graphInspector_);
+
+    scriptEditor_ = new panels::ScriptEditorPanel(this);
+    addDockWidget(Qt::BottomDockWidgetArea, scriptEditor_);
+
+    parameterPanel_ = new panels::ParameterPanel(this);
+    addDockWidget(Qt::RightDockWidgetArea, parameterPanel_);
+
     // Tab bottom panels together
     tabifyDockWidget(timelinePanel_, consoleWidget_);
     tabifyDockWidget(consoleWidget_, mimeConsole_);
     tabifyDockWidget(mimeConsole_, skypilotPanel_);
+    tabifyDockWidget(skypilotPanel_, graphInspector_);
+    tabifyDockWidget(graphInspector_, scriptEditor_);
     timelinePanel_->raise(); // Show timeline tab by default
 }
 
@@ -228,6 +246,15 @@ void MainWindow::wireSignals()
             this, &MainWindow::onSimulationStart);
     connect(runConfigPanel_, &panels::RunConfigPanel::stopRequested,
             this, &MainWindow::onSimulationStop);
+
+    // Project browser → script editor (open file on double-click)
+    connect(projectBrowser_, &panels::ProjectBrowserPanel::fileDoubleClicked,
+            this, [this](const QString& path) {
+        if (path.endsWith(".py") || path.endsWith(".yaml") || path.endsWith(".yml")) {
+            scriptEditor_->openFile(path.toStdString());
+            scriptEditor_->raise();
+        }
+    });
 
     // Simulation state → run config panel
     connect(simController_.get(), &simulation::SimulationController::simulationStarted,

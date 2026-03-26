@@ -46,11 +46,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **SettingsDialog**: 3-tab dialog (General, Theme, Cloud) with QSettings persistence
 - **ThemeManager**: Fusion style + Light/Dark/System palette management
 - **Layout persistence**: QMainWindow saveState/restoreState with factory reset via View > Reset Layout
+- **GraphInspectorPanel**: QGraphicsScene rendering MADDENING node/edge topology from graph.json (read-only), back-edges as dashed arrows, coupling group bounding boxes
+- **ScriptEditorPanel**: Tabbed file editor with Python syntax highlighting (PythonHighlighter), QFileSystemWatcher for live external change detection, save/save-all, unsaved changes prompts
+- **PythonHighlighter**: QSyntaxHighlighter for Python keywords, builtins, strings, comments, numbers, decorators, multi-line triple-quote strings
+- **ParameterPanel**: JSON-driven form (QDoubleSpinBox/QSpinBox/QLineEdit/QCheckBox) for params.py namespace, Apply button emits parametersChanged signal
 
 ### Verification
 
 - `MBCA-VER-009`: ResultFrame JSON survives ZMQ PUB/SUB transport without corruption (ProtocolFidelity) — requires ZMQ
 - `MBCA-VER-010`: MimeStubPhysicsProcess data arrives at USD prims via demo scene pipeline (DataIntegrity) — requires USD
+- `MBCA-SAN-006`: ASan+UBSan clean — 87 tests, 1588 assertions, 0 errors (local Docker, CI unavailable — see `docs/validation/sanitizer_runs.yaml`)
 - `MBCA-SAN-005`: ASan+UBSan clean — 87 tests, 1588 assertions, 0 errors (local Docker, CI unavailable — see `docs/validation/sanitizer_runs.yaml`)
 - `MBCA-SAN-004`: ASan+UBSan clean — 77 tests, 1568 assertions, 0 errors (local Docker, CI unavailable — see `docs/validation/sanitizer_runs.yaml`)
 - `MBCA-SAN-003`: ASan+UBSan clean — 65 tests, 1523 assertions, 0 errors (local Docker, CI unavailable — see `docs/validation/sanitizer_runs.yaml`)

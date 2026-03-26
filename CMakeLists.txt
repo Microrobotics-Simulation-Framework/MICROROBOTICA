@@ -120,6 +120,10 @@ target_sources(microbotica PRIVATE
     src/panels/run_config_panel.cpp
     src/panels/skypilot_monitor_panel.cpp
     src/panels/project_browser_panel.cpp
+    src/panels/graph_inspector_panel.cpp
+    src/panels/python_highlighter.cpp
+    src/panels/script_editor_panel.cpp
+    src/panels/parameter_panel.cpp
     src/app/application.cpp
     src/app/main_window.cpp
     src/app/settings_dialog.cpp
