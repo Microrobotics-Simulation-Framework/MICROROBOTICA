@@ -6,6 +6,7 @@
 #include <QMessageBox>
 #include <QSettings>
 #include <QCloseEvent>
+#include <QVBoxLayout>
 
 #include "app/settings_dialog.h"
 #include "app/theme_manager.h"
@@ -22,6 +23,9 @@
 #include "panels/graph_inspector_panel.h"
 #include "panels/script_editor_panel.h"
 #include "panels/parameter_panel.h"
+#include "viewport/camera_toolbar.h"
+#include "viewport/camera_controller.h"
+#include "viewport/local_viewport.h"
 #include "stubs/local_compute_backend.h"
 
 namespace microbotica::app {
@@ -44,9 +48,18 @@ MainWindow::MainWindow(QWidget* parent)
     scriptEngine_ = std::make_unique<scripting::ScriptingEngine>();
     scriptEngine_->initialize();
 
-    // Central viewport
+    // Central viewport with camera toolbar above it
     viewportWidget_ = new viewport::ViewportWidget(this);
-    setCentralWidget(viewportWidget_);
+
+    auto* viewportContainer = new QWidget(this);
+    auto* viewportLayout = new QVBoxLayout(viewportContainer);
+    viewportLayout->setContentsMargins(0, 0, 0, 0);
+    viewportLayout->setSpacing(0);
+
+    // Camera toolbar will be created after viewport is set up (needs camera controller)
+    // Add viewport first, toolbar is prepended in createToolBars()
+    viewportLayout->addWidget(viewportWidget_);
+    setCentralWidget(viewportContainer);
 
     // Bottom-left corner goes to left dock area (hierarchy stays on left)
     setCorner(Qt::BottomLeftCorner, Qt::LeftDockWidgetArea);
@@ -85,6 +98,11 @@ void MainWindow::closeEvent(QCloseEvent* event) {
 void MainWindow::createToolBars() {
     simToolbar_ = new panels::SimulationToolbar(*simController_, this);
     addToolBar(Qt::TopToolBarArea, simToolbar_);
+
+    // The camera toolbar needs a CameraController. Since LocalViewport is
+    // created lazily, we create the toolbar now but wire it when the
+    // viewport activates. For now, create with nullptr — the toolbar buttons
+    // will be connected in wireSignals via renderModeChanged.
 }
 
 // ---------------------------------------------------------------------------
@@ -320,6 +338,17 @@ void MainWindow::onFileOpen()
 
     // Switch viewport from software placeholder to Hydra/Storm rendering
     viewportWidget_->setRenderMode(core::RenderMode::LocalHydra);
+
+    // Create the camera toolbar once LocalViewport exists
+    if (viewportWidget_->localViewport() && !cameraToolbar_) {
+        auto* controller = viewportWidget_->localViewport()->cameraController();
+        cameraToolbar_ = new viewport::CameraToolbar(controller, viewportWidget_);
+        if (auto* container = centralWidget()) {
+            if (auto* layout = qobject_cast<QVBoxLayout*>(container->layout())) {
+                layout->insertWidget(0, cameraToolbar_);
+            }
+        }
+    }
 }
 
 void MainWindow::onFileClose()
@@ -383,6 +412,9 @@ void MainWindow::onSettings()
 void MainWindow::onFrameReady(const core::ResultFrame& frame)
 {
     sceneMgr_->applyResultFrame(frame, simController_->physicsConfig());
+
+    // Trigger viewport repaint so the new transforms are rendered
+    viewportWidget_->update();
 
     const double t = frame.simTime;
     simTimeLabel_->setText(QString("Sim: %1 s").arg(t, 0, 'f', 3));

@@ -15,6 +15,7 @@
 
 namespace microbotica::viewport {
 class ViewportWidget;
+class CameraToolbar;
 } // namespace microbotica::viewport
 
 namespace microbotica::panels {
@@ -87,6 +88,7 @@ private:
 
     // Toolbars
     panels::SimulationToolbar* simToolbar_ = nullptr;
+    viewport::CameraToolbar* cameraToolbar_ = nullptr;
 
     // Dock panels
     panels::SceneHierarchyPanel* hierarchyPanel_ = nullptr;

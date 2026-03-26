@@ -62,20 +62,22 @@ void StubPhysicsProcess::workerLoop() {
         core::ResultFrame frame;
         frame.simTime = t;
 
-        // Generate sinusoidal position and rotating orientation for each mapped actor
+        // Generate sinusoidal position and rotating orientation for each mapped actor.
+        // Positions are in meters at microscale (3mm orbit radius) to match the
+        // umr_confinement.usda scene where the UMR capsule has 0.3mm radius.
         for (const auto& [actor, primPath] : config_.actorToPrimPath) {
             frame.positions[actor] = core::Vec3f{
-                std::sin(t * 2.0),
-                std::cos(t * 2.0),
-                std::sin(t * 0.5) * 0.1
+                std::sin(t * 2.0) * 0.003,       // ±3 mm X
+                std::cos(t * 2.0) * 0.003,       // ±3 mm Y
+                std::sin(t * 0.5) * 0.0005        // ±0.5 mm Z
             };
 
-            // Rotation around Z axis: q = (cos(θ/2), 0, 0, sin(θ/2))
-            double angle = t * 1.0; // 1 rad/s
+            // Rotation around Z axis at 1 rad/s
+            double angle = t * 1.0;
             frame.orientations[actor] = core::Quatf{
                 std::cos(angle / 2.0),
                 0.0,
-                0.0,
+                std::sin(angle / 4.0) * 0.3,     // slight tumble
                 std::sin(angle / 2.0)
             };
         }
@@ -83,16 +85,16 @@ void StubPhysicsProcess::workerLoop() {
         // If no actors mapped, generate a default "robot" entry
         if (config_.actorToPrimPath.empty()) {
             frame.positions["robot"] = core::Vec3f{
-                std::sin(t * 2.0),
-                std::cos(t * 2.0),
-                std::sin(t * 0.5) * 0.1
+                std::sin(t * 2.0) * 0.003,
+                std::cos(t * 2.0) * 0.003,
+                std::sin(t * 0.5) * 0.0005
             };
 
             double angle = t * 1.0;
             frame.orientations["robot"] = core::Quatf{
                 std::cos(angle / 2.0),
                 0.0,
-                0.0,
+                std::sin(angle / 4.0) * 0.3,
                 std::sin(angle / 2.0)
             };
         }

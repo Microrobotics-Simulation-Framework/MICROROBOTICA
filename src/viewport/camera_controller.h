@@ -9,15 +9,15 @@ namespace microbotica::viewport {
 
 /// Orbit/pan/zoom camera controller for the viewport.
 ///
-/// Manages camera parameters using internal doubles (no GfCamera dependency)
-/// so the controller works regardless of whether OpenUSD is available.
-///
-/// Controls:
-///   - Left drag:   orbit (azimuth + elevation)
-///   - Middle drag:  pan (X/Y offset)
-///   - Scroll wheel: zoom (orbit distance)
-///
-/// Install as an event filter on the target viewport widget.
+/// Controls (Blender/Maya-inspired, laptop-friendly):
+///   - Left drag or Alt+Left drag: orbit (azimuth + elevation)
+///   - Right drag, Middle drag, or Shift+Left drag: pan
+///   - Scroll wheel or +/-: zoom
+///   - Arrow keys: orbit in small steps
+///   - WASD: pan
+///   - 1-6: axis-snap views (Front/Back/Top/Bottom/Left/Right)
+///   - R or Home: reset camera
+///   - F1 or ?: show controls help
 class CameraController : public QObject {
     Q_OBJECT
 
@@ -25,7 +25,6 @@ public:
     explicit CameraController(QObject* parent = nullptr);
     ~CameraController() override;
 
-    /// Event filter for mouse/wheel events from the viewport widget.
     bool eventFilter(QObject* watched, QEvent* event) override;
 
     // --- Camera parameter accessors ---
@@ -49,20 +48,27 @@ public:
     /// Frame the scene — set orbit distance to show objects of the given radius.
     void frameRadius(double radius);
 
+    // --- Axis-snap views ---
+
+    void snapFront();
+    void snapBack();
+    void snapTop();
+    void snapBottom();
+    void snapLeft();
+    void snapRight();
+
     // --- Sensitivity tuning ---
 
     void setOrbitSensitivity(double s) { orbitSensitivity_ = s; }
     void setPanSensitivity(double s) { panSensitivity_ = s; }
     void setZoomSensitivity(double s) { zoomSensitivity_ = s; }
 
-signals:
-    /// Emitted whenever a camera parameter changes.
+Q_SIGNALS:
     void cameraChanged();
+    void helpRequested();
 
 private:
     // Camera parameters.
-    // Default orbit distance is 0.02 m (20 mm) — suitable for viewing
-    // millimeter-scale microrobotic scenes like umr_confinement.usda.
     double orbitDistance_ = 0.02;
     double azimuth_ = 0.0;       // radians
     double elevation_ = 0.3;     // radians (~17 degrees)
@@ -74,12 +80,11 @@ private:
     double panSensitivity_ = 0.001;
     double zoomSensitivity_ = 0.1;
 
-    // Elevation clamp.
-    static constexpr double kMinElevation = -1.5;  // ~-86 degrees
-    static constexpr double kMaxElevation =  1.5;  // ~+86 degrees
+    // Elevation clamp — nearly full sphere (±89 degrees).
+    static constexpr double kMinElevation = -1.553;  // ~-89 degrees
+    static constexpr double kMaxElevation =  1.553;  // ~+89 degrees
 
-    // Orbit distance clamp.
-    static constexpr double kMinOrbitDistance = 0.0001;  // 0.1 mm
+    static constexpr double kMinOrbitDistance = 0.0001;
     static constexpr double kMaxOrbitDistance = 100000.0;
 
     // Mouse tracking state.
