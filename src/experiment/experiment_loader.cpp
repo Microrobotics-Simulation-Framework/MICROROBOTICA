@@ -179,11 +179,10 @@ std::optional<ExperimentConfig> ExperimentLoader::parseConfig(
         }
     }
 
-    // Cloud section (optional)
+    // Cloud section (optional — contains only the job spec template path)
     if (j.contains("cloud") && j["cloud"].is_object()) {
         CloudConfig cc;
         cc.job_config = j["cloud"].value("job_config", "");
-        cc.cluster_name = j["cloud"].value("cluster_name", "");
         if (!isRelativePath(cc.job_config)) {
             spdlog::error("ExperimentLoader: Absolute path rejected: cloud.job_config = '{}'",
                            cc.job_config);

@@ -70,7 +70,7 @@ TEST_CASE("ExperimentLoader: cloud section parsed", "[unit][experiment]") {
 
     REQUIRE(config->cloud.has_value());
     REQUIRE(config->cloud->job_config == "jobs/h100.yaml");
-    REQUIRE(config->cloud->cluster_name == "mime-experiment");
+    // cluster_name is NOT in experiment.yaml — it is session state
 }
 
 TEST_CASE("ExperimentLoader: buildPhysicsConfig populates actorToPrimPath", "[unit][experiment]") {
@@ -90,9 +90,10 @@ TEST_CASE("ExperimentLoader: buildConnectionConfig from cloud section", "[unit][
     auto config = loader.load(experimentFixturePath());
     REQUIRE(config.has_value());
 
-    auto cc = config->buildConnectionConfig();
+    // cluster_name comes from session state, not experiment.yaml
+    auto cc = config->buildConnectionConfig("my-runtime-cluster");
     REQUIRE(cc.mode == microbotica::connection::ConnectionMode::Cloud);
-    REQUIRE(cc.skypilot_cluster == "mime-experiment");
+    REQUIRE(cc.skypilot_cluster == "my-runtime-cluster");
 }
 
 // ── Validation tests ─────────────────────────────────────────────────────────

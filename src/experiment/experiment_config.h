@@ -24,10 +24,12 @@ struct AnalysisConfig {
     std::vector<int> resolution;
 };
 
-/// Cloud configuration from the cloud section.
+/// Cloud configuration from the cloud section of experiment.yaml.
+/// Contains only the job spec template — hardware requirements that travel
+/// with the experiment. Session-specific state (cluster name, resolved IP)
+/// lives in .microrobotica/session.json, not here.
 struct CloudConfig {
     std::string job_config;       ///< Relative path to SkyPilot job YAML
-    std::string cluster_name;     ///< SkyPilot cluster name for reconnection
 };
 
 /// Full experiment configuration loaded from experiment.json.
@@ -67,12 +69,15 @@ struct ExperimentConfig {
         return config;
     }
 
-    /// Build a ConnectionConfig from the cloud section (or default Local mode).
-    connection::ConnectionConfig buildConnectionConfig() const {
+    /// Build a ConnectionConfig. Cloud mode requires a cluster_name from
+    /// session state (not from experiment.yaml — cluster names are runtime state).
+    connection::ConnectionConfig buildConnectionConfig(
+        const std::string& session_cluster_name = {}) const
+    {
         connection::ConnectionConfig cc;
         if (cloud) {
             cc.mode = connection::ConnectionMode::Cloud;
-            cc.skypilot_cluster = cloud->cluster_name;
+            cc.skypilot_cluster = session_cluster_name;
         } else {
             cc.mode = connection::ConnectionMode::Local;
         }

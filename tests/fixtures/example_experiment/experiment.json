@@ -51,8 +51,7 @@
     }
   },
   "cloud": {
-    "job_config": "jobs/h100.yaml",
-    "cluster_name": "mime-experiment"
+    "job_config": "jobs/h100.yaml"
   },
   "sweep": {
     "strategy": "grid",
