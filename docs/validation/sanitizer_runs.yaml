@@ -306,3 +306,76 @@ runs:
       GitHub Actions minutes temporarily unavailable. Local Docker run
       replicates the CI asan-ubsan job exactly.
     signed_off_by: "Nick (project maintainer)"
+
+  - run_id: "MBCA-SAN-005"
+    date: "2026-03-26"
+    commit: "f50a2e5"
+    commit_message: "feat: add UI panels, settings dialog, theme system, layout persistence"
+    scope: "Phase F (SimulationToolbar, MimeConsolePanel, AnsiParser, RunConfigPanel, SkyPilotMonitorPanel, ProjectBrowserPanel, SettingsDialog, ThemeManager, layout persistence)"
+    environment:
+      image: "ghcr.io/microrobotics-simulation-framework/microrobotica:base"
+      os: "Ubuntu 24.04"
+      compiler: "GCC 13.3.0"
+      openusd: "v24.08"
+      qt: "6.4.2"
+      zeromq: "cppzmq via CMake config"
+    sanitizers:
+      cmake_cxx_flags: "-fsanitize=address,undefined -fno-omit-frame-pointer -fno-sanitize-recover=all"
+      cmake_exe_linker_flags: "-fsanitize=address,undefined"
+      asan_options: "detect_leaks=1:detect_stack_use_after_return=1"
+      ubsan_options: "print_stacktrace=1:halt_on_error=1"
+      lsan_suppressions: "lsan.suppressions"
+    results:
+      test_cases: 87
+      assertions: 1588
+      passed: 87
+      failed: 0
+      asan_errors: 0
+      ubsan_errors: 0
+      leak_reports_after_suppressions: 0
+      exit_code: 0
+    suppressed_leaks:
+      - source: "libpython (CPython shutdown-order)"
+        count: 44
+        bytes: 2780336
+        known: true
+      - source: "libusd_tf (TBB/USD Tf_RegistryManagerImpl singleton)"
+        count: 1
+        bytes: 1544
+        known: true
+      - source: "libusd_trace (USD trace registry)"
+        count: 5
+        bytes: 1320
+        known: true
+      - source: "libusd_sdf (USD Sdf identity registry)"
+        count: 75
+        bytes: 2016
+        known: true
+    verification_benchmarks_exercised:
+      - "MBCA-VER-001"
+      - "MBCA-VER-002"
+      - "MBCA-VER-003"
+      - "MBCA-VER-004"
+      - "MBCA-VER-005"
+      - "MBCA-VER-006"
+      - "MBCA-VER-007"
+      - "MBCA-VER-008"
+      - "MBCA-VER-009"
+      - "MBCA-VER-010"
+    assertion_count_note: >
+      Local run (ZMQ, no USD): 87 tests, 1,517 assertions. Docker run
+      (ZMQ + USD): 87 tests, 1,588 assertions. Difference of 71 from USD
+      verification paths. 10 new Phase F tests (AnsiParser unit tests for
+      ANSI SGR code parsing, HTML escaping, state persistence, all 8
+      color codes). All Phase F UI panels compile-verified under ASan.
+    compile_only_components:
+      - component: "SimulationToolbar, MimeConsolePanel, RunConfigPanel, SkyPilotMonitorPanel, ProjectBrowserPanel, SettingsDialog, ThemeManager"
+        reason: >
+          All Phase F panels are Qt UI widgets that require a display
+          server. Compile-verified under ASan+UBSan. Runtime validation
+          deferred to first interactive UI session. The AnsiParser (pure
+          logic, no Qt widgets) IS fully unit-tested under ASan.
+    ci_note: >
+      GitHub Actions minutes temporarily unavailable. Local Docker run
+      replicates the CI asan-ubsan job exactly.
+    signed_off_by: "Nick (project maintainer)"

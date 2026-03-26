@@ -2,6 +2,7 @@
 
 #include <QMainWindow>
 #include <QLabel>
+#include <QByteArray>
 #include <memory>
 
 #include "core/stability.h"
@@ -21,6 +22,11 @@ class SceneHierarchyPanel;
 class PropertyPanel;
 class TimelinePanel;
 class ConsoleWidget;
+class SimulationToolbar;
+class MimeConsolePanel;
+class RunConfigPanel;
+class SkyPilotMonitorPanel;
+class ProjectBrowserPanel;
 } // namespace microbotica::panels
 
 namespace microbotica::app {
@@ -32,8 +38,10 @@ namespace microbotica::app {
 ///
 /// Dock layout:
 ///   Left:   SceneHierarchyPanel (top), PropertyPanel (bottom)
-///   Bottom: TimelinePanel, ConsoleWidget
+///   Right:  RunConfigPanel (top), ProjectBrowserPanel (bottom)
+///   Bottom: TimelinePanel, ConsoleWidget, MimeConsolePanel
 ///   Center: ViewportWidget
+///   Top toolbar: SimulationToolbar
 class MainWindow : public QMainWindow {
     Q_OBJECT
 
@@ -41,12 +49,17 @@ public:
     explicit MainWindow(QWidget* parent = nullptr);
     ~MainWindow() override;
 
-private slots:
+protected:
+    void closeEvent(QCloseEvent* event) override;
+
+private Q_SLOTS:
     void onFileOpen();
     void onFileClose();
     void onSimulationStart();
     void onSimulationStop();
     void onAbout();
+    void onSettings();
+    void onResetLayout();
     void onFrameReady(const microbotica::core::ResultFrame& frame);
     void onBackendCrashed(const QString& reason);
 
@@ -54,7 +67,10 @@ private:
     void createMenuBar();
     void createStatusBar();
     void createDockWidgets();
+    void createToolBars();
     void wireSignals();
+    void saveLayout();
+    void restoreLayout();
 
     // Core services
     core::NullAuditLogger auditLogger_;
@@ -66,14 +82,25 @@ private:
     // Central widget
     viewport::ViewportWidget* viewportWidget_ = nullptr;
 
+    // Toolbars
+    panels::SimulationToolbar* simToolbar_ = nullptr;
+
     // Dock panels
     panels::SceneHierarchyPanel* hierarchyPanel_ = nullptr;
     panels::PropertyPanel* propertyPanel_ = nullptr;
     panels::TimelinePanel* timelinePanel_ = nullptr;
     panels::ConsoleWidget* consoleWidget_ = nullptr;
+    panels::MimeConsolePanel* mimeConsole_ = nullptr;
+    panels::RunConfigPanel* runConfigPanel_ = nullptr;
+    panels::SkyPilotMonitorPanel* skypilotPanel_ = nullptr;
+    panels::ProjectBrowserPanel* projectBrowser_ = nullptr;
 
     // Status bar widgets
     QLabel* simTimeLabel_ = nullptr;
+
+    // Factory layout for reset
+    QByteArray factoryLayout_;
+    QByteArray factoryGeometry_;
 };
 
 } // namespace microbotica::app

@@ -64,6 +64,26 @@ Intentionally unregistered — no MBCA-COMP ID. This is a pure UI helper functio
 
 ---
 
+## Phase F UI Panels (MBCA-SAN-005)
+
+All Phase F panels are Qt UI widgets that require a display server. Compile-verified under ASan+UBSan. Runtime validation deferred to first interactive UI session.
+
+Intentionally unregistered — no MBCA-COMP IDs. These are pure UI panels with no physics, IPC, or data-integrity logic. The one testable component (AnsiParser) IS fully unit-tested under ASan (10 tests).
+
+**Panels**: SimulationToolbar, MimeConsolePanel, RunConfigPanel, SkyPilotMonitorPanel, ProjectBrowserPanel, SettingsDialog, ThemeManager.
+
+| Field | Value |
+|---|---|
+| **Sanitizer record** | MBCA-SAN-005 |
+| **Compile-verified in** | Docker (GCC 13.3.0, ASan+UBSan, Qt 6.4.2, OpenUSD v24.08) |
+| **What is not tested** | Widget creation, layout rendering, user interaction, signal/slot wiring between panels and core services |
+| **Runtime validation scenario** | Launch MICROBOTICA with a loaded experiment, verify all panels render correctly, exercise each panel's controls, verify simulation toolbar enables/disables correctly, verify MIME console displays output, verify settings persist across restarts |
+| **Validation trigger** | First interactive UI session |
+| **Why not testable now** | Qt widget tests require a display server. Headless Docker ASan runs cannot exercise widget event loops |
+| **Risk if broken** | Panels fail to render or interact, simulation controls unresponsive, settings not persisted |
+
+---
+
 ## Validation checklist
 
 When a component is validated at runtime, update this document by:

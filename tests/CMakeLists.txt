@@ -8,6 +8,7 @@ add_executable(microbotica_tests
     test_mime_adapter.cpp
     test_mime_stub.cpp
     test_experiment_loader.cpp
+    test_ansi_parser.cpp
     ${CMAKE_SOURCE_DIR}/src/stubs/stub_physics_process.cpp
     ${CMAKE_SOURCE_DIR}/src/connection/connection_manager.cpp
     ${CMAKE_SOURCE_DIR}/src/connection/ssh_tunnel.cpp
@@ -17,6 +18,7 @@ add_executable(microbotica_tests
     ${CMAKE_SOURCE_DIR}/src/experiment/experiment_runner.cpp
     ${CMAKE_SOURCE_DIR}/src/experiment/cloud_job_launcher.cpp
     ${CMAKE_SOURCE_DIR}/src/experiment/connection_dialog.cpp
+    ${CMAKE_SOURCE_DIR}/src/panels/ansi_parser.cpp
     ${CMAKE_SOURCE_DIR}/src/scene/scene_manager.cpp
     ${CMAKE_SOURCE_DIR}/src/scene/results_applicator.cpp
     ${CMAKE_SOURCE_DIR}/src/simulation/simulation_controller.cpp

@@ -4,12 +4,21 @@
 #include <QStatusBar>
 #include <QFileDialog>
 #include <QMessageBox>
+#include <QSettings>
+#include <QCloseEvent>
 
+#include "app/settings_dialog.h"
+#include "app/theme_manager.h"
 #include "viewport/viewport_widget.h"
 #include "panels/scene_hierarchy_panel.h"
 #include "panels/property_panel.h"
 #include "panels/timeline_panel.h"
 #include "panels/console_widget.h"
+#include "panels/simulation_toolbar.h"
+#include "panels/mime_console_panel.h"
+#include "panels/run_config_panel.h"
+#include "panels/skypilot_monitor_panel.h"
+#include "panels/project_browser_panel.h"
 #include "stubs/local_compute_backend.h"
 
 namespace microbotica::app {
@@ -22,6 +31,9 @@ MainWindow::MainWindow(QWidget* parent)
     setWindowTitle(tr("MICROBOTICA"));
     resize(1600, 900);
 
+    // Apply theme before creating widgets
+    ThemeManager::applyTheme(ThemeManager::currentTheme());
+
     // Create core services
     sceneMgr_ = std::make_unique<scene::SceneManager>();
     primSelection_ = std::make_unique<scene::PrimSelection>();
@@ -33,18 +45,43 @@ MainWindow::MainWindow(QWidget* parent)
     viewportWidget_ = new viewport::ViewportWidget(this);
     setCentralWidget(viewportWidget_);
 
+    // Bottom-left corner goes to left dock area (hierarchy stays on left)
+    setCorner(Qt::BottomLeftCorner, Qt::LeftDockWidgetArea);
+    setCorner(Qt::TopRightCorner, Qt::RightDockWidgetArea);
+
+    createToolBars();
     createDockWidgets();
     createMenuBar();
     createStatusBar();
     wireSignals();
+
+    // Capture factory layout after all widgets are created
+    factoryLayout_ = saveState();
+    factoryGeometry_ = saveGeometry();
+
+    // Restore user layout (overrides factory if saved)
+    restoreLayout();
 }
 
 MainWindow::~MainWindow()
 {
-    // Ensure simulation is stopped before services are destroyed
     if (simController_ && simController_->isRunning()) {
         simController_->teardown();
     }
+}
+
+void MainWindow::closeEvent(QCloseEvent* event) {
+    saveLayout();
+    QMainWindow::closeEvent(event);
+}
+
+// ---------------------------------------------------------------------------
+// Toolbars
+// ---------------------------------------------------------------------------
+
+void MainWindow::createToolBars() {
+    simToolbar_ = new panels::SimulationToolbar(*simController_, this);
+    addToolBar(Qt::TopToolBarArea, simToolbar_);
 }
 
 // ---------------------------------------------------------------------------
@@ -66,6 +103,11 @@ void MainWindow::createMenuBar()
 
     fileMenu->addSeparator();
 
+    auto* settingsAction = fileMenu->addAction(tr("Se&ttings..."));
+    connect(settingsAction, &QAction::triggered, this, &MainWindow::onSettings);
+
+    fileMenu->addSeparator();
+
     auto* quitAction = fileMenu->addAction(tr("&Quit"));
     quitAction->setShortcut(QKeySequence::Quit);
     connect(quitAction, &QAction::triggered, this, &QWidget::close);
@@ -78,6 +120,24 @@ void MainWindow::createMenuBar()
 
     auto* stopAction = simMenu->addAction(tr("S&top"));
     connect(stopAction, &QAction::triggered, this, &MainWindow::onSimulationStop);
+
+    // View menu
+    auto* viewMenu = menuBar()->addMenu(tr("&View"));
+
+    auto* resetLayoutAction = viewMenu->addAction(tr("&Reset Layout"));
+    connect(resetLayoutAction, &QAction::triggered, this, &MainWindow::onResetLayout);
+
+    viewMenu->addSeparator();
+
+    // Add dock toggle actions
+    viewMenu->addAction(hierarchyPanel_->toggleViewAction());
+    viewMenu->addAction(propertyPanel_->toggleViewAction());
+    viewMenu->addAction(timelinePanel_->toggleViewAction());
+    viewMenu->addAction(consoleWidget_->toggleViewAction());
+    viewMenu->addAction(mimeConsole_->toggleViewAction());
+    viewMenu->addAction(runConfigPanel_->toggleViewAction());
+    viewMenu->addAction(skypilotPanel_->toggleViewAction());
+    viewMenu->addAction(projectBrowser_->toggleViewAction());
 
     // Help menu
     auto* helpMenu = menuBar()->addMenu(tr("&Help"));
@@ -109,19 +169,35 @@ void MainWindow::createDockWidgets()
 
     propertyPanel_ = new panels::PropertyPanel(*primSelection_, this);
     addDockWidget(Qt::LeftDockWidgetArea, propertyPanel_);
-
-    // Stack hierarchy above property on the left
     splitDockWidget(hierarchyPanel_, propertyPanel_, Qt::Vertical);
 
-    // Bottom docks: timeline + console
+    // Right docks: run config (top-right), project browser (bottom-right)
+    runConfigPanel_ = new panels::RunConfigPanel(this);
+    addDockWidget(Qt::RightDockWidgetArea, runConfigPanel_);
+
+    projectBrowser_ = new panels::ProjectBrowserPanel(this);
+    addDockWidget(Qt::RightDockWidgetArea, projectBrowser_);
+    splitDockWidget(runConfigPanel_, projectBrowser_, Qt::Vertical);
+
+    // Bottom docks: timeline, console, MIME console, SkyPilot monitor
     timelinePanel_ = new panels::TimelinePanel(*simController_, this);
     addDockWidget(Qt::BottomDockWidgetArea, timelinePanel_);
 
     consoleWidget_ = new panels::ConsoleWidget(*scriptEngine_, this);
     addDockWidget(Qt::BottomDockWidgetArea, consoleWidget_);
 
-    // Tab timeline and console together at the bottom
+    mimeConsole_ = new panels::MimeConsolePanel(this);
+    addDockWidget(Qt::BottomDockWidgetArea, mimeConsole_);
+
+    // scripts_dir for sky_resolve.py — relative to application binary or source
+    std::string scripts_dir = ".";  // Will be resolved at runtime
+    skypilotPanel_ = new panels::SkyPilotMonitorPanel(scripts_dir, this);
+    addDockWidget(Qt::BottomDockWidgetArea, skypilotPanel_);
+
+    // Tab bottom panels together
     tabifyDockWidget(timelinePanel_, consoleWidget_);
+    tabifyDockWidget(consoleWidget_, mimeConsole_);
+    tabifyDockWidget(mimeConsole_, skypilotPanel_);
     timelinePanel_->raise(); // Show timeline tab by default
 }
 
@@ -146,6 +222,52 @@ void MainWindow::wireSignals()
     // Backend crash
     connect(simController_.get(), &simulation::SimulationController::backendCrashed,
             this, &MainWindow::onBackendCrashed);
+
+    // Run config panel signals
+    connect(runConfigPanel_, &panels::RunConfigPanel::launchRequested,
+            this, &MainWindow::onSimulationStart);
+    connect(runConfigPanel_, &panels::RunConfigPanel::stopRequested,
+            this, &MainWindow::onSimulationStop);
+
+    // Simulation state → run config panel
+    connect(simController_.get(), &simulation::SimulationController::simulationStarted,
+            this, [this]() {
+        runConfigPanel_->setLaunchEnabled(false);
+        runConfigPanel_->setConnectionStatus(tr("Running"));
+    });
+    connect(simController_.get(), &simulation::SimulationController::simulationStopped,
+            this, [this]() {
+        runConfigPanel_->setLaunchEnabled(true);
+        runConfigPanel_->setConnectionStatus(tr("Idle"));
+    });
+}
+
+// ---------------------------------------------------------------------------
+// Layout persistence
+// ---------------------------------------------------------------------------
+
+void MainWindow::saveLayout() {
+    QSettings s;
+    s.beginGroup("mainwindow");
+    s.setValue("geometry", saveGeometry());
+    s.setValue("state", saveState());
+    s.endGroup();
+}
+
+void MainWindow::restoreLayout() {
+    QSettings s;
+    s.beginGroup("mainwindow");
+    QByteArray geometry = s.value("geometry").toByteArray();
+    QByteArray state = s.value("state").toByteArray();
+    s.endGroup();
+
+    if (!geometry.isEmpty()) restoreGeometry(geometry);
+    if (!state.isEmpty()) restoreState(state);
+}
+
+void MainWindow::onResetLayout() {
+    restoreGeometry(factoryGeometry_);
+    restoreState(factoryLayout_);
 }
 
 // ---------------------------------------------------------------------------
@@ -174,7 +296,6 @@ void MainWindow::onFileClose()
     if (simController_->isRunning()) {
         simController_->stop();
     }
-    // SceneManager does not have an explicit close — for Phase 0 this is a no-op.
     primSelection_->clear();
     statusBar()->showMessage(tr("Scene closed"));
 }
@@ -212,6 +333,15 @@ void MainWindow::onAbout()
            "<p>Medical microrobotics simulation platform.</p>"
            "<p>Phase 0 — Experimental</p>"
            "<p>Licensed under AGPL-3.0</p>"));
+}
+
+void MainWindow::onSettings()
+{
+    SettingsDialog dialog(this);
+    connect(&dialog, &SettingsDialog::themeChanged, this, [](const QString& theme) {
+        ThemeManager::applyTheme(theme);
+    });
+    dialog.exec();
 }
 
 void MainWindow::onFrameReady(const core::ResultFrame& frame)

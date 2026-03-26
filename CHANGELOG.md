@@ -37,11 +37,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Connection dialog**: Three-button "No MIME detected" QMessageBox (Launch locally / Enter endpoint / Launch on cloud)
 - **`experiment.yaml` schema v1.0**: Physics/control/scene/cloud/sweep/metadata sections; `mime_version_min` at top level; `scripts/yaml_to_json.py` for C++ consumption
 - **Example experiment fixture**: `tests/fixtures/example_experiment/` with full directory structure
+- **SimulationToolbar**: Play/pause/stop QToolBar driven by SimulationController signals (F5/F6/F7 shortcuts)
+- **MimeConsolePanel**: QPlainTextEdit with ANSI color parsing, auto-scroll + scroll lock, source-tagged output
+- **AnsiParser**: Stateful ANSI SGR escape code → HTML span converter (bold, underline, 8 fg/bg colors)
+- **RunConfigPanel**: Mode selector (Local/Manual/Cloud), experiment dir picker, launch/stop buttons
+- **SkyPilotMonitorPanel**: QTableView with sky_resolve.py --list JSON, click-to-connect, 30s auto-refresh
+- **ProjectBrowserPanel**: QTreeView + QFileSystemModel rooted at experiment directory
+- **SettingsDialog**: 3-tab dialog (General, Theme, Cloud) with QSettings persistence
+- **ThemeManager**: Fusion style + Light/Dark/System palette management
+- **Layout persistence**: QMainWindow saveState/restoreState with factory reset via View > Reset Layout
 
 ### Verification
 
 - `MBCA-VER-009`: ResultFrame JSON survives ZMQ PUB/SUB transport without corruption (ProtocolFidelity) — requires ZMQ
 - `MBCA-VER-010`: MimeStubPhysicsProcess data arrives at USD prims via demo scene pipeline (DataIntegrity) — requires USD
+- `MBCA-SAN-005`: ASan+UBSan clean — 87 tests, 1588 assertions, 0 errors (local Docker, CI unavailable — see `docs/validation/sanitizer_runs.yaml`)
 - `MBCA-SAN-004`: ASan+UBSan clean — 77 tests, 1568 assertions, 0 errors (local Docker, CI unavailable — see `docs/validation/sanitizer_runs.yaml`)
 - `MBCA-SAN-003`: ASan+UBSan clean — 65 tests, 1523 assertions, 0 errors (local Docker, CI unavailable — see `docs/validation/sanitizer_runs.yaml`)
 - `MBCA-SAN-002`: ASan+UBSan clean — 60 tests, 1324 assertions, 0 errors (local Docker, CI unavailable — see `docs/validation/sanitizer_runs.yaml`)
