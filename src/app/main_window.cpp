@@ -315,7 +315,11 @@ void MainWindow::onFileOpen()
     if (!ok) {
         QMessageBox::warning(this, tr("Open Failed"),
                              tr("Could not open scene file:\n%1").arg(filePath));
+        return;
     }
+
+    // Switch viewport from software placeholder to Hydra/Storm rendering
+    viewportWidget_->setRenderMode(core::RenderMode::LocalHydra);
 }
 
 void MainWindow::onFileClose()
@@ -337,11 +341,16 @@ void MainWindow::onSimulationStart()
 
     if (simController_->isRunning()) return;
 
-    // Create a local compute backend and launch with default config
+    // Create a local compute backend and launch
     auto backend = std::make_unique<stubs::LocalComputeBackend>();
     simController_->setComputeBackend(std::move(backend));
 
+    // Default actor mapping for the stub simulation path.
+    // The full experiment flow (via ExperimentLoader) populates this from
+    // experiment.yaml's scene.actors section. This hardcoded mapping matches
+    // StubPhysicsProcess's default "robot" actor to umr_confinement.usda.
     core::PhysicsConfig config;
+    config.actorToPrimPath["robot"] = "/World/Actors/UMR";
     simController_->launchPhysics(config);
 
     statusBar()->showMessage(tr("Simulation started"));
