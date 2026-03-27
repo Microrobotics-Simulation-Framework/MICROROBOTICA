@@ -26,15 +26,15 @@ CameraToolbar::CameraToolbar(CameraController* controller,
 
     pauseAction_ = addAction(tr("\u23F8 Pause"));
     pauseAction_->setShortcut(QKeySequence(Qt::Key_F6));
-    pauseAction_->setToolTip(tr("Stop simulation (F6)"));
+    pauseAction_->setToolTip(tr("Pause simulation — resume with Play (F6)"));
     pauseAction_->setEnabled(false);
     connect(pauseAction_, &QAction::triggered, this, [this]() {
-        Q_EMIT stopRequested();
+        Q_EMIT pauseRequested();
     });
 
     stopAction_ = addAction(tr("\u23F9 Stop"));
     stopAction_->setShortcut(QKeySequence(Qt::Key_F7));
-    stopAction_->setToolTip(tr("Stop simulation (F7)"));
+    stopAction_->setToolTip(tr("Stop and reset simulation (F7)"));
     stopAction_->setEnabled(false);
     connect(stopAction_, &QAction::triggered, this, [this]() {
         Q_EMIT stopRequested();
@@ -119,14 +119,23 @@ CameraToolbar::CameraToolbar(CameraController* controller,
 
 void CameraToolbar::onSimStarted() {
     playAction_->setEnabled(false);
+    playAction_->setText(tr("\u25B6 Play"));
     pauseAction_->setEnabled(true);
     stopAction_->setEnabled(true);
 }
 
 void CameraToolbar::onSimStopped() {
     playAction_->setEnabled(true);
+    playAction_->setText(tr("\u25B6 Play"));
     pauseAction_->setEnabled(false);
     stopAction_->setEnabled(false);
+}
+
+void CameraToolbar::onSimPaused() {
+    playAction_->setEnabled(true);
+    playAction_->setText(tr("\u25B6 Resume"));
+    pauseAction_->setEnabled(false);
+    stopAction_->setEnabled(true);
 }
 
 void CameraToolbar::showHelp(QWidget* parent) {

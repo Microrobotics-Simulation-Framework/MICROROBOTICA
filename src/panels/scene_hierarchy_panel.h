@@ -32,6 +32,7 @@ signals:
 
 private slots:
     void onSceneLoaded();
+    void onSceneClosed();
     void onTreeItemClicked(QTreeWidgetItem* item, int column);
 
 private:

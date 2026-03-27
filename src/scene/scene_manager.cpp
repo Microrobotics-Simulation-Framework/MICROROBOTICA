@@ -70,6 +70,18 @@ bool SceneManager::loadScene(const std::string& filePath)
 #endif
 }
 
+void SceneManager::closeScene() {
+#ifdef MICROBOTICA_HAS_USD
+    applicator_.reset();
+    stage_.Reset();
+    baseLayer_.Reset();
+    overrideLayer_.Reset();
+    resultsLayer_.Reset();
+#endif
+    sceneLoaded_ = false;
+    Q_EMIT sceneClosed();
+}
+
 void SceneManager::applyResultFrame(const core::ResultFrame& frame,
                                      const core::PhysicsConfig& config)
 {

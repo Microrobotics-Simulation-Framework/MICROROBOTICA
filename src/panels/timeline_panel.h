@@ -25,6 +25,12 @@ public:
                            QWidget* parent = nullptr);
     ~TimelinePanel() override = default;
 
+    /// Pause frame polling (simulation worker keeps running).
+    void pausePolling();
+
+    /// Resume frame polling.
+    void resumePolling();
+
 private Q_SLOTS:
     void onTimerTick();
     void onSimulationStarted();

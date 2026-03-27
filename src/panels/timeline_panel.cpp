@@ -59,6 +59,17 @@ void TimelinePanel::onTimerTick()
     }
 }
 
+void TimelinePanel::pausePolling() {
+    pollTimer_->stop();
+    fpsLabel_->setText(tr("paused"));
+}
+
+void TimelinePanel::resumePolling() {
+    lastFpsTime_ = QDateTime::currentMSecsSinceEpoch();
+    framesSinceLastFps_ = 0;
+    pollTimer_->start();
+}
+
 void TimelinePanel::onSimulationStarted()
 {
     lastFpsTime_ = QDateTime::currentMSecsSinceEpoch();

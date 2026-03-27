@@ -25,6 +25,8 @@ SceneHierarchyPanel::SceneHierarchyPanel(scene::SceneManager& sceneMgr,
 
     connect(&sceneMgr_, &scene::SceneManager::sceneLoaded,
             this, &SceneHierarchyPanel::onSceneLoaded);
+    connect(&sceneMgr_, &scene::SceneManager::sceneClosed,
+            this, &SceneHierarchyPanel::onSceneClosed);
     connect(treeWidget_, &QTreeWidget::itemClicked,
             this, &SceneHierarchyPanel::onTreeItemClicked);
 }
@@ -65,6 +67,11 @@ void SceneHierarchyPanel::onSceneLoaded()
     }
 
     treeWidget_->expandAll();
+}
+
+void SceneHierarchyPanel::onSceneClosed()
+{
+    treeWidget_->clear();
 }
 
 void SceneHierarchyPanel::onTreeItemClicked(QTreeWidgetItem* item, int /*column*/)

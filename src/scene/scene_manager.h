@@ -92,8 +92,12 @@ public:
     SdfLayerRefPtr resultsLayer() const { return resultsLayer_; }
 #endif
 
+    /// Close the current scene and release the stage.
+    void closeScene();
+
 signals:
     void sceneLoaded();
+    void sceneClosed();
     void stageChanged();
     void primChanged(const std::string& primPath);
     void backendCrashed();

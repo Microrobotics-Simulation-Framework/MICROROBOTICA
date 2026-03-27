@@ -29,12 +29,14 @@ public:
 
 Q_SIGNALS:
     void playRequested();
+    void pauseRequested();
     void stopRequested();
     void fullscreenToggled();
 
-private Q_SLOTS:
+public Q_SLOTS:
     void onSimStarted();
     void onSimStopped();
+    void onSimPaused();
 
 private:
     QAction* playAction_ = nullptr;

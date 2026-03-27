@@ -109,6 +109,8 @@ void MainWindow::createToolBars() {
     // Wire sim controls
     connect(cameraToolbar_, &viewport::CameraToolbar::playRequested,
             this, &MainWindow::onSimulationStart);
+    connect(cameraToolbar_, &viewport::CameraToolbar::pauseRequested,
+            this, &MainWindow::onSimulationPause);
     connect(cameraToolbar_, &viewport::CameraToolbar::stopRequested,
             this, &MainWindow::onSimulationStop);
     connect(cameraToolbar_, &viewport::CameraToolbar::fullscreenToggled,
@@ -385,6 +387,8 @@ void MainWindow::onFileOpen()
 
             connect(cameraToolbar_, &viewport::CameraToolbar::playRequested,
                     this, &MainWindow::onSimulationStart);
+            connect(cameraToolbar_, &viewport::CameraToolbar::pauseRequested,
+                    this, &MainWindow::onSimulationPause);
             connect(cameraToolbar_, &viewport::CameraToolbar::stopRequested,
                     this, &MainWindow::onSimulationStop);
             connect(cameraToolbar_, &viewport::CameraToolbar::fullscreenToggled,
@@ -409,9 +413,15 @@ void MainWindow::onFileOpen()
 void MainWindow::onFileClose()
 {
     if (simController_->isRunning()) {
+        paused_ = false;
         simController_->stop();
     }
     primSelection_->clear();
+    sceneMgr_->closeScene();
+    viewportWidget_->setRenderMode(core::RenderMode::Software);
+#ifdef MICROBOTICA_HAS_USD
+    viewportWidget_->setStage(nullptr);
+#endif
     statusBar()->showMessage(tr("Scene closed"));
 }
 
@@ -423,25 +433,43 @@ void MainWindow::onSimulationStart()
         return;
     }
 
+    // Resume from pause
+    if (paused_ && simController_->isRunning()) {
+        paused_ = false;
+        timelinePanel_->resumePolling();
+        viewportWidget_->setContinuousRendering(true);
+        statusBar()->showMessage(tr("Simulation resumed"));
+        if (cameraToolbar_) cameraToolbar_->onSimStarted();
+        return;
+    }
+
     if (simController_->isRunning()) return;
 
-    // Create a local compute backend and launch
     auto backend = std::make_unique<stubs::LocalComputeBackend>();
     simController_->setComputeBackend(std::move(backend));
 
-    // Default actor mapping for the stub simulation path.
-    // The full experiment flow (via ExperimentLoader) populates this from
-    // experiment.yaml's scene.actors section. This hardcoded mapping matches
-    // StubPhysicsProcess's default "robot" actor to umr_confinement.usda.
     core::PhysicsConfig config;
     config.actorToPrimPath["robot"] = "/World/Actors/UMR";
     simController_->launchPhysics(config);
 
+    paused_ = false;
     statusBar()->showMessage(tr("Simulation started"));
+}
+
+void MainWindow::onSimulationPause()
+{
+    if (!simController_->isRunning() || paused_) return;
+
+    paused_ = true;
+    timelinePanel_->pausePolling();
+    viewportWidget_->setContinuousRendering(false);
+    statusBar()->showMessage(tr("Simulation paused"));
+    if (cameraToolbar_) cameraToolbar_->onSimPaused();
 }
 
 void MainWindow::onSimulationStop()
 {
+    paused_ = false;
     simController_->stop();
     statusBar()->showMessage(tr("Simulation stopped"));
 }

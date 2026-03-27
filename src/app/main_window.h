@@ -59,6 +59,7 @@ private Q_SLOTS:
     void onFileOpen();
     void onFileClose();
     void onSimulationStart();
+    void onSimulationPause();
     void onSimulationStop();
     void onAbout();
     void onSettings();
@@ -88,6 +89,7 @@ private:
     // Toolbars
     viewport::CameraToolbar* cameraToolbar_ = nullptr;
     bool fullscreen_ = false;
+    bool paused_ = false;
 
     // Dock panels
     panels::SceneHierarchyPanel* hierarchyPanel_ = nullptr;
