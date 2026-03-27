@@ -47,6 +47,7 @@ public:
     std::optional<core::ResultFrame> receiveResult() override;
     void sendParameters(const nlohmann::json& params) override;
     void stop() override;
+    void setPaused(bool paused) override;
     core::ProcessStatus status() const override;
 
 private:
@@ -55,6 +56,7 @@ private:
     core::PhysicsConfig config_;
     std::atomic<core::ProcessStatus> status_{core::ProcessStatus::Idle};
     std::atomic<bool> running_{false};
+    std::atomic<bool> paused_{false};
     std::thread worker_;
     core::ThreadSafeQueue<core::ResultFrame> queue_;
 };

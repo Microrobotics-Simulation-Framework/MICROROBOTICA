@@ -38,6 +38,10 @@ void StubPhysicsProcess::sendParameters(const nlohmann::json& /*params*/) {
     // No-op for stub
 }
 
+void StubPhysicsProcess::setPaused(bool paused) {
+    paused_.store(paused);
+}
+
 void StubPhysicsProcess::stop() {
     running_.store(false);
     if (worker_.joinable()) {
@@ -59,6 +63,12 @@ void StubPhysicsProcess::workerLoop() {
     const double dt = 1.0 / 60.0; // ~60 Hz
 
     while (running_.load()) {
+        // When paused, sleep without advancing time
+        if (paused_.load()) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(50));
+            continue;
+        }
+
         core::ResultFrame frame;
         frame.simTime = t;
 

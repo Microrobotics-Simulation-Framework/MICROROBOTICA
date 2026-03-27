@@ -108,6 +108,13 @@ void SimulationController::stop() {
     simulationStopped();
 }
 
+void SimulationController::setPaused(bool paused) {
+    paused_.store(paused);
+    if (physics_) {
+        physics_->setPaused(paused);
+    }
+}
+
 void SimulationController::teardown() {
     stop();
     physics_.reset();

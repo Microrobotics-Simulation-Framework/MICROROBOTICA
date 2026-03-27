@@ -67,6 +67,11 @@ public:
     /// @post status() returns Stopped.
     virtual void stop() = 0;
 
+    /// Pause/resume frame production. When paused, the physics process
+    /// should stop advancing sim time. Default is a no-op (for backends
+    /// like MIME where pause is handled at the ZMQ level).
+    virtual void setPaused(bool /*paused*/) {}
+
     /// @return Current process status.
     virtual ProcessStatus status() const = 0;
 };

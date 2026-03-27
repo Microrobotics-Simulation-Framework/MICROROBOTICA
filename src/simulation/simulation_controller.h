@@ -80,9 +80,9 @@ public:
     /// Check if simulation is running.
     bool isRunning() const { return running_.load(); }
 
-    /// Pause/resume the simulation worker. When paused, the worker
-    /// thread sleeps instead of producing frames — sim time freezes.
-    void setPaused(bool paused) { paused_.store(paused); }
+    /// Pause/resume the simulation. Pauses both the worker thread and
+    /// the physics process so sim time genuinely freezes.
+    void setPaused(bool paused);
     bool isPaused() const { return paused_.load(); }
 
     /// Get current sim time.
