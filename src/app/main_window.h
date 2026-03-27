@@ -23,7 +23,6 @@ class SceneHierarchyPanel;
 class PropertyPanel;
 class TimelinePanel;
 class ConsoleWidget;
-class SimulationToolbar;
 class MimeConsolePanel;
 class RunConfigPanel;
 class SkyPilotMonitorPanel;
@@ -87,8 +86,8 @@ private:
     viewport::ViewportWidget* viewportWidget_ = nullptr;
 
     // Toolbars
-    panels::SimulationToolbar* simToolbar_ = nullptr;
     viewport::CameraToolbar* cameraToolbar_ = nullptr;
+    bool fullscreen_ = false;
 
     // Dock panels
     panels::SceneHierarchyPanel* hierarchyPanel_ = nullptr;

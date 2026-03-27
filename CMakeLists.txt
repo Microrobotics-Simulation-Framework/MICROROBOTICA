@@ -115,7 +115,6 @@ target_sources(microbotica PRIVATE
     src/panels/property_panel.cpp
     src/panels/timeline_panel.cpp
     src/panels/console_widget.cpp
-    src/panels/simulation_toolbar.cpp
     src/panels/ansi_parser.cpp
     src/panels/mime_console_panel.cpp
     src/panels/run_config_panel.cpp

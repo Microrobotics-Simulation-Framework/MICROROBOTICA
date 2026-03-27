@@ -15,7 +15,6 @@
 #include "panels/property_panel.h"
 #include "panels/timeline_panel.h"
 #include "panels/console_widget.h"
-#include "panels/simulation_toolbar.h"
 #include "panels/mime_console_panel.h"
 #include "panels/run_config_panel.h"
 #include "panels/skypilot_monitor_panel.h"
@@ -96,13 +95,42 @@ void MainWindow::closeEvent(QCloseEvent* event) {
 // ---------------------------------------------------------------------------
 
 void MainWindow::createToolBars() {
-    simToolbar_ = new panels::SimulationToolbar(*simController_, this);
-    addToolBar(Qt::TopToolBarArea, simToolbar_);
+    // CameraToolbar with sim controls is created when LocalViewport initializes
+    // (in onFileOpen after setRenderMode). Sim controls work without a camera
+    // controller, so we create a basic one now for the no-GPU/pre-scene case.
+    cameraToolbar_ = new viewport::CameraToolbar(
+        nullptr, simController_.get(), this);
+    if (auto* container = centralWidget()) {
+        if (auto* layout = qobject_cast<QVBoxLayout*>(container->layout())) {
+            layout->insertWidget(0, cameraToolbar_);
+        }
+    }
 
-    // The camera toolbar needs a CameraController. Since LocalViewport is
-    // created lazily, we create the toolbar now but wire it when the
-    // viewport activates. For now, create with nullptr — the toolbar buttons
-    // will be connected in wireSignals via renderModeChanged.
+    // Wire sim controls
+    connect(cameraToolbar_, &viewport::CameraToolbar::playRequested,
+            this, &MainWindow::onSimulationStart);
+    connect(cameraToolbar_, &viewport::CameraToolbar::stopRequested,
+            this, &MainWindow::onSimulationStop);
+    connect(cameraToolbar_, &viewport::CameraToolbar::fullscreenToggled,
+            this, [this]() {
+        fullscreen_ = !fullscreen_;
+        if (fullscreen_) {
+            // Hide all dock widgets and menu bar for fullscreen viewport
+            for (auto* dock : findChildren<QDockWidget*>()) {
+                dock->hide();
+            }
+            menuBar()->hide();
+            statusBar()->hide();
+            showFullScreen();
+        } else {
+            showNormal();
+            menuBar()->show();
+            statusBar()->show();
+            for (auto* dock : findChildren<QDockWidget*>()) {
+                dock->show();
+            }
+        }
+    });
 }
 
 // ---------------------------------------------------------------------------
@@ -341,14 +369,39 @@ void MainWindow::onFileOpen()
     // Switch viewport from software placeholder to Hydra/Storm rendering
     viewportWidget_->setRenderMode(core::RenderMode::LocalHydra);
 
-    // Create the camera toolbar once LocalViewport exists
-    if (viewportWidget_->localViewport() && !cameraToolbar_) {
+    // Upgrade the camera toolbar with the actual camera controller
+    if (viewportWidget_->localViewport() && cameraToolbar_) {
         auto* controller = viewportWidget_->localViewport()->cameraController();
-        cameraToolbar_ = new viewport::CameraToolbar(controller, viewportWidget_);
-        if (auto* container = centralWidget()) {
-            if (auto* layout = qobject_cast<QVBoxLayout*>(container->layout())) {
-                layout->insertWidget(0, cameraToolbar_);
-            }
+        // Replace toolbar with one that has camera controls
+        auto* container = centralWidget();
+        auto* layout = container ? qobject_cast<QVBoxLayout*>(container->layout()) : nullptr;
+        if (layout) {
+            layout->removeWidget(cameraToolbar_);
+            cameraToolbar_->deleteLater();
+
+            cameraToolbar_ = new viewport::CameraToolbar(
+                controller, simController_.get(), viewportWidget_);
+            layout->insertWidget(0, cameraToolbar_);
+
+            connect(cameraToolbar_, &viewport::CameraToolbar::playRequested,
+                    this, &MainWindow::onSimulationStart);
+            connect(cameraToolbar_, &viewport::CameraToolbar::stopRequested,
+                    this, &MainWindow::onSimulationStop);
+            connect(cameraToolbar_, &viewport::CameraToolbar::fullscreenToggled,
+                    this, [this]() {
+                fullscreen_ = !fullscreen_;
+                if (fullscreen_) {
+                    for (auto* dock : findChildren<QDockWidget*>()) dock->hide();
+                    menuBar()->hide();
+                    statusBar()->hide();
+                    showFullScreen();
+                } else {
+                    showNormal();
+                    menuBar()->show();
+                    statusBar()->show();
+                    for (auto* dock : findChildren<QDockWidget*>()) dock->show();
+                }
+            });
         }
     }
 }

@@ -1,23 +1,46 @@
 #pragma once
 
 #include <QToolBar>
+#include <QAction>
+
+namespace microbotica::simulation {
+class SimulationController;
+}
 
 namespace microbotica::viewport {
 
 class CameraController;
 
-/// Toolbar with camera snap-to-axis buttons, reset, and help.
+/// Toolbar above the viewport with simulation controls, camera snaps, and help.
 ///
-/// Placed above the viewport. Provides mouse-accessible alternatives
-/// to the keyboard shortcuts for laptop/trackpad users.
+/// Unified simulation Play/Pause/Stop + camera axis-snap buttons + fullscreen
+/// toggle + help. This is the single source of truth for simulation control
+/// UI — no duplicate buttons elsewhere.
 class CameraToolbar : public QToolBar {
     Q_OBJECT
 
 public:
-    CameraToolbar(CameraController* controller, QWidget* parent = nullptr);
+    CameraToolbar(CameraController* controller,
+                  simulation::SimulationController* simController,
+                  QWidget* parent = nullptr);
 
     /// Show the viewport controls help dialog.
     static void showHelp(QWidget* parent);
+
+Q_SIGNALS:
+    void playRequested();
+    void stopRequested();
+    void fullscreenToggled();
+
+private Q_SLOTS:
+    void onSimStarted();
+    void onSimStopped();
+
+private:
+    QAction* playAction_ = nullptr;
+    QAction* pauseAction_ = nullptr;
+    QAction* stopAction_ = nullptr;
+    simulation::SimulationController* simController_ = nullptr;
 };
 
 } // namespace microbotica::viewport
