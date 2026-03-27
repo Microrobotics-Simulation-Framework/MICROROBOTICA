@@ -80,6 +80,11 @@ public:
     /// Check if simulation is running.
     bool isRunning() const { return running_.load(); }
 
+    /// Pause/resume the simulation worker. When paused, the worker
+    /// thread sleeps instead of producing frames — sim time freezes.
+    void setPaused(bool paused) { paused_.store(paused); }
+    bool isPaused() const { return paused_.load(); }
+
     /// Get current sim time.
     double currentTime() const { return currentTime_.load(); }
 
@@ -106,6 +111,7 @@ private:
     core::ThreadSafeQueue<core::ResultFrame> frameQueue_;
     std::future<void> workerFuture_;
     std::atomic<bool> running_{false};
+    std::atomic<bool> paused_{false};
     std::atomic<bool> errorFlag_{false};
     std::atomic<double> currentTime_{0.0};
     std::string errorMessage_;

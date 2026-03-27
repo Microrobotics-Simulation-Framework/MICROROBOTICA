@@ -436,6 +436,7 @@ void MainWindow::onSimulationStart()
     // Resume from pause
     if (paused_ && simController_->isRunning()) {
         paused_ = false;
+        simController_->setPaused(false);
         timelinePanel_->resumePolling();
         viewportWidget_->setContinuousRendering(true);
         statusBar()->showMessage(tr("Simulation resumed"));
@@ -461,6 +462,7 @@ void MainWindow::onSimulationPause()
     if (!simController_->isRunning() || paused_) return;
 
     paused_ = true;
+    simController_->setPaused(true);
     timelinePanel_->pausePolling();
     viewportWidget_->setContinuousRendering(false);
     statusBar()->showMessage(tr("Simulation paused"));
@@ -470,6 +472,7 @@ void MainWindow::onSimulationPause()
 void MainWindow::onSimulationStop()
 {
     paused_ = false;
+    simController_->setPaused(false);  // Unblock worker so stop() can join it
     simController_->stop();
     statusBar()->showMessage(tr("Simulation stopped"));
 }

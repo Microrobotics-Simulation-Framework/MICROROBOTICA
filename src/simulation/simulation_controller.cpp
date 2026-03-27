@@ -117,9 +117,16 @@ void SimulationController::teardown() {
 void SimulationController::workerFunction() {
     try {
         while (running_.load()) {
+            // When paused, sleep instead of producing frames.
+            // This freezes sim time because the physics process
+            // isn't called and no frames are generated.
+            if (paused_.load()) {
+                std::this_thread::sleep_for(std::chrono::milliseconds(50));
+                continue;
+            }
+
             auto frame = physics_->receiveResult();
             if (!frame.has_value()) {
-                // Stream ended
                 running_.store(false);
                 break;
             }
