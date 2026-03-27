@@ -2,6 +2,7 @@
 
 #include <QHBoxLayout>
 #include <QDateTime>
+#include "core/profiler.h"
 
 #include "simulation/simulation_controller.h"
 
@@ -48,6 +49,9 @@ void TimelinePanel::onTimerTick()
     simCtrl_.requestNextFrame();
     const double t = simCtrl_.currentTime();
     timeLabel_->setText(QString("Sim: %1 s").arg(t, 0, 'f', 3));
+
+    // Profiling report (no-op when MICROBOTICA_PROFILING is not defined)
+    core::ProfileReporter::reportIfDue();
 
     // Simple FPS counter
     framesSinceLastFps_++;

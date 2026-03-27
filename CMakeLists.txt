@@ -9,6 +9,8 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 # --- Options ---
 option(BUILD_PYTHON_MODULE "Build standalone Python module" OFF)
 option(BUILD_TESTS "Build test suite" ON)
+option(ENABLE_PROFILING "Enable per-frame profiling (debug builds)" OFF)
+option(ENABLE_LTO "Enable Link-Time Optimization (release builds)" ON)
 
 # --- Compiler warnings module ---
 include(cmake/CompilerWarnings.cmake)
@@ -147,6 +149,21 @@ if(ZMQ_FOUND)
     target_link_libraries(microbotica PRIVATE ${ZMQ_TARGET})
 endif()
 target_enable_warnings(microbotica)
+
+if(ENABLE_PROFILING)
+    target_compile_definitions(microbotica PRIVATE MICROBOTICA_PROFILING=1)
+    target_compile_definitions(microbotica_core PRIVATE MICROBOTICA_PROFILING=1)
+endif()
+
+# --- LTO for release builds ---
+if(ENABLE_LTO AND CMAKE_BUILD_TYPE STREQUAL "Release")
+    include(CheckIPOSupported)
+    check_ipo_supported(RESULT _lto_supported)
+    if(_lto_supported)
+        set_property(TARGET microbotica PROPERTY INTERPROCEDURAL_OPTIMIZATION ON)
+        set_property(TARGET microbotica_core PROPERTY INTERPROCEDURAL_OPTIMIZATION ON)
+    endif()
+endif()
 
 # --- Python module (standalone) ---
 if(BUILD_PYTHON_MODULE)

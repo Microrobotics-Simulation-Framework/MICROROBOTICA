@@ -1,8 +1,7 @@
 #include "experiment/experiment_loader.h"
 #include <fstream>
 #include <filesystem>
-#include <array>
-#include <cstdio>
+#include <QProcess>
 #include <spdlog/spdlog.h>
 
 namespace microbotica::experiment {
@@ -29,23 +28,23 @@ std::optional<ExperimentConfig> ExperimentLoader::load(const std::string& experi
 
     if (need_regen && std::filesystem::exists(yaml_path)) {
         spdlog::info("ExperimentLoader: experiment.yaml is newer than experiment.json — regenerating");
-        std::string cmd = "python3 -c \""
+
+        QString pyCode =
             "import json, yaml, sys; "
             "data = yaml.safe_load(open(sys.argv[1])); "
-            "json.dump(data, open(sys.argv[2], 'w'), indent=2, default=str)\" "
-            "\"" + yaml_path + "\" \"" + json_path + "\" 2>&1";
+            "json.dump(data, open(sys.argv[2], 'w'), indent=2, default=str)";
 
-        auto pipe_closer = [](FILE* f) { if (f) pclose(f); };
-        std::unique_ptr<FILE, decltype(pipe_closer)> pipe(popen(cmd.c_str(), "r"), pipe_closer);
-        if (pipe) {
-            std::array<char, 256> buf;
-            std::string output;
-            while (fgets(buf.data(), static_cast<int>(buf.size()), pipe.get()) != nullptr) {
-                output += buf.data();
-            }
-            if (!output.empty()) {
-                spdlog::warn("ExperimentLoader: yaml_to_json output: {}", output);
-            }
+        QProcess proc;
+        proc.start("python3", {"-c", pyCode,
+                    QString::fromStdString(yaml_path),
+                    QString::fromStdString(json_path)});
+
+        if (!proc.waitForFinished(10000)) {
+            spdlog::error("ExperimentLoader: yaml_to_json timed out");
+        } else if (proc.exitCode() != 0) {
+            std::string err = proc.readAllStandardError().toStdString();
+            spdlog::warn("ExperimentLoader: yaml_to_json failed (exit {}): {}",
+                         proc.exitCode(), err);
         }
 
         if (!std::filesystem::exists(json_path)) {

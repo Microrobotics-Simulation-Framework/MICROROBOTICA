@@ -24,6 +24,10 @@ public:
                   simulation::SimulationController* simController,
                   QWidget* parent = nullptr);
 
+    /// Wire camera controls to a (newly created) controller.
+    /// Called when LocalViewport is created after scene load.
+    void setCameraController(CameraController* controller);
+
     /// Show the viewport controls help dialog.
     static void showHelp(QWidget* parent);
 
@@ -42,7 +46,10 @@ private:
     QAction* playAction_ = nullptr;
     QAction* pauseAction_ = nullptr;
     QAction* stopAction_ = nullptr;
+    QAction* cameraSeparator_ = nullptr;  ///< Insert point for camera actions
     simulation::SimulationController* simController_ = nullptr;
+    CameraController* cameraController_ = nullptr;
+    QList<QAction*> cameraActions_;  ///< Removable camera-specific actions
 };
 
 } // namespace microbotica::viewport

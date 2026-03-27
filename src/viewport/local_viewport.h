@@ -7,6 +7,8 @@
 #ifdef MICROBOTICA_HAS_USD
 #include <pxr/usd/usd/stage.h>
 #include <pxr/usdImaging/usdImagingGL/engine.h>
+#include <pxr/imaging/glf/simpleLight.h>
+#include <pxr/imaging/glf/simpleMaterial.h>
 PXR_NAMESPACE_USING_DIRECTIVE
 #endif
 
@@ -56,6 +58,12 @@ private:
 #ifdef MICROBOTICA_HAS_USD
     UsdStageRefPtr stage_;
     std::unique_ptr<UsdImagingGLEngine> engine_;
+
+    // Cached lighting state — only key light position updated per frame.
+    bool lightingInitialized_ = false;
+    GlfSimpleLightVector lights_;
+    GlfSimpleMaterial material_;
+    GfVec4f sceneAmbient_;
 #endif
 };
 

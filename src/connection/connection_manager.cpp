@@ -1,8 +1,6 @@
 #include "connection/connection_manager.h"
 #include <spdlog/spdlog.h>
-#include <array>
-#include <cstdio>
-#include <memory>
+#include <QProcess>
 
 #ifdef MICROBOTICA_HAS_ZMQ
 #include <zmq.hpp>
@@ -96,22 +94,25 @@ std::optional<nlohmann::json> ConnectionManager::resolveCluster(
     const std::string& cluster_name,
     const std::string& scripts_dir) const
 {
-    std::string cmd = "python3 " + scripts_dir + "/sky_resolve.py " + cluster_name + " 2>/dev/null";
+    QProcess proc;
+    proc.start("python3", {
+        QString::fromStdString(scripts_dir + "/sky_resolve.py"),
+        QString::fromStdString(cluster_name)
+    });
 
-    std::array<char, 1024> buffer;
-    std::string output;
-
-    auto pipe_closer = [](FILE* f) { if (f) pclose(f); };
-    std::unique_ptr<FILE, decltype(pipe_closer)> pipe(popen(cmd.c_str(), "r"), pipe_closer);
-    if (!pipe) {
-        spdlog::error("ConnectionManager: Failed to run sky_resolve.py");
+    if (!proc.waitForFinished(10000)) {
+        spdlog::error("ConnectionManager: sky_resolve.py timed out for cluster '{}'", cluster_name);
         return std::nullopt;
     }
 
-    while (fgets(buffer.data(), static_cast<int>(buffer.size()), pipe.get()) != nullptr) {
-        output += buffer.data();
+    if (proc.exitCode() != 0) {
+        std::string err = proc.readAllStandardError().toStdString();
+        spdlog::warn("ConnectionManager: sky_resolve.py failed (exit {}): {}",
+                      proc.exitCode(), err);
+        return std::nullopt;
     }
 
+    std::string output = proc.readAllStandardOutput().toStdString();
     if (output.empty()) {
         spdlog::warn("ConnectionManager: sky_resolve.py returned no output for cluster '{}'",
                       cluster_name);

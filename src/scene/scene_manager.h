@@ -95,6 +95,10 @@ public:
     /// Close the current scene and release the stage.
     void closeScene();
 
+    /// Scene generation counter — incremented on load/close.
+    /// Used by ResultsApplicator to invalidate cached xform op handles.
+    uint64_t sceneGeneration() const { return sceneGeneration_; }
+
 signals:
     void sceneLoaded();
     void sceneClosed();
@@ -106,6 +110,7 @@ private:
     core::AuditLogger* logger_ = nullptr;
     core::NullAuditLogger nullLogger_;
     bool sceneLoaded_ = false;
+    uint64_t sceneGeneration_ = 0;
     std::unique_ptr<ResultsApplicator> applicator_;
 
 #ifdef MICROBOTICA_HAS_USD

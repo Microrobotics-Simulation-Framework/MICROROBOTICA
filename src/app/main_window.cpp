@@ -371,42 +371,11 @@ void MainWindow::onFileOpen()
     // Switch viewport from software placeholder to Hydra/Storm rendering
     viewportWidget_->setRenderMode(core::RenderMode::LocalHydra);
 
-    // Upgrade the camera toolbar with the actual camera controller
+    // Wire camera controls to the (now-existing) LocalViewport controller.
+    // No toolbar recreation — setCameraController adds buttons dynamically.
     if (viewportWidget_->localViewport() && cameraToolbar_) {
-        auto* controller = viewportWidget_->localViewport()->cameraController();
-        // Replace toolbar with one that has camera controls
-        auto* container = centralWidget();
-        auto* layout = container ? qobject_cast<QVBoxLayout*>(container->layout()) : nullptr;
-        if (layout) {
-            layout->removeWidget(cameraToolbar_);
-            cameraToolbar_->deleteLater();
-
-            cameraToolbar_ = new viewport::CameraToolbar(
-                controller, simController_.get(), viewportWidget_);
-            layout->insertWidget(0, cameraToolbar_);
-
-            connect(cameraToolbar_, &viewport::CameraToolbar::playRequested,
-                    this, &MainWindow::onSimulationStart);
-            connect(cameraToolbar_, &viewport::CameraToolbar::pauseRequested,
-                    this, &MainWindow::onSimulationPause);
-            connect(cameraToolbar_, &viewport::CameraToolbar::stopRequested,
-                    this, &MainWindow::onSimulationStop);
-            connect(cameraToolbar_, &viewport::CameraToolbar::fullscreenToggled,
-                    this, [this]() {
-                fullscreen_ = !fullscreen_;
-                if (fullscreen_) {
-                    for (auto* dock : findChildren<QDockWidget*>()) dock->hide();
-                    menuBar()->hide();
-                    statusBar()->hide();
-                    showFullScreen();
-                } else {
-                    showNormal();
-                    menuBar()->show();
-                    statusBar()->show();
-                    for (auto* dock : findChildren<QDockWidget*>()) dock->show();
-                }
-            });
-        }
+        cameraToolbar_->setCameraController(
+            viewportWidget_->localViewport()->cameraController());
     }
 }
 

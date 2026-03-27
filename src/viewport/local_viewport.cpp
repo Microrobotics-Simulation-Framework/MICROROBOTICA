@@ -7,6 +7,7 @@
 #include <QOpenGLFunctions>
 #include <QSurfaceFormat>
 #include <spdlog/spdlog.h>
+#include "core/profiler.h"
 
 #ifdef MICROBOTICA_HAS_USD
 #include <pxr/base/gf/camera.h>
@@ -16,8 +17,6 @@
 #include <pxr/base/gf/vec4f.h>
 #include <pxr/base/gf/vec3f.h>
 #include <pxr/usd/usd/prim.h>
-#include <pxr/imaging/glf/simpleLight.h>
-#include <pxr/imaging/glf/simpleMaterial.h>
 #endif
 
 namespace microbotica::viewport {
@@ -115,6 +114,7 @@ void LocalViewport::initializeGL()
 
 void LocalViewport::paintGL()
 {
+    MBCA_PROFILE_SCOPE("paintGL");
     QOpenGLFunctions* f = QOpenGLContext::currentContext()->functions();
     f->glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
@@ -188,42 +188,44 @@ void LocalViewport::paintGL()
     engine_->SetRenderViewport(GfVec4d(0, 0, w * devicePixelRatio(),
                                             h * devicePixelRatio()));
 
-    // Camera-following key light + fill light + ambient.
-    // Without this, Storm renders everything black (no lights in scene).
-    {
-        GlfSimpleLight keyLight(GfVec4f(
-            static_cast<float>(eye[0]),
-            static_cast<float>(eye[1]),
-            static_cast<float>(eye[2]),
-            1.0f));
+    // Lighting: initialize once, then only update key light position per frame.
+    if (!lightingInitialized_) {
+        GlfSimpleLight keyLight(GfVec4f(0, 0, 0, 1));
         keyLight.SetDiffuse(GfVec4f(0.9f, 0.9f, 0.9f, 1.0f));
         keyLight.SetAmbient(GfVec4f(0.0f, 0.0f, 0.0f, 1.0f));
         keyLight.SetSpecular(GfVec4f(0.4f, 0.4f, 0.4f, 1.0f));
 
-        // Fill light from opposite side (dimmer)
-        GlfSimpleLight fillLight(GfVec4f(
-            static_cast<float>(-eye[0]),
-            static_cast<float>(eye[1] + dist * 0.5),
-            static_cast<float>(-eye[2]),
-            1.0f));
+        GlfSimpleLight fillLight(GfVec4f(0, 0, 0, 1));
         fillLight.SetDiffuse(GfVec4f(0.3f, 0.3f, 0.35f, 1.0f));
         fillLight.SetAmbient(GfVec4f(0.0f, 0.0f, 0.0f, 1.0f));
         fillLight.SetSpecular(GfVec4f(0.0f, 0.0f, 0.0f, 1.0f));
 
-        GlfSimpleLightVector lights = { keyLight, fillLight };
+        lights_ = { keyLight, fillLight };
 
-        GlfSimpleMaterial material;
-        material.SetAmbient(GfVec4f(0.1f, 0.1f, 0.1f, 1.0f));
-        material.SetDiffuse(GfVec4f(0.8f, 0.8f, 0.8f, 1.0f));
-        material.SetSpecular(GfVec4f(0.3f, 0.3f, 0.3f, 1.0f));
-        material.SetShininess(32.0f);
+        material_.SetAmbient(GfVec4f(0.1f, 0.1f, 0.1f, 1.0f));
+        material_.SetDiffuse(GfVec4f(0.8f, 0.8f, 0.8f, 1.0f));
+        material_.SetSpecular(GfVec4f(0.3f, 0.3f, 0.3f, 1.0f));
+        material_.SetShininess(32.0f);
 
-        GfVec4f sceneAmbient(0.08f, 0.08f, 0.1f, 1.0f);
-
-        engine_->SetLightingState(lights, material, sceneAmbient);
+        sceneAmbient_ = GfVec4f(0.08f, 0.08f, 0.1f, 1.0f);
+        lightingInitialized_ = true;
     }
 
-    engine_->Render(stage_->GetPseudoRoot(), params);
+    // Only the key light position changes per frame (tracks camera).
+    // Fill light tracks opposite side.
+    lights_[0].SetPosition(GfVec4f(
+        static_cast<float>(eye[0]), static_cast<float>(eye[1]),
+        static_cast<float>(eye[2]), 1.0f));
+    lights_[1].SetPosition(GfVec4f(
+        static_cast<float>(-eye[0]), static_cast<float>(eye[1] + dist * 0.5),
+        static_cast<float>(-eye[2]), 1.0f));
+
+    engine_->SetLightingState(lights_, material_, sceneAmbient_);
+
+    {
+        MBCA_PROFILE_SCOPE("hydra_render");
+        engine_->Render(stage_->GetPseudoRoot(), params);
+    }
 
 #else
     // USD not available — paint a placeholder message.

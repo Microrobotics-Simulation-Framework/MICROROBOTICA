@@ -1,5 +1,7 @@
 #pragma once
 
+#include <string>
+#include <unordered_map>
 #include "core/component_meta.h"
 #include "core/result_frame.h"
 #include "core/physics_config.h"
@@ -59,10 +61,26 @@ public:
     void apply(const core::ResultFrame& frame,
                const core::PhysicsConfig& config);
 
+    /// Set the scene generation (from SceneManager) for cache invalidation.
+    void setSceneGeneration(uint64_t gen) { cacheGeneration_ = gen; }
+
 private:
+    uint64_t cacheGeneration_ = 0;
+
 #ifdef MICROBOTICA_HAS_USD
     SdfLayerRefPtr resultsLayer_;
     UsdStageRefPtr stage_;
+
+    // Cached xform op handles — avoids GetOrderedXformOps() every frame.
+    // Invalidated when cacheGeneration_ doesn't match the current scene.
+    struct CachedOps {
+        UsdGeomXformOp translateOp;
+        UsdGeomXformOp orientOp;
+        bool valid = false;
+    };
+    std::unordered_map<std::string, CachedOps> opsCache_;
+
+    CachedOps& getCachedOps(const std::string& primPath, uint64_t currentGen);
 #endif
 };
 

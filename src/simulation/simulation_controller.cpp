@@ -1,5 +1,6 @@
 #include "simulation/simulation_controller.h"
 #include "core/stability.h"
+#include "core/profiler.h"
 #include <spdlog/spdlog.h>
 
 namespace microbotica::simulation {
@@ -68,20 +69,15 @@ void SimulationController::requestNextFrame() {
         return;
     }
 
-    // Drain the queue to the latest frame. If multiple frames have
-    // accumulated (timer jitter, slow paintGL), skip intermediate ones
-    // to keep the viewport showing the most recent state.
-    std::optional<core::ResultFrame> latest;
-    int skipped = 0;
-    while (auto frame = frameQueue_.try_pop()) {
-        if (frame->simTime < 0.0) continue; // sentinel
-        if (latest.has_value()) skipped++;
-        latest = std::move(*frame);
-    }
+    MBCA_PROFILE_SCOPE("drain_queue");
+
+    // Single-lock drain: get the newest frame, discard stale ones.
+    auto latest = frameQueue_.drain_latest();
 
     if (latest.has_value()) {
+        if (latest->simTime < 0.0) return; // sentinel
         currentTime_.store(latest->simTime);
-        frameCount_ += skipped + 1;
+        frameCount_++;
 
         // Apply only the latest frame to the scene
         sceneMgr_.applyResultFrame(*latest, config_);

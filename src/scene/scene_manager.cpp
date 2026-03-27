@@ -57,6 +57,7 @@ bool SceneManager::loadScene(const std::string& filePath)
 
     applicator_ = std::make_unique<ResultsApplicator>(resultsLayer_, stage_);
     sceneLoaded_ = true;
+    ++sceneGeneration_;
 
     spdlog::info("SceneManager: Loaded scene {} with three-layer stack", filePath);
     logger_->logEvent("scene_load", {{"path", filePath}});
@@ -79,6 +80,7 @@ void SceneManager::closeScene() {
     resultsLayer_.Reset();
 #endif
     sceneLoaded_ = false;
+    ++sceneGeneration_;
     Q_EMIT sceneClosed();
 }
 
@@ -87,6 +89,7 @@ void SceneManager::applyResultFrame(const core::ResultFrame& frame,
 {
 #ifdef MICROBOTICA_HAS_USD
     if (!applicator_) return;
+    applicator_->setSceneGeneration(sceneGeneration_);
     applicator_->apply(frame, config);
     stageChanged();
 #else

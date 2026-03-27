@@ -41,6 +41,20 @@ public:
         return value;
     }
 
+    /// Drain the queue and return only the newest item.
+    /// Discards all intermediate items. Single lock acquisition
+    /// regardless of queue depth — O(1) lock overhead vs O(N) for
+    /// repeated try_pop().
+    std::optional<T> drain_latest() {
+        std::lock_guard<std::mutex> lock(mutex_);
+        if (queue_.empty()) return std::nullopt;
+        T latest = std::move(queue_.back());
+        // Clear the entire queue (front items are stale)
+        std::queue<T> empty;
+        queue_.swap(empty);
+        return latest;
+    }
+
     /// Check if empty.
     bool empty() const {
         std::lock_guard<std::mutex> lock(mutex_);

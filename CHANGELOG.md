@@ -50,6 +50,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **ScriptEditorPanel**: Tabbed file editor with Python syntax highlighting (PythonHighlighter), QFileSystemWatcher for live external change detection, save/save-all, unsaved changes prompts
 - **PythonHighlighter**: QSyntaxHighlighter for Python keywords, builtins, strings, comments, numbers, decorators, multi-line triple-quote strings
 - **ParameterPanel**: JSON-driven form (QDoubleSpinBox/QSpinBox/QLineEdit/QCheckBox) for params.py namespace, Apply button emits parametersChanged signal
+- **Profiler**: Lock-free per-frame profiling (`MBCA_PROFILE_SCOPE` macro, `ProfileRingBuffer`, `ProfileReporter`). Zero overhead when `MICROBOTICA_PROFILING` not defined. Debug-only by default.
+
+### Performance
+
+- **ResultsApplicator**: `SdfChangeBlock` batches all USD attribute writes into a single change notification per frame
+- **ResultsApplicator**: Cached `UsdGeomXformOp` handles with generation-counter invalidation — eliminates `GetOrderedXformOps()` per frame
+- **LocalViewport**: Cached `GlfSimpleLight`/`GlfSimpleMaterial` as members — only key light position updated per frame
+- **ThreadSafeQueue**: `drain_latest()` method — single lock acquisition for entire queue drain (O(1) vs O(N))
+- **CMakeLists**: LTO option for release builds, `ENABLE_PROFILING` CMake option
+
+### Security
+
+- **ExperimentLoader**: Replaced `popen()` with `QProcess` for YAML→JSON conversion — prevents command injection via crafted filenames, provides proper exit code and stderr handling
+- **ConnectionManager**: Replaced `popen()` with `QProcess` for `sky_resolve.py` — prevents command injection via cluster names
+
+### Fixed
+
+- **CameraToolbar**: `setCameraController()` setter replaces destroy-and-recreate pattern — eliminates double signal connections after scene load
 
 ### Verification
 

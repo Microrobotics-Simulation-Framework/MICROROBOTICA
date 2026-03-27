@@ -1,5 +1,6 @@
 #include "scene/results_applicator.h"
 #include <spdlog/spdlog.h>
+#include "core/profiler.h"
 
 #ifdef MICROBOTICA_HAS_USD
 #include <pxr/usd/usd/editContext.h>
@@ -26,90 +27,39 @@ ResultsApplicator::ResultsApplicator(SdfLayerRefPtr resultsLayer,
 void ResultsApplicator::apply(const core::ResultFrame& frame,
                                const core::PhysicsConfig& config)
 {
+    MBCA_PROFILE_SCOPE("apply_frame");
+
     if (!resultsLayer_ || !stage_) return;
 
     // Use UsdEditContext to direct all writes to the results layer.
-    // The results sublayer is inserted at index 0 (strongest opinion).
     UsdEditContext ctx(stage_, resultsLayer_);
 
+    // Batch all attribute writes into a single USD change notification.
+    // Without this, each Set() triggers recomposition separately — expensive.
+    SdfChangeBlock changeBlock;
+
+    // Write positions and orientations using cached xform op handles.
+    // getCachedOps() populates the cache on first call and invalidates
+    // when scene generation changes.
     for (const auto& [actor, pos] : frame.positions) {
         auto it = config.actorToPrimPath.find(actor);
         if (it == config.actorToPrimPath.end()) {
             spdlog::warn("ResultsApplicator: No prim path mapping for actor '{}' — skipping", actor);
             continue;
         }
-
-        const auto& primPath = it->second;
-        auto prim = stage_->GetPrimAtPath(SdfPath(primPath));
-        if (!prim.IsValid()) {
-            spdlog::warn("ResultsApplicator: Unknown prim path '{}' for actor '{}' — data dropped",
-                         primPath, actor);
-            continue;
+        auto& cached = getCachedOps(it->second, cacheGeneration_);
+        if (cached.valid && cached.translateOp) {
+            cached.translateOp.Set(GfVec3d(pos.x, pos.y, pos.z));
         }
-
-        UsdGeomXformable xformable(prim);
-        if (!xformable) {
-            spdlog::warn("ResultsApplicator: Prim '{}' is not Xformable — cannot set translate",
-                         primPath);
-            continue;
-        }
-
-        // Get or create translate op on the results layer
-        bool resetXformStack = false;
-        auto ops = xformable.GetOrderedXformOps(&resetXformStack);
-
-        UsdGeomXformOp translateOp;
-        for (auto& op : ops) {
-            if (op.GetOpType() == UsdGeomXformOp::TypeTranslate) {
-                translateOp = op;
-                break;
-            }
-        }
-        if (!translateOp) {
-            translateOp = xformable.AddTranslateOp();
-        }
-
-        translateOp.Set(GfVec3d(pos.x, pos.y, pos.z));
     }
 
-    // Write orientations as xformOp:orient (op order: translate first, orient second)
     for (const auto& [actor, quat] : frame.orientations) {
         auto it = config.actorToPrimPath.find(actor);
-        if (it == config.actorToPrimPath.end()) {
-            spdlog::warn("ResultsApplicator: No prim path mapping for actor '{}' — skipping orient", actor);
-            continue;
+        if (it == config.actorToPrimPath.end()) continue;
+        auto& cached = getCachedOps(it->second, cacheGeneration_);
+        if (cached.valid && cached.orientOp) {
+            cached.orientOp.Set(GfQuatd(quat.w, GfVec3d(quat.x, quat.y, quat.z)));
         }
-
-        const auto& primPath = it->second;
-        auto prim = stage_->GetPrimAtPath(SdfPath(primPath));
-        if (!prim.IsValid()) {
-            spdlog::warn("ResultsApplicator: Unknown prim path '{}' for actor '{}' — orient data dropped",
-                         primPath, actor);
-            continue;
-        }
-
-        UsdGeomXformable xformable(prim);
-        if (!xformable) {
-            spdlog::warn("ResultsApplicator: Prim '{}' is not Xformable — cannot set orient",
-                         primPath);
-            continue;
-        }
-
-        bool resetXformStack = false;
-        auto ops = xformable.GetOrderedXformOps(&resetXformStack);
-
-        UsdGeomXformOp orientOp;
-        for (auto& op : ops) {
-            if (op.GetOpType() == UsdGeomXformOp::TypeOrient) {
-                orientOp = op;
-                break;
-            }
-        }
-        if (!orientOp) {
-            orientOp = xformable.AddOrientOp();
-        }
-
-        orientOp.Set(GfQuatd(quat.w, GfVec3d(quat.x, quat.y, quat.z)));
     }
 
     // Write mesh vertex colors as primvars:displayColor
@@ -181,6 +131,51 @@ void ResultsApplicator::apply(const core::ResultFrame& frame,
             attr.Set(value);
         }
     }
+}
+
+ResultsApplicator::CachedOps& ResultsApplicator::getCachedOps(
+    const std::string& primPath, uint64_t currentGen)
+{
+    // Invalidate entire cache if scene generation changed
+    if (cacheGeneration_ != currentGen) {
+        opsCache_.clear();
+        cacheGeneration_ = currentGen;
+    }
+
+    auto it = opsCache_.find(primPath);
+    if (it != opsCache_.end() && it->second.valid) {
+        // Safety net: check handles are still defined (survives hot-swap)
+        if (it->second.translateOp && !it->second.translateOp.IsDefined()) {
+            it->second.valid = false;
+        }
+        if (it->second.valid) return it->second;
+    }
+
+    // Populate cache for this prim
+    CachedOps ops;
+    auto prim = stage_->GetPrimAtPath(SdfPath(primPath));
+    if (prim.IsValid()) {
+        UsdGeomXformable xformable(prim);
+        if (xformable) {
+            bool resetXformStack = false;
+            auto xfOps = xformable.GetOrderedXformOps(&resetXformStack);
+            for (auto& op : xfOps) {
+                if (op.GetOpType() == UsdGeomXformOp::TypeTranslate) {
+                    ops.translateOp = op;
+                }
+                if (op.GetOpType() == UsdGeomXformOp::TypeOrient) {
+                    ops.orientOp = op;
+                }
+            }
+            // Create ops if they don't exist yet
+            if (!ops.translateOp) ops.translateOp = xformable.AddTranslateOp();
+            if (!ops.orientOp) ops.orientOp = xformable.AddOrientOp();
+            ops.valid = true;
+        }
+    }
+
+    opsCache_[primPath] = ops;
+    return opsCache_[primPath];
 }
 
 #else
