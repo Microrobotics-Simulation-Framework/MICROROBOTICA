@@ -35,9 +35,14 @@ public:
     /// Access the camera controller for this viewport.
     CameraController* cameraController() const { return cameraController_; }
 
+    /// Set the USD time code for rendering. Used for animation playback.
+    /// Default is UsdTimeCode::Default() (static scenes / live simulation).
+    void setTimeCode(double t);
+
+    /// Reset time code to default (non-animated).
+    void resetTimeCode();
+
     /// Enable/disable continuous rendering (self-driving render loop).
-    /// When enabled, paintGL() calls update() at the end of each frame,
-    /// creating a requestAnimationFrame-style loop synced to the display.
     void setContinuousRendering(bool enabled);
     bool isContinuousRendering() const { return continuousRendering_; }
 
@@ -54,6 +59,8 @@ private:
     bool usdAvailable_ = false;
     bool renderFailed_ = false;
     bool continuousRendering_ = false;
+    bool useCustomTimeCode_ = false;
+    double customTime_ = 0.0;
 
 #ifdef MICROBOTICA_HAS_USD
     UsdStageRefPtr stage_;

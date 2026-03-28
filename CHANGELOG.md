@@ -51,6 +51,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **PythonHighlighter**: QSyntaxHighlighter for Python keywords, builtins, strings, comments, numbers, decorators, multi-line triple-quote strings
 - **ParameterPanel**: JSON-driven form (QDoubleSpinBox/QSpinBox/QLineEdit/QCheckBox) for params.py namespace, Apply button emits parametersChanged signal
 - **Profiler**: Lock-free per-frame profiling (`MBCA_PROFILE_SCOPE` macro, `ProfileRingBuffer`, `ProfileReporter`). Zero overhead when `MICROBOTICA_PROFILING` not defined. Debug-only by default.
+- **USDC Playback**: Open MIME-recorded `.usdc` files with time-sampled animation. Auto-detects `HasAuthoredTimeCodeRange`, shows timeline slider, plays at recorded fps with scrubbing, looping, and play/pause/stop.
+- **RecordingConfig**: `recording.output` field in `experiment.yaml` for pointing to .usdc recording files
 
 ### Performance
 

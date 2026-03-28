@@ -65,6 +65,12 @@ public:
     /// Get the current render mode.
     core::RenderMode renderMode() const { return currentMode_; }
 
+    /// Set the USD time code for animation playback.
+    void setTimeCode(double t);
+
+    /// Reset time code to default (static scene / live simulation).
+    void resetTimeCode();
+
     /// Enable/disable continuous rendering on the active viewport.
     void setContinuousRendering(bool enabled);
 

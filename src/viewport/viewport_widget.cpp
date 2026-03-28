@@ -127,6 +127,14 @@ void ViewportWidget::setRenderMode(core::RenderMode mode)
     Q_EMIT renderModeChanged(mode);
 }
 
+void ViewportWidget::setTimeCode(double t) {
+    if (localViewport_) localViewport_->setTimeCode(t);
+}
+
+void ViewportWidget::resetTimeCode() {
+    if (localViewport_) localViewport_->resetTimeCode();
+}
+
 void ViewportWidget::setContinuousRendering(bool enabled) {
     if (localViewport_) {
         localViewport_->setContinuousRendering(enabled);

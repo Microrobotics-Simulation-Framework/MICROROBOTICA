@@ -59,10 +59,27 @@ bool SceneManager::loadScene(const std::string& filePath)
     sceneLoaded_ = true;
     ++sceneGeneration_;
 
-    spdlog::info("SceneManager: Loaded scene {} with three-layer stack", filePath);
+    // Read animation time metadata from the stage (set by MIME's USDRecorderObserver)
+    hasAnimation_ = stage_->HasAuthoredTimeCodeRange();
+    if (hasAnimation_) {
+        startTimeCode_ = stage_->GetStartTimeCode();
+        endTimeCode_ = stage_->GetEndTimeCode();
+        timeCodesPerSecond_ = stage_->GetTimeCodesPerSecond();
+        spdlog::info("SceneManager: Loaded scene {} with three-layer stack "
+                     "(animation: frames {}-{} at {} fps)",
+                     filePath, startTimeCode_, endTimeCode_, timeCodesPerSecond_);
+    } else {
+        startTimeCode_ = 0.0;
+        endTimeCode_ = 0.0;
+        timeCodesPerSecond_ = 24.0;
+        spdlog::info("SceneManager: Loaded scene {} with three-layer stack", filePath);
+    }
     logger_->logEvent("scene_load", {{"path", filePath}});
 
-    sceneLoaded();
+    Q_EMIT sceneLoaded();
+    if (hasAnimation_) {
+        Q_EMIT animationDetected(startTimeCode_, endTimeCode_, timeCodesPerSecond_);
+    }
     return true;
 #else
     spdlog::warn("SceneManager: USD not available, scene loading disabled");
@@ -80,6 +97,7 @@ void SceneManager::closeScene() {
     resultsLayer_.Reset();
 #endif
     sceneLoaded_ = false;
+    hasAnimation_ = false;
     ++sceneGeneration_;
     Q_EMIT sceneClosed();
 }

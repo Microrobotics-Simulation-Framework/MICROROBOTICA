@@ -1,10 +1,14 @@
 #include "panels/timeline_panel.h"
 
 #include <QHBoxLayout>
+#include <QVBoxLayout>
 #include <QDateTime>
 #include "core/profiler.h"
 
 #include "simulation/simulation_controller.h"
+
+#include <spdlog/spdlog.h>
+#include <algorithm>
 
 namespace microbotica::panels {
 
@@ -18,25 +22,50 @@ TimelinePanel::TimelinePanel(simulation::SimulationController& simCtrl,
     setObjectName("TimelinePanel");
 
     auto* container = new QWidget(this);
-    auto* layout = new QHBoxLayout(container);
+    auto* layout = new QVBoxLayout(container);
+    layout->setContentsMargins(4, 2, 4, 2);
+    layout->setSpacing(2);
 
+    // Top row: time label + fps
+    auto* topRow = new QHBoxLayout;
     timeLabel_ = new QLabel(tr("Sim: 0.000 s"), container);
     timeLabel_->setFont(QFont("Monospace", 11));
     fpsLabel_ = new QLabel(tr(""), container);
     fpsLabel_->setFont(QFont("Monospace", 9));
+    topRow->addWidget(timeLabel_);
+    topRow->addStretch();
+    topRow->addWidget(fpsLabel_);
+    layout->addLayout(topRow);
 
-    layout->addWidget(timeLabel_);
-    layout->addStretch();
-    layout->addWidget(fpsLabel_);
+    // Playback slider + frame label (hidden by default)
+    playbackSlider_ = new QSlider(Qt::Horizontal, container);
+    playbackSlider_->setVisible(false);
+    connect(playbackSlider_, &QSlider::sliderPressed,
+            this, &TimelinePanel::onSliderPressed);
+    connect(playbackSlider_, &QSlider::sliderReleased,
+            this, &TimelinePanel::onSliderReleased);
+    connect(playbackSlider_, &QSlider::valueChanged,
+            this, &TimelinePanel::onSliderMoved);
+    layout->addWidget(playbackSlider_);
+
+    frameLabel_ = new QLabel(container);
+    frameLabel_->setFont(QFont("Monospace", 9));
+    frameLabel_->setVisible(false);
+    layout->addWidget(frameLabel_);
 
     container->setLayout(layout);
     setWidget(container);
 
-    // 60 Hz poll timer for frame queue
+    // Simulation poll timer (60 Hz)
     pollTimer_ = new QTimer(this);
     pollTimer_->setInterval(16);
     connect(pollTimer_, &QTimer::timeout,
             this, &TimelinePanel::onTimerTick);
+
+    // Playback timer (configured when entering playback mode)
+    playbackTimer_ = new QTimer(this);
+    connect(playbackTimer_, &QTimer::timeout,
+            this, &TimelinePanel::onPlaybackTimerTick);
 
     connect(&simCtrl_, &simulation::SimulationController::simulationStarted,
             this, &TimelinePanel::onSimulationStarted);
@@ -44,16 +73,16 @@ TimelinePanel::TimelinePanel(simulation::SimulationController& simCtrl,
             this, &TimelinePanel::onSimulationStopped);
 }
 
+// --- Simulation mode ---
+
 void TimelinePanel::onTimerTick()
 {
     simCtrl_.requestNextFrame();
     const double t = simCtrl_.currentTime();
     timeLabel_->setText(QString("Sim: %1 s").arg(t, 0, 'f', 3));
 
-    // Profiling report (no-op when MICROBOTICA_PROFILING is not defined)
     core::ProfileReporter::reportIfDue();
 
-    // Simple FPS counter
     framesSinceLastFps_++;
     qint64 now = QDateTime::currentMSecsSinceEpoch();
     if (now - lastFpsTime_ >= 1000) {
@@ -85,6 +114,121 @@ void TimelinePanel::onSimulationStopped()
 {
     pollTimer_->stop();
     fpsLabel_->setText(tr(""));
+}
+
+// --- Playback mode ---
+
+void TimelinePanel::enterPlaybackMode(double startTime, double endTime, double fps)
+{
+    playbackMode_ = true;
+    playbackStart_ = startTime;
+    playbackEnd_ = endTime;
+    currentFrame_ = static_cast<int>(startTime);
+
+    // Clamp fps to 60 max — QTimer has ~15ms resolution on Windows,
+    // so higher fps would drift noticeably.
+    playbackFps_ = std::min(fps, 60.0);
+    if (fps > 60.0) {
+        spdlog::warn("TimelinePanel: Clamping playback fps from {} to 60 "
+                     "(QTimer resolution limit)", fps);
+    }
+
+    int interval = static_cast<int>(1000.0 / playbackFps_);
+    playbackTimer_->setInterval(std::max(interval, 1));
+
+    // Configure slider.
+    // QSlider uses integer steps — one position per frame.
+    // This assumes integer time codes (MIME writes UsdTimeCode(sample_index)).
+    // Sub-frame time codes would need a scaling factor or QDoubleSlider.
+    playbackSlider_->setRange(static_cast<int>(startTime),
+                               static_cast<int>(endTime));
+    playbackSlider_->setValue(currentFrame_);
+    playbackSlider_->setVisible(true);
+    frameLabel_->setVisible(true);
+
+    // Hide simulation-mode widgets
+    fpsLabel_->setVisible(false);
+    pollTimer_->stop();
+
+    updateFrameLabel();
+}
+
+void TimelinePanel::enterSimulationMode()
+{
+    playbackMode_ = false;
+    playbackTimer_->stop();
+    playbackSlider_->setVisible(false);
+    frameLabel_->setVisible(false);
+    fpsLabel_->setVisible(true);
+    timeLabel_->setText(tr("Sim: 0.000 s"));
+}
+
+void TimelinePanel::playbackPlay()
+{
+    if (!playbackMode_) return;
+    playbackTimer_->start();
+}
+
+void TimelinePanel::playbackPause()
+{
+    if (!playbackMode_) return;
+    playbackTimer_->stop();
+}
+
+void TimelinePanel::playbackStop()
+{
+    if (!playbackMode_) return;
+    playbackTimer_->stop();
+    currentFrame_ = static_cast<int>(playbackStart_);
+    playbackSlider_->setValue(currentFrame_);
+    Q_EMIT timeCodeChanged(static_cast<double>(currentFrame_));
+    updateFrameLabel();
+}
+
+void TimelinePanel::onPlaybackTimerTick()
+{
+    currentFrame_++;
+    if (currentFrame_ > static_cast<int>(playbackEnd_)) {
+        currentFrame_ = static_cast<int>(playbackStart_); // Loop
+    }
+    playbackSlider_->setValue(currentFrame_);
+    Q_EMIT timeCodeChanged(static_cast<double>(currentFrame_));
+    updateFrameLabel();
+}
+
+void TimelinePanel::onSliderPressed()
+{
+    // Capture play state at the moment drag begins
+    wasPlayingBeforeScrub_ = playbackTimer_->isActive();
+    playbackTimer_->stop();
+}
+
+void TimelinePanel::onSliderReleased()
+{
+    // Resume only if play was active when drag started
+    if (wasPlayingBeforeScrub_) {
+        playbackTimer_->start();
+    }
+}
+
+void TimelinePanel::onSliderMoved(int value)
+{
+    if (!playbackMode_) return;
+    currentFrame_ = value;
+    Q_EMIT timeCodeChanged(static_cast<double>(currentFrame_));
+    updateFrameLabel();
+}
+
+void TimelinePanel::updateFrameLabel()
+{
+    int totalFrames = static_cast<int>(playbackEnd_ - playbackStart_) + 1;
+    int displayFrame = currentFrame_ - static_cast<int>(playbackStart_);
+    double timeSec = static_cast<double>(displayFrame) / playbackFps_;
+    frameLabel_->setText(QString("Frame %1 / %2 (%3 s)")
+                             .arg(displayFrame)
+                             .arg(totalFrames)
+                             .arg(timeSec, 0, 'f', 3));
+    timeLabel_->setText(QString("Time: %1 s").arg(timeSec, 0, 'f', 3));
 }
 
 } // namespace microbotica::panels

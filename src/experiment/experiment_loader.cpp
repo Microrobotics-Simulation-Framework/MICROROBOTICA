@@ -190,6 +190,21 @@ std::optional<ExperimentConfig> ExperimentLoader::parseConfig(
         config.cloud = std::move(cc);
     }
 
+    // Recording section (optional)
+    if (j.contains("recording") && j["recording"].is_object()) {
+        std::string output = j["recording"].value("output", "");
+        if (!output.empty()) {
+            if (!isRelativePath(output)) {
+                spdlog::error("ExperimentLoader: Absolute path rejected: recording.output = '{}'",
+                               output);
+                return std::nullopt;
+            }
+            RecordingConfig rc;
+            rc.output = output;
+            config.recording = std::move(rc);
+        }
+    }
+
     spdlog::info("ExperimentLoader: Loaded experiment (schema {}, {} actors, {} analysis prims)",
                  config.schema_version, config.actors.size(), config.analysis.size());
     return config;

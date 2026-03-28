@@ -58,6 +58,18 @@ void LocalViewport::setContinuousRendering(bool enabled) {
     }
 }
 
+void LocalViewport::setTimeCode(double t) {
+    useCustomTimeCode_ = true;
+    customTime_ = t;
+    update();
+}
+
+void LocalViewport::resetTimeCode() {
+    useCustomTimeCode_ = false;
+    customTime_ = 0.0;
+    update();
+}
+
 LocalViewport::~LocalViewport() = default;
 
 #ifdef MICROBOTICA_HAS_USD
@@ -175,7 +187,7 @@ void LocalViewport::paintGL()
         GfRotation(GfMatrix4d().SetLookAt(eye, target, up).ExtractRotation()));
 
     UsdImagingGLRenderParams params;
-    params.frame = UsdTimeCode::Default();
+    params.frame = useCustomTimeCode_ ? UsdTimeCode(customTime_) : UsdTimeCode::Default();
     params.drawMode = UsdImagingGLDrawMode::DRAW_SHADED_SMOOTH;
     params.enableLighting = true;
     params.enableSceneMaterials = true;

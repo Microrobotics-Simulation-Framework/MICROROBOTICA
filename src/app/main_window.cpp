@@ -372,10 +372,32 @@ void MainWindow::onFileOpen()
     viewportWidget_->setRenderMode(core::RenderMode::LocalHydra);
 
     // Wire camera controls to the (now-existing) LocalViewport controller.
-    // No toolbar recreation — setCameraController adds buttons dynamically.
     if (viewportWidget_->localViewport() && cameraToolbar_) {
         cameraToolbar_->setCameraController(
             viewportWidget_->localViewport()->cameraController());
+    }
+
+    // Detect animation (time-sampled recording) and enter playback mode
+    if (sceneMgr_->hasAnimation()) {
+        playbackMode_ = true;
+        double start = sceneMgr_->startTimeCode();
+        double end = sceneMgr_->endTimeCode();
+        double fps = sceneMgr_->timeCodesPerSecond();
+        int totalFrames = static_cast<int>(end - start) + 1;
+
+        timelinePanel_->enterPlaybackMode(start, end, fps);
+
+        // Connect timeline time code changes to viewport
+        connect(timelinePanel_, &panels::TimelinePanel::timeCodeChanged,
+                viewportWidget_, &viewport::ViewportWidget::setTimeCode);
+
+        // Show initial frame
+        viewportWidget_->setTimeCode(start);
+        viewportWidget_->setContinuousRendering(true);
+
+        statusBar()->showMessage(
+            tr("Recording loaded: %1 frames at %2 fps")
+                .arg(totalFrames).arg(fps, 0, 'f', 1));
     }
 }
 
@@ -383,7 +405,16 @@ void MainWindow::onFileClose()
 {
     if (simController_->isRunning()) {
         paused_ = false;
+        simController_->setPaused(false);
         simController_->stop();
+    }
+    if (playbackMode_) {
+        playbackMode_ = false;
+        timelinePanel_->enterSimulationMode();
+        viewportWidget_->resetTimeCode();
+        viewportWidget_->setContinuousRendering(false);
+        disconnect(timelinePanel_, &panels::TimelinePanel::timeCodeChanged,
+                   viewportWidget_, &viewport::ViewportWidget::setTimeCode);
     }
     primSelection_->clear();
     sceneMgr_->closeScene();
@@ -396,6 +427,15 @@ void MainWindow::onFileClose()
 
 void MainWindow::onSimulationStart()
 {
+    // Playback mode: play/resume the animation
+    if (playbackMode_) {
+        timelinePanel_->playbackPlay();
+        viewportWidget_->setContinuousRendering(true);
+        statusBar()->showMessage(tr("Playback started"));
+        if (cameraToolbar_) cameraToolbar_->onSimStarted();
+        return;
+    }
+
     if (!sceneMgr_->isLoaded()) {
         QMessageBox::information(this, tr("No Scene"),
                                  tr("Please open a USD scene before starting simulation."));
@@ -428,6 +468,15 @@ void MainWindow::onSimulationStart()
 
 void MainWindow::onSimulationPause()
 {
+    // Playback mode: pause animation
+    if (playbackMode_) {
+        timelinePanel_->playbackPause();
+        viewportWidget_->setContinuousRendering(false);
+        statusBar()->showMessage(tr("Playback paused"));
+        if (cameraToolbar_) cameraToolbar_->onSimPaused();
+        return;
+    }
+
     if (!simController_->isRunning() || paused_) return;
 
     paused_ = true;
@@ -440,8 +489,18 @@ void MainWindow::onSimulationPause()
 
 void MainWindow::onSimulationStop()
 {
+    // Playback mode: stop and seek to frame 0
+    if (playbackMode_) {
+        timelinePanel_->playbackStop();
+        viewportWidget_->setTimeCode(sceneMgr_->startTimeCode());
+        viewportWidget_->setContinuousRendering(false);
+        statusBar()->showMessage(tr("Playback stopped"));
+        if (cameraToolbar_) cameraToolbar_->onSimStopped();
+        return;
+    }
+
     paused_ = false;
-    simController_->setPaused(false);  // Unblock worker so stop() can join it
+    simController_->setPaused(false);
     simController_->stop();
     statusBar()->showMessage(tr("Simulation stopped"));
 }

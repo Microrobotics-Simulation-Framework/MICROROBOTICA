@@ -90,6 +90,7 @@ private:
     viewport::CameraToolbar* cameraToolbar_ = nullptr;
     bool fullscreen_ = false;
     bool paused_ = false;
+    bool playbackMode_ = false;
 
     // Dock panels
     panels::SceneHierarchyPanel* hierarchyPanel_ = nullptr;

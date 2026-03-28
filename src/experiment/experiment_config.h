@@ -32,6 +32,11 @@ struct CloudConfig {
     std::string job_config;       ///< Relative path to SkyPilot job YAML
 };
 
+/// Recording configuration from the recording section of experiment.yaml.
+struct RecordingConfig {
+    std::string output;  ///< Relative path to the .usdc recording file
+};
+
 /// Full experiment configuration loaded from experiment.json.
 ///
 /// The canonical source is experiment.yaml. This struct is populated from
@@ -56,6 +61,9 @@ struct ExperimentConfig {
 
     // Cloud (optional)
     std::optional<CloudConfig> cloud;
+
+    // Recording (optional)
+    std::optional<RecordingConfig> recording;
 
     /// Build a PhysicsConfig with actorToPrimPath populated from actors + analysis.
     core::PhysicsConfig buildPhysicsConfig() const {

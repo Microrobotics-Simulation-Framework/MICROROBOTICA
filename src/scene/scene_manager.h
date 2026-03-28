@@ -96,8 +96,16 @@ public:
     void closeScene();
 
     /// Scene generation counter — incremented on load/close.
-    /// Used by ResultsApplicator to invalidate cached xform op handles.
     uint64_t sceneGeneration() const { return sceneGeneration_; }
+
+    // --- Animation metadata (from time-sampled USD recordings) ---
+
+    /// True if the loaded stage has authored time-code range
+    /// (i.e., it's a recording with time-sampled animation).
+    bool hasAnimation() const { return hasAnimation_; }
+    double startTimeCode() const { return startTimeCode_; }
+    double endTimeCode() const { return endTimeCode_; }
+    double timeCodesPerSecond() const { return timeCodesPerSecond_; }
 
 signals:
     void sceneLoaded();
@@ -106,11 +114,18 @@ signals:
     void primChanged(const std::string& primPath);
     void backendCrashed();
 
+    /// Emitted after sceneLoaded() when the stage has time-sampled animation.
+    void animationDetected(double startTime, double endTime, double fps);
+
 private:
     core::AuditLogger* logger_ = nullptr;
     core::NullAuditLogger nullLogger_;
     bool sceneLoaded_ = false;
     uint64_t sceneGeneration_ = 0;
+    bool hasAnimation_ = false;
+    double startTimeCode_ = 0.0;
+    double endTimeCode_ = 0.0;
+    double timeCodesPerSecond_ = 24.0;
     std::unique_ptr<ResultsApplicator> applicator_;
 
 #ifdef MICROBOTICA_HAS_USD
