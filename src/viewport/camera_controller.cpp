@@ -67,8 +67,10 @@ bool CameraController::eventFilter(QObject* watched, QEvent* event)
         lastMousePos_ = me->pos();
 
         if (orbiting_) {
-            azimuth_ += delta.x() * orbitSensitivity_;
-            elevation_ += delta.y() * orbitSensitivity_;
+            // Negate both: drag-right rotates scene rightward (azimuth decreases),
+            // drag-up tilts view upward (elevation increases, but Qt Y is inverted).
+            azimuth_ -= delta.x() * orbitSensitivity_;
+            elevation_ -= delta.y() * orbitSensitivity_;
             elevation_ = std::clamp(elevation_, kMinElevation, kMaxElevation);
             Q_EMIT cameraChanged();
             if (auto* w = qobject_cast<QWidget*>(watched)) w->update();
@@ -104,8 +106,8 @@ bool CameraController::eventFilter(QObject* watched, QEvent* event)
         const double zoomFactor = 0.15;
 
         switch (ke->key()) {
-        case Qt::Key_Left:  azimuth_ -= orbitStep; break;
-        case Qt::Key_Right: azimuth_ += orbitStep; break;
+        case Qt::Key_Left:  azimuth_ += orbitStep; break;
+        case Qt::Key_Right: azimuth_ -= orbitStep; break;
         case Qt::Key_Up:
             elevation_ += orbitStep;
             elevation_ = std::clamp(elevation_, kMinElevation, kMaxElevation);

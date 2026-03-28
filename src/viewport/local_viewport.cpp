@@ -163,44 +163,41 @@ void LocalViewport::paintGL()
     const double azim = cameraController_->azimuth();
     const double elev = cameraController_->elevation();
 
-    // Camera position in spherical coordinates.
-    // Scene convention is Z-up (matching USD upAxis = "Z").
-    // Azimuth rotates in the XY plane, elevation lifts toward +Z.
+    // Camera in spherical coordinates (Z-up, matching USD upAxis = "Z").
+    // Azimuth: angle in XY plane from +X axis. Mouse-right = positive azimuth.
+    // Elevation: angle from XY plane toward +Z. Mouse-up = positive elevation.
     const double cosElev = std::cos(elev);
     GfVec3d eye(dist * cosElev * std::cos(azim),
                 dist * cosElev * std::sin(azim),
                 dist * std::sin(elev));
 
-    GfVec3d target = GfVec3d(cameraController_->panX(),
-                              cameraController_->panY(),
-                              0.0);
+    GfVec3d target(cameraController_->panX(),
+                    cameraController_->panY(),
+                    0.0);
     eye += target;
 
     GfVec3d up(0.0, 0.0, 1.0);
 
-    // Near/far planes scale with orbit distance so microscale scenes
-    // (millimeter objects at 20mm orbit) aren't clipped.
-    const double nearPlane = dist * 0.001;    // 0.1% of orbit distance
+    const double nearPlane = std::max(dist * 0.001, 1e-7);
     const double farPlane  = dist * 10000.0;
+
+    // Build view and projection matrices directly.
+    // SetLookAt(eye, target, up) produces the world-to-camera transform.
+    GfMatrix4d viewMatrix;
+    viewMatrix.SetLookAt(eye, target, up);
 
     GfFrustum frustum;
     frustum.SetPerspective(45.0, aspect, nearPlane, farPlane);
-    frustum.SetPosition(eye);
-    frustum.SetRotation(
-        GfRotation(GfMatrix4d().SetLookAt(eye, target, up).ExtractRotation()));
+    GfMatrix4d projMatrix = frustum.ComputeProjectionMatrix();
 
     UsdImagingGLRenderParams params;
     params.frame = useCustomTimeCode_ ? UsdTimeCode(customTime_) : UsdTimeCode::Default();
     params.drawMode = UsdImagingGLDrawMode::DRAW_SHADED_SMOOTH;
     params.enableLighting = true;
     params.enableSceneMaterials = true;
-    // Higher complexity = smoother curved primitives (Cylinder, Sphere, Capsule).
-    // Default 1.0 gives ~10-sided prisms. 1.2 balances quality vs performance.
     params.complexity = 1.2f;
 
-    engine_->SetCameraState(
-        frustum.ComputeViewMatrix(),
-        frustum.ComputeProjectionMatrix());
+    engine_->SetCameraState(viewMatrix, projMatrix);
 
     f->glViewport(0, 0, w * devicePixelRatio(), h * devicePixelRatio());
     engine_->SetRenderViewport(GfVec4d(0, 0, w * devicePixelRatio(),
