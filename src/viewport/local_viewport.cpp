@@ -163,17 +163,20 @@ void LocalViewport::paintGL()
     const double azim = cameraController_->azimuth();
     const double elev = cameraController_->elevation();
 
+    // Camera position in spherical coordinates.
+    // Scene convention is Z-up (matching USD upAxis = "Z").
+    // Azimuth rotates in the XY plane, elevation lifts toward +Z.
     const double cosElev = std::cos(elev);
-    GfVec3d eye(dist * cosElev * std::sin(azim),
-                dist * std::sin(elev),
-                dist * cosElev * std::cos(azim));
+    GfVec3d eye(dist * cosElev * std::cos(azim),
+                dist * cosElev * std::sin(azim),
+                dist * std::sin(elev));
 
     GfVec3d target = GfVec3d(cameraController_->panX(),
                               cameraController_->panY(),
                               0.0);
     eye += target;
 
-    GfVec3d up(0.0, 1.0, 0.0);
+    GfVec3d up(0.0, 0.0, 1.0);
 
     // Near/far planes scale with orbit distance so microscale scenes
     // (millimeter objects at 20mm orbit) aren't clipped.
@@ -192,8 +195,8 @@ void LocalViewport::paintGL()
     params.enableLighting = true;
     params.enableSceneMaterials = true;
     // Higher complexity = smoother curved primitives (Cylinder, Sphere, Capsule).
-    // Default 1.0 gives ~10-sided prisms. 1.5 gives visually smooth results.
-    params.complexity = 1.5f;
+    // Default 1.0 gives ~10-sided prisms. 1.2 balances quality vs performance.
+    params.complexity = 1.2f;
 
     engine_->SetCameraState(
         frustum.ComputeViewMatrix(),
