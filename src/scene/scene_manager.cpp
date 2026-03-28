@@ -42,6 +42,20 @@ bool SceneManager::loadScene(const std::string& filePath)
     // The file's content is accessed via its sublayer path.
     baseLayer_ = stage_->GetRootLayer();
 
+    // Read animation metadata from the original stage BEFORE replacing
+    // it with the session layer (the session layer is anonymous and won't
+    // have the time metadata authored on the base layer).
+    hasAnimation_ = stage_->HasAuthoredTimeCodeRange();
+    if (hasAnimation_) {
+        startTimeCode_ = stage_->GetStartTimeCode();
+        endTimeCode_ = stage_->GetEndTimeCode();
+        timeCodesPerSecond_ = stage_->GetTimeCodesPerSecond();
+    } else {
+        startTimeCode_ = 0.0;
+        endTimeCode_ = 0.0;
+        timeCodesPerSecond_ = 24.0;
+    }
+
     // Create a new anonymous root layer that composes everything
     auto sessionLayer = SdfLayer::CreateAnonymous("session");
     resultsLayer_ = SdfLayer::CreateAnonymous("results");
@@ -59,19 +73,11 @@ bool SceneManager::loadScene(const std::string& filePath)
     sceneLoaded_ = true;
     ++sceneGeneration_;
 
-    // Read animation time metadata from the stage (set by MIME's USDRecorderObserver)
-    hasAnimation_ = stage_->HasAuthoredTimeCodeRange();
     if (hasAnimation_) {
-        startTimeCode_ = stage_->GetStartTimeCode();
-        endTimeCode_ = stage_->GetEndTimeCode();
-        timeCodesPerSecond_ = stage_->GetTimeCodesPerSecond();
         spdlog::info("SceneManager: Loaded scene {} with three-layer stack "
                      "(animation: frames {}-{} at {} fps)",
                      filePath, startTimeCode_, endTimeCode_, timeCodesPerSecond_);
     } else {
-        startTimeCode_ = 0.0;
-        endTimeCode_ = 0.0;
-        timeCodesPerSecond_ = 24.0;
         spdlog::info("SceneManager: Loaded scene {} with three-layer stack", filePath);
     }
     logger_->logEvent("scene_load", {{"path", filePath}});

@@ -11,6 +11,8 @@
 #include <pxr/usd/sdf/primSpec.h>
 #include <pxr/usd/usdGeom/mesh.h>
 #include <pxr/usd/usdGeom/primvarsAPI.h>
+#include <pxr/base/gf/quatf.h>
+#include <pxr/base/gf/vec3f.h>
 #endif
 
 namespace microbotica::scene {
@@ -58,7 +60,18 @@ void ResultsApplicator::apply(const core::ResultFrame& frame,
         if (it == config.actorToPrimPath.end()) continue;
         auto& cached = getCachedOps(it->second, cacheGeneration_);
         if (cached.valid && cached.orientOp) {
-            cached.orientOp.Set(GfQuatd(quat.w, GfVec3d(quat.x, quat.y, quat.z)));
+            // Match the attribute's precision — MIME recordings use GfQuatf,
+            // hand-authored .usda scenes may use GfQuatd.
+            auto typeName = cached.orientOp.GetTypeName();
+            if (typeName == SdfValueTypeNames->Quatf) {
+                cached.orientOp.Set(GfQuatf(
+                    static_cast<float>(quat.w),
+                    GfVec3f(static_cast<float>(quat.x),
+                            static_cast<float>(quat.y),
+                            static_cast<float>(quat.z))));
+            } else {
+                cached.orientOp.Set(GfQuatd(quat.w, GfVec3d(quat.x, quat.y, quat.z)));
+            }
         }
     }
 
