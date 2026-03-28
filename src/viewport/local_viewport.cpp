@@ -191,6 +191,9 @@ void LocalViewport::paintGL()
     params.drawMode = UsdImagingGLDrawMode::DRAW_SHADED_SMOOTH;
     params.enableLighting = true;
     params.enableSceneMaterials = true;
+    // Higher complexity = smoother curved primitives (Cylinder, Sphere, Capsule).
+    // Default 1.0 gives ~10-sided prisms. 1.5 gives visually smooth results.
+    params.complexity = 1.5f;
 
     engine_->SetCameraState(
         frustum.ComputeViewMatrix(),
