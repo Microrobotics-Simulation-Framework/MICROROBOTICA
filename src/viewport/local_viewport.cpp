@@ -195,6 +195,7 @@ void LocalViewport::paintGL()
     params.drawMode = UsdImagingGLDrawMode::DRAW_SHADED_SMOOTH;
     params.enableLighting = true;
     params.enableSceneMaterials = true;
+    params.enableSampleAlphaToCoverage = true;  // OIT approximation for glass/transparent materials
     params.complexity = 1.2f;
 
     engine_->SetCameraState(viewMatrix, projMatrix);
