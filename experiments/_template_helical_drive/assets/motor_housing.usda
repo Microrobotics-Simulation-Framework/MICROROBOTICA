@@ -1,0 +1,24 @@
+#usda 1.0
+(
+    defaultPrim = "MotorHousing"
+    metersPerUnit = 1.0
+    upAxis = "Z"
+    doc = """Placeholder motor-housing geometry for the helical-UMR drive
+    template. Replace this file with your motor-vendor-supplied USD or
+    a USD authored from your CAD."""
+)
+
+def Xform "MotorHousing"
+{
+    # A 1 cm-tall, 6 mm-diameter cylinder approximating a small DC motor
+    # body. Anchored at the housing's base so the rotor sticks out along
+    # +z by `length/2 + tool_offset`.
+    def Cylinder "Body"
+    {
+        double height = 0.01
+        double radius = 0.003
+        token axis = "Z"
+        double3 xformOp:translate = (0, 0, 0)
+        uniform token[] xformOpOrder = ["xformOp:translate"]
+    }
+}

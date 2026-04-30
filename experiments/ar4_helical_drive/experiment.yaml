@@ -1,0 +1,93 @@
+# ─── Schema version ─────────────────────────────────────────────────────────
+# AR4 + helical-UMR drive — concrete demonstrator.
+#
+# Builds on the generic `_template_helical_drive` template: same physics
+# stack, same controller shape, but instantiated against the Annin
+# Robotics AR4 6-DOF open-source arm. The `ar4.urdf` shipped here is a
+# hand-authored stub; replace it with the upstream URDF from
+# https://github.com/Chris-Annin/AR4 for production use.
+#
+# Consumer: all (MICROBOTICA C++, MIME runner, SDK, registry).
+schema_version: "1.0"
+mime_version_min: "0.2.0"
+
+# ─── Physics configuration ──────────────────────────────────────────────────
+physics:
+  setup: physics/setup.py
+  params: physics/params.py
+
+# ─── Control configuration ──────────────────────────────────────────────────
+control:
+  controller: control/controller.py
+
+# ─── Scene configuration ────────────────────────────────────────────────────
+# Actor names follow `arm_link_<urdf_link_name>` for arm links.
+scene:
+  world: scene/world.usda
+
+  actors:
+    arm_link_world:
+      prim_path: /World/Actors/Arm/World
+      prim_type: Xform
+      state_fields: [pose]
+    arm_link_base_link:
+      prim_path: /World/Actors/Arm/BaseLink
+      prim_type: Xform
+      state_fields: [pose]
+    arm_link_link_1:
+      prim_path: /World/Actors/Arm/Link1
+      prim_type: Xform
+      state_fields: [pose]
+    arm_link_link_2:
+      prim_path: /World/Actors/Arm/Link2
+      prim_type: Xform
+      state_fields: [pose]
+    arm_link_link_3:
+      prim_path: /World/Actors/Arm/Link3
+      prim_type: Xform
+      state_fields: [pose]
+    arm_link_link_4:
+      prim_path: /World/Actors/Arm/Link4
+      prim_type: Xform
+      state_fields: [pose]
+    arm_link_link_5:
+      prim_path: /World/Actors/Arm/Link5
+      prim_type: Xform
+      state_fields: [pose]
+    arm_link_link_6:
+      prim_path: /World/Actors/Arm/Link6
+      prim_type: Xform
+      state_fields: [pose]
+    motor_rotor:
+      prim_path: /World/Actors/Magnet/Rotor
+      prim_type: Xform
+      state_fields: [pose]
+    magnet:
+      prim_path: /World/Actors/Magnet/Body
+      prim_type: Xform
+      state_fields: [pose]
+    microrobot:
+      prim_path: /World/Actors/UMR
+      prim_type: Capsule
+      state_fields: [position, orientation]
+
+  environment:
+    vessel:
+      prim_path: /World/Environment/Vessel
+      source: parametric
+      geometry: { type: cylinder, radius: 0.0047, length: 0.02, axis: Z }
+
+# ─── Experiment metadata (optional) ─────────────────────────────────────────
+metadata:
+  title: "AR4-driven helical UMR (open-source arm + permanent magnet)"
+  description: >
+    Concrete demonstrator of the URDF-arm + motor + permanent-magnet +
+    helical-UMR stack instantiated on the Annin Robotics AR4 6-DOF
+    open-source arm. Ships a hand-authored URDF stub; vendor the
+    upstream URDF + STL meshes from https://github.com/Chris-Annin/AR4
+    for production use. See `assets/meshes/README.md` for fetch
+    instructions.
+  authors:
+    - name: "MIME contributors"
+  license: "LGPL-3.0-or-later"
+  tags: ["umr", "ar4", "robot-arm", "permanent-magnet", "helical-drive", "demo"]

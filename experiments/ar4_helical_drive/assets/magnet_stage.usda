@@ -1,0 +1,18 @@
+#usda 1.0
+(
+    defaultPrim = "MagnetStage"
+    metersPerUnit = 1.0
+    upAxis = "Z"
+    doc = """Placeholder magnet-stage geometry for the AR4 demonstrator.
+    Replace with a USD authored from your magnet-mount CAD."""
+)
+
+def Xform "MagnetStage"
+{
+    def Cube "Magnet"
+    {
+        double size = 0.002
+        double3 xformOp:translate = (0, 0, 0)
+        uniform token[] xformOpOrder = ["xformOp:translate"]
+    }
+}

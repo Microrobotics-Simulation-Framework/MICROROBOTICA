@@ -1,0 +1,86 @@
+# ─── Schema version ─────────────────────────────────────────────────────────
+# Generic helical-UMR driving template.
+#
+# This is a *self-contained* starter experiment for the
+# arm + motor + permanent-magnet + helical UMR stack. It ships with a
+# placeholder 3-link planar arm so users can simulate end-to-end without
+# vendoring an external robot. To target a real robot, replace
+# `assets/robot.urdf` with your URDF, update the actor list under
+# `scene.actors` to match your link names, and adjust
+# `physics/params.py:END_EFFECTOR_LINK_NAME`.
+#
+# Consumer: all (MICROBOTICA C++, MIME runner, SDK, registry).
+schema_version: "1.0"
+
+# Minimum MIME version required to run this experiment.
+mime_version_min: "0.2.0"
+
+# ─── Physics configuration ──────────────────────────────────────────────────
+# Consumer: MIME runner (imports setup.py, executes params.py)
+physics:
+  setup: physics/setup.py
+  params: physics/params.py
+
+# ─── Control configuration ──────────────────────────────────────────────────
+# Consumer: MIME runner (imports controller.py)
+control:
+  controller: control/controller.py
+
+# ─── Scene configuration ────────────────────────────────────────────────────
+# Consumer: MICROBOTICA C++ (builds actorToPrimPath, loads world.usda)
+# Consumer: MIME runner (configures StageBridge)
+#
+# Actor naming convention for arm links: `arm_link_<urdf_link_name>`. The
+# template's URDF declares links: base_link, link_1, link_2, link_3.
+scene:
+  world: scene/world.usda
+
+  actors:
+    arm_link_base_link:
+      prim_path: /World/Actors/Arm/BaseLink
+      prim_type: Xform
+      state_fields: [pose]
+    arm_link_link_1:
+      prim_path: /World/Actors/Arm/Link1
+      prim_type: Xform
+      state_fields: [pose]
+    arm_link_link_2:
+      prim_path: /World/Actors/Arm/Link2
+      prim_type: Xform
+      state_fields: [pose]
+    arm_link_link_3:
+      prim_path: /World/Actors/Arm/Link3
+      prim_type: Xform
+      state_fields: [pose]
+    motor_rotor:
+      prim_path: /World/Actors/Magnet/Rotor
+      prim_type: Xform
+      state_fields: [pose]
+    magnet:
+      prim_path: /World/Actors/Magnet/Body
+      prim_type: Xform
+      state_fields: [pose]
+    microrobot:
+      prim_path: /World/Actors/UMR
+      prim_type: Capsule
+      state_fields: [position, orientation]
+
+  environment:
+    vessel:
+      prim_path: /World/Environment/Vessel
+      source: parametric
+      geometry: { type: cylinder, radius: 0.0047, length: 0.02, axis: Z }
+
+# ─── Experiment metadata (optional) ─────────────────────────────────────────
+metadata:
+  title: "Helical UMR driven by URDF arm + motor + permanent magnet"
+  description: >
+    Self-contained template that drives a helical microrobot with the
+    actuation chain RobotArm → Motor → PermanentMagnet → UMR. The
+    bundled URDF is a placeholder 3-link planar arm; replace it with
+    your own URDF (and update `scene.actors` and `END_EFFECTOR_LINK_NAME`)
+    for a custom robot.
+  authors:
+    - name: "MIME contributors"
+  license: "LGPL-3.0-or-later"
+  tags: ["umr", "robot-arm", "permanent-magnet", "helical-drive", "template"]

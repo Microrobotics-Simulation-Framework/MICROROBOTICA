@@ -1,0 +1,130 @@
+#usda 1.0
+(
+    defaultPrim = "World"
+    metersPerUnit = 1.0
+    upAxis = "Z"
+    doc = """Generic helical-UMR drive template.
+
+    Hierarchy follows the /World/Actors/, /World/Environment/ convention.
+    Arm links are placeholder Xforms keyed to the URDF link names via
+    `customData.mimeNodeName = "arm_link_<urdf_name>"`. Replace the URDF
+    in `assets/robot.urdf` and update this file's actor list to match
+    your robot's link names."""
+)
+
+def Xform "World"
+{
+    def Scope "Actors"
+    {
+        def Xform "Arm"
+        {
+            def Xform "BaseLink" (
+                customData = {
+                    string mimeNodeName = "arm_link_base_link"
+                }
+            )
+            {
+                double3 xformOp:translate = (0, 0, 0)
+                quatd xformOp:orient = (1, 0, 0, 0)
+                uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient"]
+            }
+
+            def Xform "Link1" (
+                customData = {
+                    string mimeNodeName = "arm_link_link_1"
+                }
+            )
+            {
+                double3 xformOp:translate = (0, 0, 0)
+                quatd xformOp:orient = (1, 0, 0, 0)
+                uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient"]
+            }
+
+            def Xform "Link2" (
+                customData = {
+                    string mimeNodeName = "arm_link_link_2"
+                }
+            )
+            {
+                double3 xformOp:translate = (0, 0, 0)
+                quatd xformOp:orient = (1, 0, 0, 0)
+                uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient"]
+            }
+
+            def Xform "Link3" (
+                customData = {
+                    string mimeNodeName = "arm_link_link_3"
+                }
+            )
+            {
+                double3 xformOp:translate = (0, 0, 0)
+                quatd xformOp:orient = (1, 0, 0, 0)
+                uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient"]
+            }
+        }
+
+        def Xform "Magnet"
+        {
+            def Xform "Rotor" (
+                customData = {
+                    string mimeNodeName = "motor_rotor"
+                }
+            )
+            {
+                double3 xformOp:translate = (0, 0, 0)
+                quatd xformOp:orient = (1, 0, 0, 0)
+                uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient"]
+            }
+
+            def Cube "Body" (
+                customData = {
+                    string mimeNodeName = "magnet"
+                }
+            )
+            {
+                double size = 0.002
+                double3 xformOp:translate = (0, 0, 0)
+                quatd xformOp:orient = (1, 0, 0, 0)
+                uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient"]
+            }
+        }
+
+        def Capsule "UMR" (
+            customData = {
+                string mimeNodeName = "microrobot"
+            }
+        )
+        {
+            double height = 0.001
+            double radius = 0.0003
+            token axis = "Z"
+            double3 xformOp:translate = (0, 0, 0)
+            quatd xformOp:orient = (1, 0, 0, 0)
+            uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient"]
+        }
+    }
+
+    def Scope "Environment"
+    {
+        def Cylinder "Vessel" (
+            customData = {
+                string mimeRole = "physics_boundary"
+                string mimeBoundaryType = "bounce_back"
+            }
+        )
+        {
+            double height = 0.02
+            double radius = 0.0047
+            token axis = "Z"
+            double3 xformOp:translate = (0, 0, 0)
+            uniform token[] xformOpOrder = ["xformOp:translate"]
+        }
+    }
+
+    def Camera "Camera"
+    {
+        float focalLength = 50
+        double3 xformOp:translate = (0.05, -0.05, 0.05)
+        uniform token[] xformOpOrder = ["xformOp:translate"]
+    }
+}

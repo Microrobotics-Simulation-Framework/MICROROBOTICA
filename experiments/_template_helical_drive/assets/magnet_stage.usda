@@ -1,0 +1,21 @@
+#usda 1.0
+(
+    defaultPrim = "MagnetStage"
+    metersPerUnit = 1.0
+    upAxis = "Z"
+    doc = """Placeholder magnet-stage geometry for the helical-UMR drive
+    template. Replace this file with your own USD authored from the
+    actual mechanical CAD of the magnet mount."""
+)
+
+def Xform "MagnetStage"
+{
+    # The visible magnet body (2 mm × 2 mm × 2 mm cube). Kept axis-aligned
+    # in the rotor frame; the rotor's quat handles the time-varying spin.
+    def Cube "Magnet"
+    {
+        double size = 0.002
+        double3 xformOp:translate = (0, 0, 0)
+        uniform token[] xformOpOrder = ["xformOp:translate"]
+    }
+}

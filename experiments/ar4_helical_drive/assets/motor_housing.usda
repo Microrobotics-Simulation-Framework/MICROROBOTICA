@@ -1,0 +1,21 @@
+#usda 1.0
+(
+    defaultPrim = "MotorHousing"
+    metersPerUnit = 1.0
+    upAxis = "Z"
+    doc = """Placeholder motor-housing geometry for the AR4 demonstrator.
+    A small DC motor body (e.g. Pololu 10:1 micrometal gearmotor) is
+    a reasonable physical referent for the dimensions below."""
+)
+
+def Xform "MotorHousing"
+{
+    def Cylinder "Body"
+    {
+        double height = 0.024
+        double radius = 0.005
+        token axis = "X"
+        double3 xformOp:translate = (0, 0, 0)
+        uniform token[] xformOpOrder = ["xformOp:translate"]
+    }
+}

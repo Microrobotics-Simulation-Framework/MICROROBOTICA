@@ -1,0 +1,182 @@
+#usda 1.0
+(
+    defaultPrim = "World"
+    metersPerUnit = 1.0
+    upAxis = "Z"
+    doc = """AR4 + helical-UMR drive scene.
+
+    AR4 link Xforms reference STL meshes from `assets/meshes/<file>.stl`
+    via USD's payload-as-reference syntax. The shipped repository does
+    NOT include the meshes themselves (see assets/meshes/README.md for
+    fetch instructions); the references resolve to placeholder Xforms
+    until the meshes are vendored."""
+)
+
+def Xform "World"
+{
+    def Scope "Actors"
+    {
+        def Xform "Arm"
+        {
+            def Xform "World" (
+                customData = {
+                    string mimeNodeName = "arm_link_world"
+                }
+            )
+            {
+                double3 xformOp:translate = (0, 0, 0)
+                quatd xformOp:orient = (1, 0, 0, 0)
+                uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient"]
+            }
+
+            def Xform "BaseLink" (
+                customData = {
+                    string mimeNodeName = "arm_link_base_link"
+                }
+                references = @./assets/meshes/base_link.stl@
+            )
+            {
+                double3 xformOp:translate = (0, 0, 0)
+                quatd xformOp:orient = (1, 0, 0, 0)
+                uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient"]
+            }
+
+            def Xform "Link1" (
+                customData = {
+                    string mimeNodeName = "arm_link_link_1"
+                }
+                references = @./assets/meshes/link_1.stl@
+            )
+            {
+                double3 xformOp:translate = (0, 0, 0)
+                quatd xformOp:orient = (1, 0, 0, 0)
+                uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient"]
+            }
+
+            def Xform "Link2" (
+                customData = {
+                    string mimeNodeName = "arm_link_link_2"
+                }
+                references = @./assets/meshes/link_2.stl@
+            )
+            {
+                double3 xformOp:translate = (0, 0, 0)
+                quatd xformOp:orient = (1, 0, 0, 0)
+                uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient"]
+            }
+
+            def Xform "Link3" (
+                customData = {
+                    string mimeNodeName = "arm_link_link_3"
+                }
+                references = @./assets/meshes/link_3.stl@
+            )
+            {
+                double3 xformOp:translate = (0, 0, 0)
+                quatd xformOp:orient = (1, 0, 0, 0)
+                uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient"]
+            }
+
+            def Xform "Link4" (
+                customData = {
+                    string mimeNodeName = "arm_link_link_4"
+                }
+                references = @./assets/meshes/link_4.stl@
+            )
+            {
+                double3 xformOp:translate = (0, 0, 0)
+                quatd xformOp:orient = (1, 0, 0, 0)
+                uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient"]
+            }
+
+            def Xform "Link5" (
+                customData = {
+                    string mimeNodeName = "arm_link_link_5"
+                }
+                references = @./assets/meshes/link_5.stl@
+            )
+            {
+                double3 xformOp:translate = (0, 0, 0)
+                quatd xformOp:orient = (1, 0, 0, 0)
+                uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient"]
+            }
+
+            def Xform "Link6" (
+                customData = {
+                    string mimeNodeName = "arm_link_link_6"
+                }
+                references = @./assets/meshes/link_6.stl@
+            )
+            {
+                double3 xformOp:translate = (0, 0, 0)
+                quatd xformOp:orient = (1, 0, 0, 0)
+                uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient"]
+            }
+        }
+
+        def Xform "Magnet"
+        {
+            def Xform "Rotor" (
+                customData = {
+                    string mimeNodeName = "motor_rotor"
+                }
+                references = @./assets/motor_housing.usda@
+            )
+            {
+                double3 xformOp:translate = (0, 0, 0)
+                quatd xformOp:orient = (1, 0, 0, 0)
+                uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient"]
+            }
+
+            def Xform "Body" (
+                customData = {
+                    string mimeNodeName = "magnet"
+                }
+                references = @./assets/magnet_stage.usda@
+            )
+            {
+                double3 xformOp:translate = (0, 0, 0)
+                quatd xformOp:orient = (1, 0, 0, 0)
+                uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient"]
+            }
+        }
+
+        def Capsule "UMR" (
+            customData = {
+                string mimeNodeName = "microrobot"
+            }
+        )
+        {
+            double height = 0.001
+            double radius = 0.0003
+            token axis = "Z"
+            double3 xformOp:translate = (0, 0, 0)
+            quatd xformOp:orient = (1, 0, 0, 0)
+            uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient"]
+        }
+    }
+
+    def Scope "Environment"
+    {
+        def Cylinder "Vessel" (
+            customData = {
+                string mimeRole = "physics_boundary"
+                string mimeBoundaryType = "bounce_back"
+            }
+        )
+        {
+            double height = 0.02
+            double radius = 0.0047
+            token axis = "Z"
+            double3 xformOp:translate = (0, 0, 0)
+            uniform token[] xformOpOrder = ["xformOp:translate"]
+        }
+    }
+
+    def Camera "Camera"
+    {
+        float focalLength = 50
+        double3 xformOp:translate = (0.8, -0.8, 0.5)
+        uniform token[] xformOpOrder = ["xformOp:translate"]
+    }
+}
