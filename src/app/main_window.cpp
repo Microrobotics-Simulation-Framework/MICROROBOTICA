@@ -1,11 +1,15 @@
 #include "app/main_window.h"
 
+#include <QApplication>
 #include <QMenuBar>
 #include <QStatusBar>
 #include <QFileDialog>
+#include <QFile>
+#include <QFileInfo>
 #include <QMessageBox>
 #include <QSettings>
 #include <QCloseEvent>
+#include <QThread>
 #include <QVBoxLayout>
 
 #include "app/settings_dialog.h"
@@ -22,10 +26,18 @@
 #include "panels/graph_inspector_panel.h"
 #include "panels/script_editor_panel.h"
 #include "panels/parameter_panel.h"
+#include <QProcess>
+#include <nlohmann/json.hpp>
 #include "viewport/camera_toolbar.h"
 #include "viewport/camera_controller.h"
 #include "viewport/local_viewport.h"
 #include "stubs/local_compute_backend.h"
+#include "experiment/experiment_runner.h"
+#include "experiment/experiment_loader.h"
+#include "mime_adapter/mime_compute_backend.h"
+#include "connection/connection_config.h"
+
+#include <spdlog/spdlog.h>
 
 namespace microbotica::app {
 
@@ -33,6 +45,8 @@ MainWindow::MainWindow(QWidget* parent)
     : QMainWindow(parent)
 {
     MBCA_EXPERIMENTAL_WARN("MainWindow");
+    spdlog::info("MainWindow: build with experiment-aware launch path "
+                  "(rev: open-experiment-v2)");
 
     setWindowTitle(tr("MICROBOTICA"));
     resize(1600, 900);
@@ -82,6 +96,9 @@ MainWindow::~MainWindow()
 {
     if (simController_ && simController_->isRunning()) {
         simController_->teardown();
+    }
+    if (experimentRunner_ && experimentRunner_->isRunning()) {
+        experimentRunner_->stop();
     }
 }
 
@@ -147,6 +164,13 @@ void MainWindow::createMenuBar()
     auto* openAction = fileMenu->addAction(tr("&Open USD Scene..."));
     openAction->setShortcut(QKeySequence::Open);
     connect(openAction, &QAction::triggered, this, &MainWindow::onFileOpen);
+
+    auto* openExpAction = fileMenu->addAction(tr("Open &Experiment..."));
+    openExpAction->setShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_O));
+    openExpAction->setToolTip(
+        tr("Open an experiment directory and launch its MIME physics graph."));
+    connect(openExpAction, &QAction::triggered,
+            this, &MainWindow::onFileOpenExperiment);
 
     auto* closeAction = fileMenu->addAction(tr("&Close Scene"));
     closeAction->setShortcut(QKeySequence::Close);
@@ -294,6 +318,29 @@ void MainWindow::wireSignals()
             this, &MainWindow::onSimulationStart);
     connect(runConfigPanel_, &panels::RunConfigPanel::stopRequested,
             this, &MainWindow::onSimulationStop);
+    // Parameter panel edits → forward to the running MIME backend.
+    connect(parameterPanel_, &panels::ParameterPanel::parametersChanged,
+            this, [this](const nlohmann::json& params) {
+        const bool running =
+            simController_ && simController_->isRunning();
+        spdlog::info(
+            "ParameterPanel → runner: {} keys, sim {} → {}",
+            params.size(), running ? "running" : "idle",
+            running ? "forwarding" : "DROPPED (sim not running)");
+        if (running) {
+            simController_->sendParameters(params);
+        }
+    });
+
+    connect(runConfigPanel_, &panels::RunConfigPanel::experimentDirChanged,
+            this, [this](const QString& path) {
+        // When the user types / browses for an experiment dir in the
+        // RunConfigPanel, bring up the same init flow as the menu
+        // action — but do not auto-start the sim, let them press Launch.
+        if (!path.isEmpty()) {
+            initExperiment(path);
+        }
+    });
 
     // Project browser → script editor (open file on double-click)
     connect(projectBrowser_, &panels::ProjectBrowserPanel::fileDoubleClicked,
@@ -401,6 +448,174 @@ void MainWindow::onFileOpen()
     }
 }
 
+bool MainWindow::initExperiment(const QString& dirStr)
+{
+    if (dirStr.isEmpty()) return false;
+
+    const QString manifest = dirStr + "/experiment.yaml";
+    if (!QFile::exists(manifest)) {
+        spdlog::warn("initExperiment: no experiment.yaml under {}",
+                      dirStr.toStdString());
+        QMessageBox::warning(this, tr("Not an experiment directory"),
+            tr("No experiment.yaml found in:\n%1").arg(dirStr));
+        return false;
+    }
+
+    // Short-circuit if this is the same experiment already running —
+    // avoids re-spawning the subprocess every time the RunConfigPanel
+    // re-emits experimentDirChanged.
+    if (experimentDir_ == dirStr.toStdString()
+        && experimentRunner_ && experimentRunner_->isRunning()) {
+        spdlog::info("initExperiment: already running — no-op");
+        return true;
+    }
+
+    spdlog::info("initExperiment: dir={}", dirStr.toStdString());
+
+    // Stop any existing run before swapping experiments.
+    if (simController_->isRunning()) {
+        simController_->stop();
+    }
+    if (experimentRunner_ && experimentRunner_->isRunning()) {
+        experimentRunner_->stop();
+    }
+
+    // Claim the experiment directory up front so that any downstream
+    // failure still leaves the app wired to the MIME backend on the
+    // user's next Launch press.
+    experimentDir_ = dirStr.toStdString();
+
+    // Load the experiment's USD scene so the viewport has a stage.
+    const QStringList candidates = {
+        dirStr + "/scene/world.usda",
+        dirStr + "/scene/world.usd",
+        dirStr + "/scene/world.usdc",
+    };
+    QString sceneUsd;
+    for (const QString& c : candidates) {
+        if (QFile::exists(c)) { sceneUsd = c; break; }
+    }
+    if (!sceneUsd.isEmpty() && !sceneMgr_->isLoaded()) {
+        spdlog::info("initExperiment: loading scene {}",
+                      sceneUsd.toStdString());
+        if (sceneMgr_->loadScene(sceneUsd.toStdString())) {
+            viewportWidget_->setRenderMode(core::RenderMode::LocalHydra);
+            if (viewportWidget_->localViewport() && cameraToolbar_) {
+                cameraToolbar_->setCameraController(
+                    viewportWidget_->localViewport()->cameraController());
+            }
+        } else {
+            spdlog::warn("initExperiment: scene load returned false");
+            QMessageBox::warning(this, tr("Scene load failed"),
+                tr("Experiment scene file failed to load:\n%1\n"
+                   "Open it manually via File → Open USD Scene.").arg(sceneUsd));
+        }
+    } else if (sceneUsd.isEmpty()) {
+        spdlog::warn("initExperiment: no scene/world.usd[a|c] under {}",
+                      dirStr.toStdString());
+    }
+
+    // Note: the MIME runner subprocess is NOT spawned here. It is
+    // spawned (and re-spawned after Stop) by onSimulationStart so the
+    // user controls when physics actually starts. initExperiment only
+    // claims the directory and primes the UI panels.
+
+    // ── Project Browser: root the file tree at the experiment dir ──
+    if (projectBrowser_) {
+        projectBrowser_->setExperimentDir(dirStr.toStdString());
+        spdlog::info("ProjectBrowser: rooted at {}", dirStr.toStdString());
+    }
+
+    // ── Parameter Panel: dump physics/params.py to JSON via python3 ──
+    const QString paramsPy = dirStr + "/physics/params.py";
+    if (parameterPanel_ && QFile::exists(paramsPy)) {
+        QProcess p;
+        QStringList args;
+        args << "-c"
+             << QString(
+                "import json,runpy;"
+                "ns=runpy.run_path('%1');"
+                "out={k:v for k,v in ns.items() "
+                "    if not k.startswith('_') "
+                "    and isinstance(v,(int,float,bool,str))};"
+                "print(json.dumps(out))").arg(paramsPy);
+        p.start("python3", args);
+        if (p.waitForFinished(5000) && p.exitCode() == 0) {
+            try {
+                auto j = nlohmann::json::parse(
+                    p.readAllStandardOutput().toStdString());
+                parameterPanel_->loadParameters(j);
+                spdlog::info("ParameterPanel: loaded {} params",
+                              j.size());
+            } catch (const std::exception& e) {
+                spdlog::warn("ParameterPanel: params.py parse failed: {}",
+                              e.what());
+            }
+        } else {
+            spdlog::warn(
+                "ParameterPanel: python3 dump of params.py failed "
+                "(exit={}, stderr={})", p.exitCode(),
+                p.readAllStandardError().toStdString());
+        }
+    } else if (parameterPanel_) {
+        spdlog::warn("ParameterPanel: no physics/params.py at {}",
+                      paramsPy.toStdString());
+    }
+
+    // ── Graph Inspector: load graph.json. If the runner has never been
+    // launched in this dir, graph.json may not exist yet. Attempt
+    // again after the first launch. ──
+    const QString graphJson = dirStr + "/graph.json";
+    if (graphInspector_ && QFile::exists(graphJson)) {
+        try {
+            QFile f(graphJson);
+            if (f.open(QIODevice::ReadOnly)) {
+                auto j = nlohmann::json::parse(
+                    f.readAll().toStdString());
+                graphInspector_->loadFromJson(j);
+                spdlog::info("GraphInspector: loaded graph.json ({} nodes)",
+                              j.value("nodes", nlohmann::json::object()).size());
+            }
+        } catch (const std::exception& e) {
+            spdlog::warn("GraphInspector: graph.json parse failed: {}",
+                          e.what());
+        }
+    } else if (graphInspector_) {
+        spdlog::info(
+            "GraphInspector: graph.json not yet present at {} "
+            "(will load after first Launch)", graphJson.toStdString());
+    }
+
+    statusBar()->showMessage(
+        tr("Experiment ready: %1 — press Launch to begin")
+            .arg(QFileInfo(dirStr).fileName()));
+    if (runConfigPanel_) {
+        runConfigPanel_->setConnectionStatus(tr("Loaded — not running"));
+    }
+    return true;
+}
+
+void MainWindow::onFileOpenExperiment()
+{
+    const QString dirStr = QFileDialog::getExistingDirectory(
+        this,
+        tr("Open Experiment Directory"),
+        QString(),
+        QFileDialog::ShowDirsOnly | QFileDialog::DontResolveSymlinks);
+
+    if (dirStr.isEmpty()) return;
+
+    if (!initExperiment(dirStr)) return;
+
+    // Mirror the directory into RunConfigPanel (guarded so the
+    // re-entrant experimentDirChanged → initExperiment chain doesn't
+    // double-fire).
+    if (runConfigPanel_) {
+        QSignalBlocker blocker(runConfigPanel_);
+        Q_EMIT runConfigPanel_->experimentDirChanged(dirStr);
+    }
+}
+
 void MainWindow::onFileClose()
 {
     if (simController_->isRunning()) {
@@ -427,6 +642,10 @@ void MainWindow::onFileClose()
 
 void MainWindow::onSimulationStart()
 {
+    spdlog::info("onSimulationStart: ENTRY  experimentDir='{}' "
+                  "running={} paused={} playback={}",
+                  experimentDir_, simController_->isRunning(),
+                  paused_, playbackMode_);
     // Playback mode: play/resume the animation
     if (playbackMode_) {
         timelinePanel_->playbackPlay();
@@ -437,9 +656,28 @@ void MainWindow::onSimulationStart()
     }
 
     if (!sceneMgr_->isLoaded()) {
-        QMessageBox::information(this, tr("No Scene"),
-                                 tr("Please open a USD scene before starting simulation."));
-        return;
+        // If an experiment has been opened but its scene wasn't auto-loaded
+        // (e.g. the user picked the manifest dir before Launch), try the
+        // conventional scene/world.usda path now.
+        bool loaded = false;
+        if (!experimentDir_.empty()) {
+            const QString sceneUsd =
+                QString::fromStdString(experimentDir_) + "/scene/world.usda";
+            if (QFile::exists(sceneUsd)
+                && sceneMgr_->loadScene(sceneUsd.toStdString())) {
+                viewportWidget_->setRenderMode(core::RenderMode::LocalHydra);
+                if (viewportWidget_->localViewport() && cameraToolbar_) {
+                    cameraToolbar_->setCameraController(
+                        viewportWidget_->localViewport()->cameraController());
+                }
+                loaded = true;
+            }
+        }
+        if (!loaded) {
+            QMessageBox::information(this, tr("No Scene"),
+                                     tr("Please open a USD scene before starting simulation."));
+            return;
+        }
     }
 
     // Resume from pause
@@ -455,11 +693,132 @@ void MainWindow::onSimulationStart()
 
     if (simController_->isRunning()) return;
 
-    auto backend = std::make_unique<stubs::LocalComputeBackend>();
-    simController_->setComputeBackend(std::move(backend));
+    // If an experiment directory is remembered but the previous Stop
+    // tore down the MIME runner, re-spawn it now so the user can press
+    // Launch again without re-opening the experiment from the menu.
+    // Try up to 3 times with a 1 s back-off — covers TIME_WAIT or
+    // overlapping prior shutdowns.
+    if (!experimentDir_.empty()
+        && (!experimentRunner_ || !experimentRunner_->isRunning())) {
+        spdlog::info("onSimulationStart: re-spawning MIME runner for {}",
+                      experimentDir_);
+        if (!experimentRunner_) {
+            experimentRunner_ =
+                std::make_unique<experiment::ExperimentRunner>(this);
+            // Wire stdout/stderr → MimeConsolePanel so the user sees the
+            // Python tracebacks and runner progress in the bottom dock.
+            if (mimeConsole_) {
+                connect(experimentRunner_.get(),
+                        &experiment::ExperimentRunner::stdoutChunk,
+                        mimeConsole_,
+                        &panels::MimeConsolePanel::appendStdout);
+                connect(experimentRunner_.get(),
+                        &experiment::ExperimentRunner::stderrChunk,
+                        mimeConsole_,
+                        &panels::MimeConsolePanel::appendStderr);
+            }
+        }
+
+        bool spawned = false;
+        for (int attempt = 1; attempt <= 3; ++attempt) {
+            if (experimentRunner_->start(experimentDir_)) {
+                spawned = true;
+                break;
+            }
+            spdlog::warn("onSimulationStart: re-spawn attempt {} failed; "
+                          "retrying...", attempt);
+            QThread::msleep(1000);
+        }
+        if (!spawned) {
+            spdlog::error("onSimulationStart: re-spawn failed after 3 attempts");
+            QMessageBox::critical(this, tr("Experiment failed to start"),
+                tr("Could not re-launch the MIME runner subprocess after 3 "
+                   "attempts. Falling back to stub backend."));
+        }
+    }
+
+    // The MIME runner spends ~2 s building the graph + JIT-compiling
+    // before it binds its ZMQ ports. Probe the REP port (5555) until it
+    // accepts so the upcoming MimePhysicsProcess::launch sendCommand()
+    // doesn't hit a 5 s receive timeout against an unbound port.
+    if (!experimentDir_.empty()
+        && experimentRunner_ && experimentRunner_->isRunning()) {
+        statusBar()->showMessage(tr("Waiting for MIME runner..."));
+        QApplication::processEvents();
+        if (!experimentRunner_->waitUntilReady(30000, 5555)) {
+            spdlog::error("onSimulationStart: MIME runner not ready");
+            QMessageBox::critical(this, tr("Experiment startup timeout"),
+                tr("The MIME runner subprocess did not finish initialising "
+                   "within 30 s. Check the console for a Python traceback."));
+        } else {
+            // graph.json is now written by the runner. Refresh the
+            // GraphInspector if it didn't pick it up during init.
+            const QString graphJson =
+                QString::fromStdString(experimentDir_) + "/graph.json";
+            if (graphInspector_ && QFile::exists(graphJson)) {
+                QFile f(graphJson);
+                if (f.open(QIODevice::ReadOnly)) {
+                    try {
+                        auto j = nlohmann::json::parse(
+                            f.readAll().toStdString());
+                        graphInspector_->loadFromJson(j);
+                        spdlog::info(
+                            "GraphInspector: refreshed after Launch ({} nodes)",
+                            j.value("nodes",
+                                     nlohmann::json::object()).size());
+                    } catch (...) { /* already-logged in init path */ }
+                }
+            }
+        }
+    }
 
     core::PhysicsConfig config;
-    config.actorToPrimPath["robot"] = "/World/Actors/UMR";
+
+    const bool have_experiment = !experimentDir_.empty()
+        && experimentRunner_ && experimentRunner_->isRunning();
+    spdlog::info("onSimulationStart: experimentDir='{}' runner={}  → {}",
+                  experimentDir_,
+                  (experimentRunner_ ? (experimentRunner_->isRunning()
+                                         ? "running" : "stopped")
+                                     : "null"),
+                  have_experiment ? "MimeComputeBackend"
+                                  : "LocalComputeBackend (stub)");
+
+    if (have_experiment) {
+        // Connect to the already-running MIME subprocess via ZMQ.
+        connection::ConnectionConfig cc;
+        cc.mode = connection::ConnectionMode::Local;
+        auto backend = std::make_unique<mime::MimeComputeBackend>(cc);
+        simController_->setComputeBackend(std::move(backend));
+
+        // Actor map: parse experiment.yaml/scene.actors via
+        // ExperimentLoader → ExperimentConfig::buildPhysicsConfig().
+        // ResultsApplicator looks up every actor name from the
+        // ResultFrame in this map; missing entries log
+        // "No prim path mapping for actor X — skipping" and the
+        // corresponding USD prim never moves.
+        experiment::ExperimentLoader loader;
+        auto exp_cfg = loader.load(experimentDir_);
+        if (exp_cfg) {
+            config = exp_cfg->buildPhysicsConfig();
+            spdlog::info(
+                "MainWindow: registered {} actor(s) from experiment.yaml",
+                config.actorToPrimPath.size());
+        } else {
+            spdlog::warn(
+                "MainWindow: ExperimentLoader::load failed for '{}' "
+                "— falling back to legacy hardcoded body actor",
+                experimentDir_);
+            config.actorToPrimPath["body"] = "/World/Actors/UMR";
+        }
+    } else {
+        // Legacy stub-backend path (no MIME runner) — kept so the
+        // viewport demo still works without an experiment.
+        auto backend = std::make_unique<stubs::LocalComputeBackend>();
+        simController_->setComputeBackend(std::move(backend));
+        config.actorToPrimPath["robot"] = "/World/Actors/UMR";
+    }
+
     simController_->launchPhysics(config);
 
     paused_ = false;
@@ -502,6 +861,15 @@ void MainWindow::onSimulationStop()
     paused_ = false;
     simController_->setPaused(false);
     simController_->stop();
+
+    // If we're driving a MIME-runner experiment, terminate the
+    // subprocess too — otherwise it keeps stepping in the background
+    // and the next Launch finds the ZMQ ports already bound.
+    if (experimentRunner_ && experimentRunner_->isRunning()) {
+        spdlog::info("onSimulationStop: tearing down ExperimentRunner");
+        experimentRunner_->stop();
+    }
+
     statusBar()->showMessage(tr("Simulation stopped"));
 }
 

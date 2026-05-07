@@ -68,6 +68,7 @@ public:
     void launch(const core::PhysicsConfig& config) override;
     std::optional<core::ResultFrame> receiveResult() override;
     void sendParameters(const nlohmann::json& params) override;
+    void setPaused(bool paused) override;
     void stop() override;
     core::ProcessStatus status() const override;
 

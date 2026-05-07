@@ -111,6 +111,12 @@ void SimulationController::setPaused(bool paused) {
     }
 }
 
+void SimulationController::sendParameters(const nlohmann::json& params) {
+    if (physics_ && running_.load()) {
+        physics_->sendParameters(params);
+    }
+}
+
 void SimulationController::teardown() {
     stop();
     physics_.reset();

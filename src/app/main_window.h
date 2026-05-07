@@ -32,6 +32,10 @@ class ScriptEditorPanel;
 class ParameterPanel;
 } // namespace microbotica::panels
 
+namespace microbotica::experiment {
+class ExperimentRunner;
+} // namespace microbotica::experiment
+
 namespace microbotica::app {
 
 /// Main application window with dock layout.
@@ -57,6 +61,7 @@ protected:
 
 private Q_SLOTS:
     void onFileOpen();
+    void onFileOpenExperiment();
     void onFileClose();
     void onSimulationStart();
     void onSimulationPause();
@@ -76,12 +81,24 @@ private:
     void saveLayout();
     void restoreLayout();
 
+    /// Initialise an experiment from its root directory: load the scene,
+    /// spawn the MIME runner, and mirror state into RunConfigPanel.
+    /// Returns true if the experiment is ready to be launched.
+    bool initExperiment(const QString& dir);
+
     // Core services
     core::NullAuditLogger auditLogger_;
     std::unique_ptr<scene::SceneManager> sceneMgr_;
     std::unique_ptr<scene::PrimSelection> primSelection_;
     std::unique_ptr<simulation::SimulationController> simController_;
     std::unique_ptr<scripting::ScriptingEngine> scriptEngine_;
+
+    // MIME runner subprocess (created on demand by onFileOpenExperiment)
+    std::unique_ptr<experiment::ExperimentRunner> experimentRunner_;
+    // Path to the actor map for the currently loaded experiment, used by
+    // onSimulationStart to build the PhysicsConfig. Empty when running in
+    // legacy stub-backend mode.
+    std::string experimentDir_;
 
     // Central widget
     viewport::ViewportWidget* viewportWidget_ = nullptr;
