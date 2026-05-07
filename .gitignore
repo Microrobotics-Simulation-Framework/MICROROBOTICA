@@ -14,10 +14,10 @@ build/
 # Doxygen generated
 docs/_doxygen/
 
-# Sphinx generated
+# Sphinx generated (build output only — _static/ and _templates/ now
+# hold versioned theme assets like custom.css and project switcher
+# templates).
 docs/_build/
-docs/_static/
-docs/_templates/
 
 # Compiled objects
 *.o

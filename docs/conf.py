@@ -1,47 +1,170 @@
-# Configuration file for the Sphinx documentation builder.
-# MICROBOTICA documentation
+"""Shared Sphinx configuration for the unified microrobotica.org docs site.
 
-project = 'MICROBOTICA'
-copyright = '2026, MICROBOTICA Contributors'
-author = 'MICROBOTICA Contributors'
-release = '0.1.0'
+The site is built with `sphinx-multiproject`: this single conf.py serves
+three Sphinx projects (microrobotica, maddening, mime) selected by the
+PROJECT environment variable. Each project's source tree lives in:
 
+    microrobotica   .                          (this directory)
+    maddening       projects/maddening/docs    (git submodule -> MADDENING)
+    mime            projects/mime/docs         (git submodule -> MIME)
+
+Build the full site with `make all` from this directory.
+"""
+from __future__ import annotations
+
+import os
+from pathlib import Path
+
+# ── multiproject ─────────────────────────────────────────────────────
+from multiproject.utils import get_project
+
+multiproject_projects = {
+    "microrobotica": {"path": "."},
+    "maddening":     {"path": "projects/maddening/docs"},
+    "mime":          {"path": "projects/mime/docs"},
+}
+
+current_project = get_project(multiproject_projects)
+
+# ── per-project metadata ─────────────────────────────────────────────
+_PROJECT_META = {
+    "microrobotica": {
+        "project": "MICROROBOTICA",
+        "tagline": "Microrobotics Simulation Framework — IDE",
+    },
+    "maddening": {
+        "project": "MADDENING",
+        "tagline": "Modular Acausal Dataflow DE Node Network",
+    },
+    "mime": {
+        "project": "MIME",
+        "tagline": "Microrobotics Interaction Model Engine",
+    },
+}
+
+project = _PROJECT_META[current_project]["project"]
+_tagline = _PROJECT_META[current_project]["tagline"]
+copyright = "2026, Nicholas Roy"
+author = "Nicholas Roy"
+release = "0.1.0"
+
+# ── extensions ───────────────────────────────────────────────────────
 extensions = [
-    'myst_parser',
-    'breathe',
-    # 'sphinxcontrib.bibtex',  # Enable when bibliography.bib has entries
+    "multiproject",
+    "myst_parser",
+    "sphinx_design",
+    "sphinx.ext.intersphinx",
+    "sphinx.ext.autosectionlabel",
 ]
 
-# MyST parser configuration
+# Breathe (C++ via Doxygen XML) only for MICROROBOTICA.
+if current_project == "microrobotica":
+    extensions.append("breathe")
+    breathe_projects = {"MICROROBOTICA": "_doxygen/xml"}
+    breathe_default_project = "MICROROBOTICA"
+
+# MyST extensions.
 myst_enable_extensions = [
-    'colon_fence',
-    'deflist',
+    "colon_fence",
+    "deflist",
+    "html_image",
+    "linkify",
+    "substitution",
 ]
+myst_heading_anchors = 3
+
 source_suffix = {
-    '.rst': 'restructuredtext',
-    '.md': 'markdown',
+    ".rst": "restructuredtext",
+    ".md": "markdown",
 }
 
-# Breathe configuration (Doxygen XML integration)
-breathe_projects = {
-    'MICROBOTICA': '_doxygen/xml',
+templates_path = ["_templates"]
+exclude_patterns = [
+    "_build",
+    "_doxygen",
+    "Thumbs.db",
+    ".DS_Store",
+    "projects",  # subprojects build with their own srcdir; exclude from microrobotica root
+    "tmp",
+    "**/.venv",
+]
+
+# autosectionlabel — only generate labels per-document to avoid collisions
+# between the three projects (which all have e.g. "Installation" headings).
+autosectionlabel_prefix_document = True
+autosectionlabel_maxdepth = 2
+
+# ── HTML theme ───────────────────────────────────────────────────────
+html_theme = "pydata_sphinx_theme"
+html_static_path = ["_static"]
+html_css_files = ["custom.css"]
+
+# Copy `assets/` (videos and other large media kept out of _static/) to
+# the build output as-is. Only on the microrobotica project — the
+# subprojects do not currently have assets to ship.
+if current_project == "microrobotica":
+    html_extra_path = ["assets"]
+html_logo = None  # text logo from theme_options below
+html_favicon = None
+
+# When deployed on GitHub Pages, each subproject lives at /<name>/.
+# We tell pydata-sphinx-theme where each one lives so its sidebar and
+# breadcrumbs render correct cross-project links.
+_DEPLOY_BASE = os.environ.get("DOCS_DEPLOY_BASE", "https://microrobotica.org")
+
+html_theme_options = {
+    "logo": {
+        "text": "Microrobotics Simulation Framework",
+    },
+    "navbar_start": ["navbar-logo"],
+    "navbar_center": ["navbar-nav"],
+    "navbar_end": ["theme-switcher", "navbar-icon-links"],
+    "navbar_persistent": ["search-button"],
+    "navbar_align": "left",
+    "show_nav_level": 2,
+    "navigation_depth": 4,
+    "show_toc_level": 2,
+    "header_links_before_dropdown": 5,
+    "use_edit_page_button": False,
+    "external_links": [
+        {"name": "MADDENING", "url": f"{_DEPLOY_BASE}/maddening/"},
+        {"name": "MIME",      "url": f"{_DEPLOY_BASE}/mime/"},
+        {"name": "MICROROBOTICA", "url": f"{_DEPLOY_BASE}/"},
+    ],
+    "icon_links": [
+        {
+            "name": "GitHub",
+            "url": "https://github.com/Microrobotics-Simulation-Framework",
+            "icon": "fa-brands fa-github",
+            "type": "fontawesome",
+        },
+    ],
+    "announcement": (
+        f"<p><strong>{project}</strong> &middot; {_tagline}. "
+        "Part of the Microrobotics Simulation Framework.</p>"
+    ),
+    "footer_start": ["copyright"],
+    "footer_end": ["theme-version"],
 }
-breathe_default_project = 'MICROBOTICA'
 
-# sphinxcontrib-bibtex configuration
-# bibtex_bibfiles = ['bibliography.bib']
+html_context = {
+    "current_project": current_project,
+    "deploy_base": _DEPLOY_BASE,
+}
 
-# --- Future multiproject mounts ---
-# When MADDENING and MIME documentation is integrated, add their
-# Sphinx projects here using sphinx-multiproject or intersphinx:
-#
-# intersphinx_mapping = {
-#     'maddening': ('https://maddening.readthedocs.io/en/latest', None),
-#     'mime': ('https://mime.readthedocs.io/en/latest', None),
-# }
+html_title = f"{project} — {_tagline}"
+html_short_title = project
 
-templates_path = ['_templates']
-exclude_patterns = ['_build', '_doxygen', 'Thumbs.db', '.DS_Store']
+# ── intersphinx (cross-project references) ───────────────────────────
+intersphinx_mapping = {
+    "microrobotica": (f"{_DEPLOY_BASE}/", None),
+    "maddening":     (f"{_DEPLOY_BASE}/maddening/", None),
+    "mime":          (f"{_DEPLOY_BASE}/mime/", None),
+}
+# Don't fetch our own inventory.
+intersphinx_mapping.pop(current_project, None)
 
-html_theme = 'alabaster'
-html_static_path = ['_static']
+# ── per-project root document ────────────────────────────────────────
+# Sphinx defaults to "index" — both .rst and .md are fine.
+master_doc = "index"
+root_doc = "index"

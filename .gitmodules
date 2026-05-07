@@ -1,0 +1,8 @@
+[submodule "docs/projects/maddening"]
+	path = docs/projects/maddening
+	url = git@github.com:Microrobotics-Simulation-Framework/MADDENING.git
+	branch = main
+[submodule "docs/projects/mime"]
+	path = docs/projects/mime
+	url = git@github.com:Microrobotics-Simulation-Framework/MIME.git
+	branch = main

@@ -1,0 +1,71 @@
+/* MICROROBOTICA / unified Microrobotics Simulation Framework docs site
+ *
+ * Hero block on the landing page autoplays the two showcase videos
+ * side-by-side at the top, above the project-card grid.
+ */
+
+.msf-hero {
+  margin: 0 0 2.5rem 0;
+}
+
+.msf-hero-videos {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+@media (max-width: 760px) {
+  .msf-hero-videos {
+    grid-template-columns: 1fr;
+  }
+}
+
+.msf-hero-video {
+  background: var(--pst-color-surface);
+  border: 1px solid var(--pst-color-border);
+  border-radius: 0.5rem;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.msf-hero-video video {
+  width: 100%;
+  height: auto;
+  display: block;
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+  background: #000;
+}
+
+.msf-hero-caption {
+  padding: 0.75rem 1rem;
+  font-size: 0.9rem;
+  color: var(--pst-color-text-muted);
+  border-top: 1px solid var(--pst-color-border);
+}
+
+.msf-hero-blurb {
+  font-size: 1.15rem;
+  line-height: 1.55;
+  color: var(--pst-color-text-base);
+  max-width: 70ch;
+}
+
+/* Project cards */
+.msf-card {
+  transition: transform 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
+}
+.msf-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.10);
+}
+
+/* Tighten the announcement bar so it doesn't crowd the navbar */
+.bd-header-announcement {
+  font-size: 0.85rem;
+}
+.bd-header-announcement p {
+  margin: 0.4rem 0;
+}
