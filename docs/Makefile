@@ -31,6 +31,7 @@ help:
 	@echo "  clean         - rm -rf _build/"
 
 doxygen:
+	@mkdir -p _doxygen/xml
 	cd .. && doxygen Doxyfile
 
 # sphinx-multiproject rewrites the srcdir based on $PROJECT — we always
