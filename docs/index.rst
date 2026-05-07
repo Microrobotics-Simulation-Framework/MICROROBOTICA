@@ -1,17 +1,89 @@
-MICROBOTICA Documentation
-=========================
+:html_theme.sidebar_secondary.remove:
 
-MICROROBOTs Iterative Simulation for Clinical Adoption.
+Microrobotics Simulation Framework
+===================================
+
+.. raw:: html
+
+   <div class="msf-hero">
+     <div class="msf-hero-videos">
+       <div class="msf-hero-video">
+         <video autoplay muted loop playsinline preload="metadata"
+                aria-label="MICROROBOTICA dipole + robot-arm closed-loop control">
+           <source src="videos/microrobot_dipole_robot_arm_control.mp4" type="video/mp4">
+         </video>
+         <div class="msf-hero-caption">
+           Closed-loop control of a magnetically actuated microrobot
+           tracked by a robot-arm-mounted dipole field source.
+         </div>
+       </div>
+       <div class="msf-hero-video">
+         <video autoplay muted loop playsinline preload="metadata"
+                aria-label="MIME replication of de Jongh 2024 helical-UMR experiment">
+           <source src="videos/dejongh_mime_replication_demo.mp4" type="video/mp4">
+         </video>
+         <div class="msf-hero-caption">
+           MIME replication of the de Jongh et al. (2024) helical-UMR
+           propulsion experiment, end-to-end inside the framework.
+         </div>
+       </div>
+     </div>
+     <p class="msf-hero-blurb">
+       An end-to-end, autodifferentiable simulation framework for
+       <strong>magnetically actuated microrobots</strong> in confined
+       biological flows — from acausal node graphs and low-Reynolds
+       hydrodynamics, through closed-loop control, to a regulated IDE.
+     </p>
+   </div>
+
+The framework is three layered projects:
+
+.. grid:: 1 2 3 3
+   :gutter: 3
+   :margin: 4 4 0 0
+
+   .. grid-item-card:: MADDENING
+      :link: ../maddening/
+      :class-card: msf-card
+
+      The base framework. A pure-JAX, autodifferentiable
+      acausal-dataflow runtime where physical models are composed from
+      typed nodes and unit-aware edges.
+
+   .. grid-item-card:: MIME
+      :link: ../mime/
+      :class-card: msf-card
+
+      The physics. A library of MADDENING nodes for rigid-body chains,
+      magnetic response, low-Reynolds hydrodynamics
+      (Stokeslet / IBM-FVM with optional GNN correction), and the
+      actuation chain.
+
+   .. grid-item-card:: MICROROBOTICA
+      :link: user_guide/index
+      :link-type: doc
+      :class-card: msf-card
+
+      The IDE. A Qt application that loads MIME experiments, drives
+      live parameter edits, scrubs USD recordings, and produces the
+      IEC-62304 audit trail for clinical-grade adoption.
+
+Documentation map
+-----------------
+
+The framework's documentation is split across the three projects' own
+docs trees, which all share this site's theme. Use the navbar to jump
+between them.
 
 .. toctree::
-   :maxdepth: 2
+   :hidden:
    :caption: User Guide
 
    user_guide/index
    user_guide/concepts
 
 .. toctree::
-   :maxdepth: 2
+   :hidden:
    :caption: Developer Guide
 
    developer_guide/index
@@ -19,20 +91,20 @@ MICROROBOTs Iterative Simulation for Clinical Adoption.
    developer_guide/testing_standards
 
 .. toctree::
-   :maxdepth: 2
+   :hidden:
    :caption: Component Guide
 
    component_guide/index
 
 .. toctree::
-   :maxdepth: 2
+   :hidden:
    :caption: Validation
 
    validation/index
    validation/soup_package
 
 .. toctree::
-   :maxdepth: 2
+   :hidden:
    :caption: Regulatory
 
    regulatory/intended_use
