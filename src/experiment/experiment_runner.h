@@ -67,6 +67,14 @@ public:
     /// @return true if the process started successfully
     bool start(const std::string& experiment_dir);
 
+    /// Block until the runner's ZMQ REP port (default 5555) accepts a
+    /// connection, or timeout. This is a *liveness probe* — useful
+    /// after start() because waitForStarted only confirms exec, not
+    /// that the Python interpreter has finished JIT-compiling the
+    /// graph and bound its sockets.
+    /// @return true if the port is accepting within timeout_ms.
+    bool waitUntilReady(int timeout_ms = 30000, int port = 5555);
+
     /// Stop the running MIME subprocess gracefully.
     void stop();
 
@@ -85,6 +93,11 @@ Q_SIGNALS:
 
     /// Emitted when the MIME process stops (intentionally or not).
     void processStopped();
+
+    /// Emitted as the MIME subprocess produces stdout/stderr lines.
+    /// Wire to MimeConsolePanel::appendStdout / appendStderr.
+    void stdoutChunk(const QByteArray& data);
+    void stderrChunk(const QByteArray& data);
 
 private Q_SLOTS:
     void onProcessFinished(int exit_code, QProcess::ExitStatus exit_status);

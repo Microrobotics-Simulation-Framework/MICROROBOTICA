@@ -85,6 +85,10 @@ public:
     void setPaused(bool paused);
     bool isPaused() const { return paused_.load(); }
 
+    /// Forward updated parameters to the underlying physics process
+    /// (e.g. ParameterPanel slider edits). No-op when not running.
+    void sendParameters(const nlohmann::json& params);
+
     /// Get current sim time.
     double currentTime() const { return currentTime_.load(); }
 

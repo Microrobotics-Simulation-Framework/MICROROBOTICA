@@ -65,9 +65,10 @@ std::optional<core::ResultFrame> MimePhysicsProcess::receiveResult() {
 void MimePhysicsProcess::sendParameters(const nlohmann::json& params) {
 #ifdef MICROBOTICA_HAS_ZMQ
     try {
-        nlohmann::json msg = {{"params", params}};
+        // MIME runner expects {"command":"params","data":{...}}.
+        nlohmann::json msg = {{"command", "params"}, {"data", params}};
         std::string reply = sendCommand(msg.dump());
-        if (reply.substr(0, 5) == "error") {
+        if (reply.find("error") != std::string::npos) {
             spdlog::warn("MimePhysicsProcess: Parameter update rejected: {}", reply);
         }
     } catch (const std::exception& e) {
@@ -75,6 +76,20 @@ void MimePhysicsProcess::sendParameters(const nlohmann::json& params) {
     }
 #else
     (void)params;
+#endif
+}
+
+void MimePhysicsProcess::setPaused(bool paused) {
+#ifdef MICROBOTICA_HAS_ZMQ
+    try {
+        nlohmann::json msg = {{"command", paused ? "pause" : "resume"}};
+        sendCommand(msg.dump());
+    } catch (const std::exception& e) {
+        spdlog::warn("MimePhysicsProcess: setPaused({}) failed: {}",
+                      paused, e.what());
+    }
+#else
+    (void)paused;
 #endif
 }
 
@@ -149,24 +164,39 @@ void MimePhysicsProcess::workerLoop() {
 
 std::string MimePhysicsProcess::sendCommand(const std::string& command) {
 #ifdef MICROBOTICA_HAS_ZMQ
-    zmq::context_t ctx(1);
-    zmq::socket_t req(ctx, zmq::socket_type::req);
-    req.set(zmq::sockopt::linger, 0);
-    req.set(zmq::sockopt::rcvtimeo, 5000); // 5s timeout for commands
-    req.set(zmq::sockopt::sndtimeo, 5000);
-    req.connect(req_endpoint_);
-
-    zmq::message_t msg(command.size());
-    std::memcpy(msg.data(), command.data(), command.size());
-    req.send(msg, zmq::send_flags::none);
-
-    zmq::message_t reply;
-    auto result = req.recv(reply, zmq::recv_flags::none);
-    if (!result) {
-        throw std::runtime_error("Command timeout: no reply from MIME backend");
+    // Up to 3 attempts. Each attempt uses a fresh REQ socket so a
+    // dropped reply leaves no half-finished state on this side.
+    std::string last_error;
+    for (int attempt = 1; attempt <= 3; ++attempt) {
+        zmq::context_t ctx(1);
+        zmq::socket_t req(ctx, zmq::socket_type::req);
+        req.set(zmq::sockopt::linger, 0);
+        req.set(zmq::sockopt::rcvtimeo, 5000);
+        req.set(zmq::sockopt::sndtimeo, 5000);
+        try {
+            req.connect(req_endpoint_);
+            zmq::message_t msg(command.size());
+            std::memcpy(msg.data(), command.data(), command.size());
+            auto sent = req.send(msg, zmq::send_flags::none);
+            if (!sent) {
+                last_error = "send timeout";
+            } else {
+                zmq::message_t reply;
+                auto result = req.recv(reply, zmq::recv_flags::none);
+                if (result) {
+                    return std::string(
+                        static_cast<char*>(reply.data()), reply.size());
+                }
+                last_error = "recv timeout";
+            }
+        } catch (const zmq::error_t& e) {
+            last_error = e.what();
+        }
+        spdlog::warn("MimePhysicsProcess::sendCommand attempt {} failed: "
+                      "{} — retrying", attempt, last_error);
     }
-
-    return std::string(static_cast<char*>(reply.data()), reply.size());
+    throw std::runtime_error("Command timeout: no reply from MIME backend ("
+                              + last_error + ")");
 #else
     (void)command;
     return "error:zmq_not_available";

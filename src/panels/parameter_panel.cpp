@@ -94,13 +94,23 @@ void ParameterPanel::createWidget(const std::string& name, const nlohmann::json&
     ParamWidget pw;
     pw.type = value.type();
 
+    auto liveApply = [this]() {
+        Q_EMIT parametersChanged(currentValues());
+    };
+
     switch (value.type()) {
         case nlohmann::json::value_t::number_float: {
             auto* spin = new QDoubleSpinBox;
             spin->setRange(-1e15, 1e15);
-            spin->setDecimals(8);
-            spin->setValue(value.get<double>());
-            spin->setSingleStep(value.get<double>() * 0.01); // 1% step
+            spin->setDecimals(6);
+            const double v = value.get<double>();
+            spin->setValue(v);
+            // Sensible non-zero step: 1% of magnitude, floor 1e-6.
+            spin->setSingleStep(std::max(std::abs(v) * 0.01, 1e-6));
+            spin->setKeyboardTracking(false);  // emit on commit only
+            connect(spin,
+                    QOverload<double>::of(&QDoubleSpinBox::valueChanged),
+                    this, liveApply);
             formLayout_->addRow(label, spin);
             pw.widget = spin;
             break;
@@ -110,6 +120,10 @@ void ParameterPanel::createWidget(const std::string& name, const nlohmann::json&
             auto* spin = new QSpinBox;
             spin->setRange(-2147483647, 2147483647);
             spin->setValue(value.get<int>());
+            spin->setKeyboardTracking(false);
+            connect(spin,
+                    QOverload<int>::of(&QSpinBox::valueChanged),
+                    this, liveApply);
             formLayout_->addRow(label, spin);
             pw.widget = spin;
             break;
@@ -117,6 +131,7 @@ void ParameterPanel::createWidget(const std::string& name, const nlohmann::json&
         case nlohmann::json::value_t::boolean: {
             auto* cb = new QCheckBox;
             cb->setChecked(value.get<bool>());
+            connect(cb, &QCheckBox::toggled, this, liveApply);
             formLayout_->addRow(label, cb);
             pw.widget = cb;
             break;
@@ -124,6 +139,9 @@ void ParameterPanel::createWidget(const std::string& name, const nlohmann::json&
         case nlohmann::json::value_t::string: {
             auto* edit = new QLineEdit;
             edit->setText(QString::fromStdString(value.get<std::string>()));
+            // Apply only when the user finishes editing (Enter or focus
+            // change), not on every keystroke.
+            connect(edit, &QLineEdit::editingFinished, this, liveApply);
             formLayout_->addRow(label, edit);
             pw.widget = edit;
             break;

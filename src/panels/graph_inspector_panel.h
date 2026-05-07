@@ -32,10 +32,19 @@ public:
     /// Clear the scene.
     void clear();
 
+private Q_SLOTS:
+    void zoomIn();
+    void zoomOut();
+    void zoomFit();
+    void exportPng();
+
 private:
     void layoutGraph(const nlohmann::json& graph);
 
-    QGraphicsView* view_ = nullptr;
+    /// QGraphicsView subclass that zooms on the mouse wheel.
+    class ZoomView;
+
+    ZoomView* view_ = nullptr;
     QGraphicsScene* scene_ = nullptr;
 };
 
