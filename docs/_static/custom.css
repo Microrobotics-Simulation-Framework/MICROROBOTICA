@@ -44,6 +44,30 @@
   font-size: 0.9rem;
   color: var(--pst-color-text-muted);
   border-top: 1px solid var(--pst-color-border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.msf-hero-fullscreen {
+  flex-shrink: 0;
+  background: var(--pst-color-primary);
+  color: var(--pst-color-on-primary, #fff);
+  border: none;
+  padding: 0.3rem 0.7rem;
+  font-size: 0.8rem;
+  border-radius: 0.25rem;
+  cursor: pointer;
+  font-weight: 500;
+  line-height: 1;
+}
+.msf-hero-fullscreen:hover {
+  filter: brightness(1.1);
+}
+.msf-hero-fullscreen:focus-visible {
+  outline: 2px solid var(--pst-color-link);
+  outline-offset: 2px;
 }
 
 .msf-hero-blurb {

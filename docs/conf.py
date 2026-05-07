@@ -27,23 +27,29 @@ multiproject_projects = {
 current_project = get_project(multiproject_projects)
 
 # ── per-project metadata ─────────────────────────────────────────────
+_GH_ORG = "https://github.com/Microrobotics-Simulation-Framework"
+
 _PROJECT_META = {
     "microrobotica": {
         "project": "MICROROBOTICA",
         "tagline": "Microrobotics Simulation Framework — IDE",
+        "repo":    f"{_GH_ORG}/MICROROBOTICA",
     },
     "maddening": {
         "project": "MADDENING",
         "tagline": "Modular Acausal Dataflow DE Node Network",
+        "repo":    f"{_GH_ORG}/MADDENING",
     },
     "mime": {
         "project": "MIME",
         "tagline": "Microrobotics Interaction Model Engine",
+        "repo":    f"{_GH_ORG}/MIME",
     },
 }
 
 project = _PROJECT_META[current_project]["project"]
 _tagline = _PROJECT_META[current_project]["tagline"]
+_repo_url = _PROJECT_META[current_project]["repo"]
 copyright = "2026, Nicholas Roy"
 author = "Nicholas Roy"
 release = "0.1.0"
@@ -133,15 +139,22 @@ html_theme_options = {
     ],
     "icon_links": [
         {
-            "name": "GitHub",
-            "url": "https://github.com/Microrobotics-Simulation-Framework",
+            "name": f"{project} on GitHub",
+            "url": _repo_url,
             "icon": "fa-brands fa-github",
+            "type": "fontawesome",
+        },
+        {
+            "name": "All MSF repos",
+            "url": _GH_ORG,
+            "icon": "fa-solid fa-cubes",
             "type": "fontawesome",
         },
     ],
     "announcement": (
         f"<p><strong>{project}</strong> &middot; {_tagline}. "
-        "Part of the Microrobotics Simulation Framework.</p>"
+        f"<a href=\"{_repo_url}\" class=\"reference external\">Source on GitHub →</a> "
+        "&middot; <em>Docs are scaffolding — pages will fill in over the coming weeks.</em></p>"
     ),
     "footer_start": ["copyright"],
     "footer_end": ["theme-version"],
