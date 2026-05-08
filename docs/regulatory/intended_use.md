@@ -2,7 +2,7 @@
 
 ## Platform Positioning Statement
 
-MICROBOTICA (MICROROBOTs Iterative Simulation for Clinical Adoption) is
+MICROBOTICA (MICROROBOTics Iterative simulation for Clinical Adoption) is
 open-source research software. It is not a medical device as defined by
 EU MDR (EU 2017/745), Article 2(1). It has no medical purpose. It is not
 intended for clinical use, clinical decision-making, or patient diagnosis.

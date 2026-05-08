@@ -1,6 +1,6 @@
 # MICROBOTICA
 
-MICROROBOTs Iterative Simulation for Clinical Adoption.
+MICROROBOTics Iterative simulation for Clinical Adoption.
 
 ## What is MICROBOTICA?
 
@@ -69,7 +69,7 @@ If you use MICROBOTICA in academic work, please cite:
 
 ```bibtex
 @software{microbotica,
-  title = {MICROBOTICA: MICROROBOTs Iterative Simulation for Clinical Adoption},
+  title = {MICROBOTICA: MICROROBOTics Iterative simulation for Clinical Adoption},
   version = {0.1.0},
   license = {AGPL-3.0-or-later},
   url = {https://github.com/MSF/MICROROBOTICA}

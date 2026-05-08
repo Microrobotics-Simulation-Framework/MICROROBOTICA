@@ -32,17 +32,18 @@ _GH_ORG = "https://github.com/Microrobotics-Simulation-Framework"
 _PROJECT_META = {
     "microrobotica": {
         "project": "MICROROBOTICA",
-        "tagline": "Microrobotics Simulation Framework — IDE",
+        "tagline": "MICROROBOTics Iterative simulation for Clinical Adoption",
         "repo":    f"{_GH_ORG}/MICROROBOTICA",
     },
     "maddening": {
         "project": "MADDENING",
-        "tagline": "Modular Acausal Dataflow DE Node Network",
+        "tagline": "Modular Automatic Differentiation and Data Enhanced "
+                   "Neural-network INteracting Graph",
         "repo":    f"{_GH_ORG}/MADDENING",
     },
     "mime": {
         "project": "MIME",
-        "tagline": "Microrobotics Interaction Model Engine",
+        "tagline": "MIcrorobotics Multiphysics Engine",
         "repo":    f"{_GH_ORG}/MIME",
     },
 }
