@@ -2,7 +2,7 @@
 
 ## Executive Summary
 
-**MICROBOTICA** (MICROROBOTs Iterative Simulation for Clinical Adoption) is a C++17/Qt 6.6 open-source research simulator for microrobot-assisted drug delivery in cerebrospinal fluid and other confined biological geometries. It occupies Layer 3 of a four-layer open-source stack:
+**MICROBOTICA** (MICROROBOTics Iterative simulation for Clinical Adoption) is a C++17/Qt 6.6 open-source research simulator for microrobot-assisted drug delivery in cerebrospinal fluid and other confined biological geometries. It occupies Layer 3 of a four-layer open-source stack:
 
 ```
 Layer 1 — MADDENING  (Python, JAX, LGPL-3.0)
@@ -699,7 +699,7 @@ All jobs assume the USD/Qt Docker image is pre-cached. The `full-build` job is a
 ```markdown
 # MICROBOTICA
 
-MICROROBOTs Iterative Simulation for Clinical Adoption.
+MICROROBOTics Iterative simulation for Clinical Adoption.
 
 [Badges: CI status, test count, license]
 
@@ -1763,7 +1763,7 @@ In a clinical context, the downstream manufacturer must decide whether dropped f
 | Field | Value |
 |-------|-------|
 | Name | MICROBOTICA |
-| Full name | MICROROBOTs Iterative Simulation for Clinical Adoption |
+| Full name | MICROROBOTics Iterative simulation for Clinical Adoption |
 | Version | [X.Y.Z] |
 | Release date | [YYYY-MM-DD] |
 | Licence | AGPL-3.0-or-later |
