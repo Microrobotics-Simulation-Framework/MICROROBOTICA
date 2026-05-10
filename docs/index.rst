@@ -50,11 +50,11 @@ Microrobotics Simulation Framework
        </div>
        <div class="msf-hero-video">
          <video controls autoplay muted loop playsinline preload="metadata"
-                aria-label="MIME replication of de Jongh 2024 helical-UMR experiment">
+                aria-label="MIME replication of de Jongh 2025 helical-UMR experiment">
            <source src="videos/dejongh_mime_replication_demo.mp4" type="video/mp4">
          </video>
          <div class="msf-hero-caption">
-           MIME replication of the de Jongh et al. (2024) helical-UMR
+           MIME replication of the de Jongh et al. (2025) helical-UMR
            propulsion experiment, end-to-end inside the framework.
            <span class="msf-hero-actions">
              <button class="msf-hero-fullscreen" type="button"

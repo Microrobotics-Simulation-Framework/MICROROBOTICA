@@ -151,8 +151,11 @@
   border: 1px solid var(--pst-color-border);
   border-radius: 0.75rem;
   box-shadow: 0 8px 40px rgba(0, 0, 0, 0.25);
-  width: min(90vw, 860px);
-  max-height: 85vh;
+  /* Default to a generous size — the diagrams are wide and benefit
+   * from real estate. Fullscreen toggle still bumps to 100vw/100vh.
+   */
+  width: min(96vw, 1500px);
+  height: min(92vh, 1000px);
   display: flex;
   flex-direction: column;
   overflow: hidden;

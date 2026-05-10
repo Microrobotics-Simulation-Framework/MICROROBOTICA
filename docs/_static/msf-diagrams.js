@@ -32,7 +32,7 @@ window.MSF_DIAGRAMS = {
     ].join("\n")
   },
   "dejongh-mime": {
-    title: "de Jongh 2024 helical-UMR replication (confined Stokes drive)",
+    title: "de Jongh 2025 helical-UMR replication (confined Stokes drive)",
     graph: [
       "flowchart LR",
       "    subgraph MIME[\"MIME node graph (dejongh_confined)\"]",
