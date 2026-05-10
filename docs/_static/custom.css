@@ -226,7 +226,22 @@
 }
 .msf-diagram-modal-body .mermaid {
   display: flex;
+  align-items: center;
   justify-content: center;
+  width: 100%;
+  height: 100%;
+}
+/* mermaid stamps the SVG with `width`/`height` attributes plus an
+ * inline `max-width` to fit its natural size. Override so the diagram
+ * scales up to fill the modal body — preserveAspectRatio="xMidYMid meet"
+ * keeps it correctly proportioned. The msf.mermaidZoom() pan/zoom
+ * transforms compose on top of this base size.
+ */
+.msf-diagram-modal-body .mermaid > svg {
+  width: 100% !important;
+  height: 100% !important;
+  max-width: none !important;
+  max-height: none !important;
 }
 
 /* Prevent body scroll when modal is open */
