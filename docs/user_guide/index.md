@@ -10,18 +10,25 @@ IEC-62304-aligned audit trail required for clinical-grade adoption.
 
 The fastest path to a running experiment:
 
-1. Build the IDE — see the
-   [README](https://github.com/Microrobotics-Simulation-Framework/MICROROBOTICA#building)
-   for the CMake preset walkthrough.
-2. Launch `microrobotica` and open one of the bundled experiments via
+1. **[Install MICROROBOTICA from source](installation.md)** — the
+   supported path is the GHCR Docker image
+   (`docker pull ghcr.io/microrobotics-simulation-framework/microrobotica:base`)
+   plus CMake.
+2. **[Install MADDENING + MIME](using_the_libraries.md)** from PyPI
+   (`pip install mime-engine`) so the IDE can spawn the runner.
+3. Launch `microrobotica` and open one of the bundled experiments via
    **File → Open Experiment** — the IDE spawns the MIME runner in the
    background and waits for its ZMQ endpoint to come up.
-3. Hit **Simulation → Start**. Slide parameter values live; the IDE
+4. Hit **Simulation → Start**. Slide parameter values live; the IDE
    forwards them to the runner without rebuilding the graph.
-4. Use the timeline to scrub through the resulting USDC recording.
+5. Use the timeline to scrub through the resulting USDC recording.
 
 ## What's in this section
 
+- [Installation](installation.md) — Docker (recommended) + native
+  build paths.
+- [Using the libraries](using_the_libraries.md) — installing
+  MADDENING and MIME, and writing your own MIME experiment.
 - [Concepts](concepts.md) — the three-layer USD composition stack,
   compute backends, and the embedded scripting console.
 
@@ -32,5 +39,13 @@ The fastest path to a running experiment:
   `MBCA-IMPL-XXX` IDs.
 - [Validation](../validation/index.md) — verification tests, SOUP
   package, known anomalies.
-- [Regulatory](../regulatory/intended_use.md) — IEC 62304, EU MDR, and
+- [Regulatory](../regulatory/index.md) — IEC 62304, EU MDR, and
   MDCG 2019-11 mapping.
+
+```{toctree}
+:hidden:
+
+installation
+using_the_libraries
+concepts
+```

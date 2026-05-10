@@ -9,3 +9,10 @@ MICROBOTICA component documentation, organized by type.
 ## Implementations
 
 - [Implementation Template](implementations/_template.md)
+
+```{toctree}
+:hidden:
+
+interfaces/_template
+implementations/_template
+```

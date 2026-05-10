@@ -1,8 +1,11 @@
-# MICROBOTICA
+# MICROROBOTICA
 
 MICROROBOTics Iterative simulation for Clinical Adoption.
 
-## What is MICROBOTICA?
+📖 **Documentation: <https://microrobotica.org/>**
+🧩 The integrated IDE in the Microrobotics Simulation Framework — sits on top of [MADDENING](https://microrobotica.org/maddening/) and [MIME](https://microrobotica.org/mime/).
+
+## What is MICROROBOTICA?
 
 MICROBOTICA is an open-source research simulator for microrobot-assisted
 drug delivery in cerebrospinal fluid and other confined biological

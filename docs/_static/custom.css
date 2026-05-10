@@ -93,3 +93,173 @@
 .bd-header-announcement p {
   margin: 0.4rem 0;
 }
+
+/* ── Hero caption: button group ─────────────────────────────────────── */
+.msf-hero-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-shrink: 0;
+}
+
+/* Diagram button — styled like Fullscreen but with a distinct accent */
+.msf-hero-diagram {
+  flex-shrink: 0;
+  background: var(--pst-color-secondary, #6c757d);
+  color: #fff;
+  border: none;
+  padding: 0.3rem 0.7rem;
+  font-size: 0.8rem;
+  border-radius: 0.25rem;
+  cursor: pointer;
+  font-weight: 500;
+  line-height: 1;
+}
+.msf-hero-diagram:hover {
+  filter: brightness(1.15);
+}
+.msf-hero-diagram:focus-visible {
+  outline: 2px solid var(--pst-color-link);
+  outline-offset: 2px;
+}
+
+/* ── Mermaid diagram modal ───────────────────────────────────────────── */
+.msf-diagram-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 9000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.msf-diagram-modal[hidden] {
+  display: none;
+}
+
+.msf-diagram-modal-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
+}
+
+.msf-diagram-modal-panel {
+  position: relative;
+  z-index: 1;
+  background: var(--pst-color-background);
+  border: 1px solid var(--pst-color-border);
+  border-radius: 0.75rem;
+  box-shadow: 0 8px 40px rgba(0, 0, 0, 0.25);
+  width: min(90vw, 860px);
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.msf-diagram-modal-close {
+  position: absolute;
+  top: 0.75rem;
+  right: 0.75rem;
+  background: transparent;
+  border: none;
+  font-size: 1.4rem;
+  line-height: 1;
+  cursor: pointer;
+  color: var(--pst-color-text-muted);
+  padding: 0.15rem 0.4rem;
+  border-radius: 0.25rem;
+}
+.msf-diagram-modal-close:hover {
+  background: var(--pst-color-surface);
+  color: var(--pst-color-text-base);
+}
+
+.msf-diagram-modal-expand {
+  position: absolute;
+  top: 0.8rem;
+  right: 2.7rem;
+  background: transparent;
+  border: none;
+  font-size: 1.2rem;
+  line-height: 1;
+  cursor: pointer;
+  color: var(--pst-color-text-muted);
+  padding: 0.25rem 0.4rem;
+  border-radius: 0.25rem;
+}
+.msf-diagram-modal-expand:hover {
+  background: var(--pst-color-surface);
+  color: var(--pst-color-text-base);
+}
+
+.msf-diagram-modal.msf-diagram-modal-fullscreen .msf-diagram-modal-panel {
+  width: 100vw;
+  max-width: 100vw;
+  height: 100vh;
+  max-height: 100vh;
+  border-radius: 0;
+  margin: 0;
+}
+
+.msf-diagram-modal-title {
+  margin: 0;
+  padding: 1rem 1.25rem 0.6rem;
+  font-size: 1rem;
+  font-weight: 600;
+  border-bottom: 1px solid var(--pst-color-border);
+  padding-right: 2.5rem; /* don't overlap close button */
+}
+
+.msf-diagram-modal-body {
+  padding: 1.25rem;
+  overflow: hidden;  /* clip area for pan/zoom — the SVG moves inside */
+  flex: 1;
+  cursor: grab;
+  user-select: none;
+  -webkit-user-select: none;
+  position: relative;
+}
+.msf-diagram-modal-body .mermaid {
+  display: flex;
+  justify-content: center;
+}
+
+/* Prevent body scroll when modal is open */
+body.msf-modal-open {
+  overflow: hidden;
+}
+
+/* ── Navbar: spread links evenly across the full width ──────────────── */
+/* The center section (nav links) should grow and center itself */
+.navbar-header-items__center {
+  flex: 1 1 0;
+  justify-content: center !important;
+}
+/* Override the start section's auto right-margin so center gets equal space */
+.navbar-header-items__start {
+  margin-right: 0 !important;
+}
+/* End section also gets auto left-margin to balance */
+.navbar-header-items__end {
+  margin-left: 0 !important;
+}
+
+/* ── "More" dropdown: scrollable + max height ───────────────────────── */
+.navbar-header-items .dropdown-menu {
+  max-height: min(70vh, 560px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+/* Visually group dropdown items that belong to the same toctree section.
+ * The pydata theme places toctree-section items as consecutive .dropdown-item
+ * elements. We give every item a subtle left-border accent and add a small
+ * top gap before the first item of each visual group (items whose text
+ * starts with a section-head marker set via data-section).
+ */
+.navbar-header-items .dropdown-menu .dropdown-item {
+  white-space: normal;   /* allow long names to wrap */
+  word-break: break-word;
+}

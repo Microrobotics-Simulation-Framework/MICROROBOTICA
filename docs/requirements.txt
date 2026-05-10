@@ -5,3 +5,5 @@ myst-parser>=3.0
 sphinx-design>=0.6
 breathe>=4.36
 linkify-it-py>=2.0
+sphinxcontrib-mermaid>=2.0
+sphinx-copybutton>=0.5

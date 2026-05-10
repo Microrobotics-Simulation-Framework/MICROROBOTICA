@@ -3,6 +3,7 @@ build/
 
 # Python virtual environment
 .venv/
+.docs-venv/
 
 # IDE
 .vscode/

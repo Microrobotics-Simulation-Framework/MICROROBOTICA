@@ -23,3 +23,9 @@ That responsibility belongs to the upstream physics layers (MADDENING, MIME).
 
 - [Known Anomalies](known_anomalies.yaml) — anomaly registry
 - [SOUP Package](soup_package.md) — IEC 62304 SOUP assessment support
+
+```{toctree}
+:hidden:
+
+soup_package
+```
