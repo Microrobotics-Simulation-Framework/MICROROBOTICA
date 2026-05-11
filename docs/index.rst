@@ -73,8 +73,10 @@ Microrobotics Simulation Framework
      <p class="msf-hero-blurb">
        An end-to-end, autodifferentiable simulation framework for
        <strong>magnetically actuated microrobots</strong> in confined
-       biological flows — from acausal node graphs and low-Reynolds
-       hydrodynamics, through closed-loop control, to a regulated IDE.
+       biological flows. Implemented on top of a modular graphs-based
+       physics system to couple and low-Reynolds hydrodynamics,
+       magnetic response, and robot kinematics/dynamics through 
+       closed-loop control, to a regulated IDE.
      </p>
    </div>
 
