@@ -65,6 +65,7 @@ extensions = [
     "sphinx.ext.mathjax",
     "sphinxcontrib.mermaid",
     "sphinx_copybutton",
+    "sphinx_sitemap",
 ]
 
 # Breathe (C++ via Doxygen XML) only for MICROROBOTICA.
@@ -129,8 +130,24 @@ if current_project == "microrobotica":
 # Copy `assets/` (videos and other large media kept out of _static/) to
 # the build output as-is. Only on the microrobotica project — the
 # subprojects do not currently have assets to ship.
+#
+# `seo/` holds the cross-project sitemap_index.xml + robots.txt that
+# tie the three per-project sitemaps together at the site root. Only
+# the microrobotica build writes to the root, so we only ship them
+# from this project.
 if current_project == "microrobotica":
-    html_extra_path = ["assets"]
+    html_extra_path = ["assets", "seo"]
+
+# sphinx-sitemap: each subproject emits its own sitemap.xml relative
+# to its public URL. The cross-project sitemap_index.xml in seo/
+# stitches them together at https://microrobotica.org/sitemap_index.xml.
+_BASEURLS = {
+    "microrobotica": "https://microrobotica.org/",
+    "maddening":     "https://microrobotica.org/maddening/",
+    "mime":          "https://microrobotica.org/mime/",
+}
+html_baseurl = _BASEURLS[current_project]
+sitemap_url_scheme = "{link}"
 html_logo = None  # text logo from theme_options below
 html_favicon = None
 

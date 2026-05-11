@@ -7,3 +7,4 @@ breathe>=4.36
 linkify-it-py>=2.0
 sphinxcontrib-mermaid>=2.0
 sphinx-copybutton>=0.5
+sphinx-sitemap>=2.6

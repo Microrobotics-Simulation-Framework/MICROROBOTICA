@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://microrobotica.org/sitemap_index.xml

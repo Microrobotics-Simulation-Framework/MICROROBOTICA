@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Cross-project sitemap index for microrobotica.org.
+
+  The unified docs site is built with sphinx-multiproject as three
+  independent Sphinx projects; each emits its own sitemap.xml via
+  sphinx-sitemap. This index ties them together at the site root.
+
+  Submit https://microrobotica.org/sitemap_index.xml in Google
+  Search Console / Bing Webmaster — both will follow the references
+  and discover every page in all three sub-sites.
+-->
+<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <sitemap>
+    <loc>https://microrobotica.org/sitemap.xml</loc>
+  </sitemap>
+  <sitemap>
+    <loc>https://microrobotica.org/maddening/sitemap.xml</loc>
+  </sitemap>
+  <sitemap>
+    <loc>https://microrobotica.org/mime/sitemap.xml</loc>
+  </sitemap>
+</sitemapindex>
