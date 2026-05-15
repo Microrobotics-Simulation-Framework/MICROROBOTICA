@@ -38,7 +38,7 @@ Why this interface exists, what architectural decision it enables.
 
 ## Hazard Hints
 
-Technical conditions for ISO 14971 hazard identification.
+Technical conditions for {term}`ISO 14971` hazard identification.
 **Not clinical risk assessments** — those are the manufacturer's responsibility.
 
 - [List technical conditions]

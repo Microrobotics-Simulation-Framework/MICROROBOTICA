@@ -13,7 +13,11 @@ Build the full site with `make all` from this directory.
 from __future__ import annotations
 
 import os
+import sys
 from pathlib import Path
+
+# Local Sphinx extensions live under docs/_ext/
+sys.path.insert(0, str(Path(__file__).parent / "_ext"))
 
 # ── multiproject ─────────────────────────────────────────────────────
 from multiproject.utils import get_project
@@ -66,7 +70,35 @@ extensions = [
     "sphinxcontrib.mermaid",
     "sphinx_copybutton",
     "sphinx_sitemap",
+    "sphinx_tippy",
+    "mermaid_tips",
 ]
+
+# ── sphinx-tippy ─────────────────────────────────────────────────────
+# Pop up a tippy.js bubble whenever the cursor lands on an internal
+# cross-reference (glossary `{term}`s, autosectionlabel refs, footnotes).
+tippy_props = {
+    "placement": "auto-end",
+    "maxWidth": 360,
+    "theme": "material",
+    "interactive": True,
+}
+# pydata-sphinx-theme wraps page content in <article class="bd-article">.
+tippy_anchor_parent_selector = "article.bd-article"
+# Skip the silent ¶ headerlinks that Sphinx puts on every heading; otherwise
+# every header gets an unhelpful "permalink to this heading" bubble.
+tippy_skip_anchor_classes = ("headerlink",)
+# We rely on sphinx-tippy's built-in cross-reference detection only —
+# no live network fetches at build time.
+tippy_enable_mathjax = False
+tippy_enable_doitips = False
+tippy_enable_wikitips = False
+tippy_rtd_urls = []
+# Only decorate `{term}` references with tooltips. Sphinx-tippy by default
+# attaches to *every* internal cross-reference (doc links, autosection
+# anchors, etc.), which is too noisy. The regex below skips any href that
+# does not contain `#term-…` (negative lookahead).
+tippy_skip_urls = (r"^(?!.*#term-).*$",)
 
 # Breathe (C++ via Doxygen XML) only for MICROROBOTICA.
 if current_project == "microrobotica":
@@ -122,10 +154,13 @@ autosectionlabel_maxdepth = 2
 html_theme = "pydata_sphinx_theme"
 html_static_path = ["_static"]
 html_css_files = ["custom.css"]
+# msf-mermaid-tippy.js promotes mermaid <title> tags and the sidecar
+# `mermaid-tips` directive into tippy.js bubbles — needed on every project.
+html_js_files = ["msf-mermaid-tippy.js"]
 # msf-diagrams.js defines window.MSF_DIAGRAMS used by the landing page modal.
-# Loading it on all pages is harmless and avoids a conditional load.
+# Only loaded for the microrobotica build, which is the only page that uses it.
 if current_project == "microrobotica":
-    html_js_files = ["msf-diagrams.js"]
+    html_js_files = ["msf-diagrams.js", "msf-mermaid-tippy.js"]
 
 # Copy `assets/` (videos and other large media kept out of _static/) to
 # the build output as-is. Only on the microrobotica project — the

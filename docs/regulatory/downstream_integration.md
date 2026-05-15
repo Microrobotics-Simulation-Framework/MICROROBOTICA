@@ -16,7 +16,7 @@ Commercial Product (Layer 4, proprietary)
 
 ## Commercial Responsibility Statement
 
-The commercial product manufacturer (Layer 4) bears all EU MDR
+The commercial product manufacturer (Layer 4) bears all {term}`EU MDR`
 obligations. MICROBOTICA provides documentation artifacts to support
 the manufacturer's regulatory submissions, but does not itself make
 any clinical claims or bear regulatory obligations.
@@ -24,7 +24,7 @@ any clinical claims or bear regulatory obligations.
 ## SOUP Assessment Support
 
 MICROBOTICA provides the following artifacts to support downstream
-SOUP assessment under IEC 62304:
+{term}`SOUP` assessment under {term}`IEC 62304`:
 
 - `docs/validation/known_anomalies.yaml` — complete anomaly registry
 - `docs/validation/soup_package.md` — SOUP package document

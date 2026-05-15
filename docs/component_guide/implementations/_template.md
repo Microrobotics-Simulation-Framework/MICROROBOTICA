@@ -27,8 +27,8 @@ Why this specific implementation exists and what trade-offs it makes.
 
 ## Hazard Hints
 
-Implementation-specific technical conditions for ISO 14971 hazard identification.
-Cross-reference upstream SOUP anomalies where applicable.
+Implementation-specific technical conditions for {term}`ISO 14971` hazard identification.
+Cross-reference upstream {term}`SOUP` anomalies where applicable.
 
 - [List technical conditions]
 

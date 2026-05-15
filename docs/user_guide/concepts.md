@@ -12,7 +12,7 @@ MICROBOTICA uses a three-layer USD composition stack:
 
 A compute backend provides physics simulation and rendering.
 MICROBOTICA ships with a local backend for development; cloud
-backends (SkyPilot) will be available in Phase 2.
+backends ({term}`SkyPilot`) will be available in Phase 2.
 
 ## Scripting Console
 

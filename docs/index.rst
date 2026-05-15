@@ -3,15 +3,6 @@
 Microrobotics Simulation Framework
 ===================================
 
-.. admonition:: Scaffolding — site under active construction
-   :class: warning
-
-   This site is documentation **scaffolding**: structure is in place
-   but most pages will be filled in over the coming weeks. Expect
-   gaps, placeholder sections, and the occasional broken cross-reference.
-   The source for every page lives in the project repos linked below —
-   contributions welcome.
-
 .. raw:: html
 
    <!-- Mermaid diagram modal overlay -->
@@ -70,14 +61,6 @@ Microrobotics Simulation Framework
          </div>
        </div>
      </div>
-     <p class="msf-hero-blurb">
-       An end-to-end, autodifferentiable simulation framework for
-       <strong>magnetically actuated microrobots</strong> in confined
-       biological flows. Implemented on top of a modular graphs-based
-       physics system to couple and low-Reynolds hydrodynamics,
-       magnetic response, and robot kinematics/dynamics through 
-       closed-loop control, to a regulated IDE.
-     </p>
    </div>
 
    <script>
@@ -160,6 +143,16 @@ Microrobotics Simulation Framework
    })();
    </script>
 
+.. rst-class:: msf-hero-blurb
+
+An end-to-end, autodifferentiable simulation framework for
+**magnetically actuated microrobots** in confined biological flows.
+Implemented on top of a modular graphs-based physics system that couples
+:term:`low-Reynolds <Low-Re>` hydrodynamics, :term:`magnetic response
+<Dipole response>`, :term:`Stokeslet`-based drag, and robot
+kinematics/dynamics through closed-loop control — all of it
+:term:`autodifferentiable <JAX>` end-to-end and wired into a regulated IDE.
+
 The framework is three layered projects:
 
 .. grid:: 1 2 3 3
@@ -204,12 +197,130 @@ The framework is three layered projects:
 
       `Repo on GitHub <https://github.com/Microrobotics-Simulation-Framework/MICROROBOTICA>`__
 
+Architecture
+------------
+
+The stack is intentionally one-way: the runtime knows nothing about the
+domain, the domain knows nothing about the IDE, and the IDE knows nothing
+about a downstream commercial product. Each layer also emits *metadata*
+that flows orthogonally into a shared regulatory audit trail — so the
+IEC 62304 evidence at the bottom of the pipe doesn't appear from nowhere.
+
+.. mermaid-tips::
+
+   nodes:
+     MAD:   MADDENING — autodifferentiable JAX graph runtime. Knows nothing about physics or medical regulation.
+     MIM:   MIME — microrobotics physics nodes and control primitives on top of MADDENING, plus all the domain metadata.
+     MR:    MICROROBOTICA — Qt IDE + asset registry. Loads MIME experiments, renders trajectories, owns the audit trail.
+     META:  The metadata side-channel — biocompatibility, anatomical regime, SOUP class, verification status, anomaly logs. Each layer contributes; nothing is added by hand at the end.
+     AUDIT: IEC 62304 / EU MDR evidence package. Auto-assembled from the metadata above; a downstream device adopts it wholesale.
+     PROD:  Downstream CE-marked device — the framework supplies V&V evidence, the product carries the regulatory approval.
+   edges:
+     MAD->MIM:   MIME subclasses MADDENING SimulationNode and adds microrobotics-specific physics + domain metadata.
+     MIM->MR:    MICROROBOTICA loads each MIME asset (graph + schema + benchmarks) and replays the recorded USD trajectory.
+     MAD->META:  MADDENING contributes a CycloneDX SBOM and verification-harness results for every node.
+     MIM->META:  MIME's MimeAssetSchema bundles biocompatibility, ISO 14971 hazards, anatomical regime, and B0-B5 benchmark results.
+     MR->META:   MICROROBOTICA stamps every interface with ComponentMeta and aggregates the anomaly registry.
+     META->AUDIT: The audit package is assembled mechanically from the metadata above — no manual transcription, no surprise.
+     AUDIT->PROD: A downstream device inherits the audit trail; its 62304 submission references this evidence package.
+
+.. mermaid::
+
+   flowchart LR
+       MAD["MADDENING<br/><i>graph runtime &middot; autodiff &middot; surrogates</i>"]
+       MIM["MIME<br/><i>physics nodes &middot; control &middot; UQ</i>"]
+       MR["MICROROBOTICA<br/><i>Qt IDE &middot; registry</i>"]
+
+       MAD --> MIM
+       MIM --> MR
+
+       META(["regulatory metadata<br/>biocompat &middot; SOUP &middot; verification &middot; anomalies"]):::meta
+       AUDIT[["IEC 62304 / EU MDR<br/>audit package"]]:::audit
+       PROD["CE-marked device"]:::ext
+
+       MAD -. SBOM + V&V .-> META
+       MIM -. AssetSchema .-> META
+       MR  -. ComponentMeta .-> META
+       META --> AUDIT
+       AUDIT --> PROD
+
+       click MAD href "maddening/"
+       click MIM href "mime/"
+       click MR href "user_guide/index.html"
+
+       classDef meta stroke-width:1.5px
+       classDef audit stroke-width:1.5px
+       classDef ext stroke-dasharray:5 3
+
+How MICROROBOTICA is wired internally
+-------------------------------------
+
+The IDE is a Qt 6 / C++17 desktop application with an embedded Python
+console. Its job is to load a MIME experiment, drive it through a
+non-blocking ``PhysicsProcess``, and let the user scrub the resulting USD
+trajectory — all while leaving an audit trail.
+
+.. mermaid-tips::
+
+   nodes:
+     Panels:   Qt dock widgets — hierarchy, properties, timeline, console. The user-facing surface.
+     Viewport: OpenGL viewport (or a software fallback for headless / Docker). Lazily created so the app survives without a GPU.
+     Scene:    USD three-layer composition. The anatomy base layer is immutable; the simulator writes to a results layer; user edits live in an override layer.
+     Sim:      SimulationController — owns the simulation lifecycle and a thread-safe queue that decouples blocking physics from the 60 Hz Qt event loop.
+     Phys:     PhysicsProcess — the abstract interface MIME (or any other backend) implements. Runs the actual graph step on a worker thread or remote VM.
+     Script:   Embedded Python console. Same `microrobotica` pybind11 module as the future standalone library — single-source.
+     Core:     Pure C++17 core. Zero Qt, USD, or Python dependencies — this is where ComponentMeta and the verification benchmarks live.
+     MIM:      MIME process (separate Python interpreter) driven by MICROROBOTICA over the PhysicsProcess interface.
+   edges:
+     Panels->Sim:    User actions (load, play, scrub, parameter edit) post commands onto the simulation queue.
+     Sim->Phys:      Each tick the controller hands the next dt and current state to the active PhysicsProcess.
+     Phys->Sim:      Results arrive asynchronously and are merged back into the scene's results layer for rendering.
+     Scene->Viewport: The viewport draws whatever the active USD stage composes, regardless of where it came from.
+     Sim->Core:      Every simulation interface is annotated with ComponentMeta so the audit log can name what ran and when.
+     Phys->MIM:      The default PhysicsProcess implementation shells out to a MIME runner over the schema.
+
+.. mermaid::
+
+   flowchart LR
+       subgraph QT["Qt application shell"]
+         direction TB
+         Panels["panels<br/><i>hierarchy &middot; properties<br/>timeline &middot; console</i>"]
+         Viewport["viewport<br/><i>OpenGL / software</i>"]
+       end
+
+       subgraph CORE["core (no Qt / USD / Python)"]
+         direction TB
+         ICore["interfaces<br/>ComponentMeta"]
+         DCore["typed data &middot; benchmarks"]
+       end
+
+       Scene["scene<br/><i>USD three-layer composition</i>"]
+       Sim["simulation<br/><i>SimulationController<br/>async result queue</i>"]
+       Script["scripting<br/><i>embedded Python<br/>(pybind11)</i>"]
+       Phys["PhysicsProcess<br/><i>abstract backend</i>"]:::iface
+       MIM["MIME runner"]:::ext
+
+       Panels --> Sim
+       Panels --> Scene
+       Sim --> Phys
+       Phys --> Sim
+       Phys --> MIM
+       Scene --> Viewport
+       Scene -. USD stages .-> Phys
+       Sim --> ICore
+       Scene --> ICore
+       Script --> ICore
+       Script --> Sim
+
+       classDef ext stroke-dasharray:5 3
+       classDef iface stroke-width:1.5px
+
 Documentation map
 -----------------
 
 The framework's documentation is split across the three projects' own
 docs trees, which all share this site's theme. Use the navbar to jump
-between them.
+between them. A shared :doc:`glossary` defines the recurring jargon.
 
 .. toctree::
    :hidden:
@@ -240,3 +351,15 @@ between them.
    :caption: Regulatory
 
    regulatory/index
+
+.. toctree::
+   :hidden:
+   :caption: Reference
+
+   glossary
+
+.. note::
+
+   *Status: scaffolding.* Most pages are placeholders and will fill in
+   over the coming weeks. Source for every page lives in the project
+   repos linked in the cards above — contributions welcome.

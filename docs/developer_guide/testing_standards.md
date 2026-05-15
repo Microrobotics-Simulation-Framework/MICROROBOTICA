@@ -68,4 +68,4 @@ an `MBCA-ANO-*` entry with `detected_by: "asan"` or `"ubsan"` and
 
 - `lsan.suppressions` — CPython/pybind11 shutdown leaks
 - `tsan.suppressions` — Qt/Python dispatch false positives
-- `valgrind.suppressions` — Qt/Python/OpenUSD known leaks
+- `valgrind.suppressions` — Qt/Python/{term}`OpenUSD` known leaks

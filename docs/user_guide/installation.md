@@ -4,7 +4,7 @@ MICROROBOTICA is a C++17 / Qt 6 desktop application. The supported way
 to build it today is **from source** — there is no prebuilt MICROROBOTICA
 binary release yet. To keep the toolchain pinned and reproducible, we
 publish a Docker image on GHCR that bundles every system dependency
-(Qt 6, OpenUSD 24.08, GCC 13, Catch2, pybind11, Doxygen, …) so the only
+(Qt 6, {term}`OpenUSD` 24.08, GCC 13, Catch2, pybind11, Doxygen, …) so the only
 thing you have to manage is the source tree.
 
 The companion Python libraries

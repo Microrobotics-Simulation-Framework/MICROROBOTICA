@@ -18,7 +18,7 @@ BUILDDIR      := _build
 # in CI (set SPHINXOPTS="-W" there).
 COMMON        := -c $(SOURCEDIR) -d $(BUILDDIR)/.doctrees-$@ $(SPHINXOPTS)
 
-.PHONY: help all clean microrobotica maddening mime doxygen serve
+.PHONY: help all clean microrobotica maddening mime doxygen serve sync-glossary
 
 help:
 	@echo "Targets:"
@@ -28,7 +28,11 @@ help:
 	@echo "  mime          - build mime subproject under _build/html/mime"
 	@echo "  doxygen       - regenerate Doxygen XML (consumed by breathe)"
 	@echo "  serve         - python -m http.server in _build/html/"
+	@echo "  sync-glossary - mirror docs/glossary.md into MADDENING & MIME"
 	@echo "  clean         - rm -rf _build/"
+
+sync-glossary:
+	python3 ../scripts/sync_glossary.py
 
 doxygen:
 	@mkdir -p _doxygen/xml

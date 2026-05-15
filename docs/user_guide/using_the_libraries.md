@@ -3,17 +3,17 @@
 MICROROBOTICA is the integrated development environment; the
 simulation work itself runs in two Python libraries:
 
-* **[MADDENING](https://microrobotica.org/maddening/)** — the JAX
+* **[MADDENING](https://microrobotica.org/maddening/)** — the {term}`JAX`
   graph runtime (`pip install maddening`). Provides the
   `GraphManager`, `SimulationNode` ABC, edge specs, scheduling,
-  and the differentiable XLA-compiled step.
+  and the differentiable {term}`XLA`-compiled step.
 * **[MIME](https://microrobotica.org/mime/)** — domain-specific
   microrobotics physics nodes (`pip install mime-engine`). Imports
   as the `mime` package and provides rigid-body, magnetic-response,
-  Stokeslet BEM, IB-LBM, FVM-IBM, robot-arm, and actuation nodes.
+  {term}`Stokeslet` BEM, {term}`IB-LBM`, FVM-IBM, robot-arm, and actuation nodes.
 
 The IDE spawns MIME's runner as a subprocess and exchanges state over
-ZMQ; you don't import either library from C++ directly.
+{term}`ZMQ`; you don't import either library from C++ directly.
 
 ## Install both libraries
 

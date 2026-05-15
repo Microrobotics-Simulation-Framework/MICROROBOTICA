@@ -1,6 +1,6 @@
 # SOUP Package — MICROBOTICA
 
-> **IEC 62304 Clause 8**: Software of Unknown Provenance assessment.
+> **{term}`IEC 62304` Clause 8**: Software of Unknown Provenance assessment.
 
 ## 1. SOUP Identification
 
@@ -10,7 +10,7 @@
 | Version | 0.1.0 |
 | Licence | AGPL-3.0-or-later |
 | Language | C++17 |
-| Framework | Qt 6, OpenUSD 24.08 |
+| Framework | Qt 6, {term}`OpenUSD` 24.08 |
 | Repository | https://github.com/MSF/MICROROBOTICA |
 | Upstream SOUP | MADDENING (Layer 1), MIME (Layer 2) |
 | Components | 11 (4 interfaces, 2 stub implementations, 5 app components) |

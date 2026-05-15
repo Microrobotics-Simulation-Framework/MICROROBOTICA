@@ -4,7 +4,7 @@
 
 MICROBOTICA (MICROROBOTics Iterative simulation for Clinical Adoption) is
 open-source research software. It is not a medical device as defined by
-EU MDR (EU 2017/745), Article 2(1). It has no medical purpose. It is not
+{term}`EU MDR` (EU 2017/745), Article 2(1). It has no medical purpose. It is not
 intended for clinical use, clinical decision-making, or patient diagnosis.
 It has not been CE-marked, cleared, or approved by any regulatory body.
 
@@ -13,7 +13,7 @@ simulations. It provides:
 
 - A desktop application for interactive visualisation of microrobotics simulations
 - A Python scripting console for parameter manipulation and analysis
-- OpenUSD-based scene management with three-layer composition
+- {term}`OpenUSD`-based scene management with three-layer composition
 - Pluggable compute and render backends
 
 ## Layered Responsibility Model
@@ -23,7 +23,7 @@ simulations. It provides:
 | 1 | MADDENING | Physics framework — produces simulation data |
 | 2 | MIME | Microrobotics engine — domain-specific physics |
 | 3 | **MICROBOTICA** | Simulator UI — visualisation, scripting, scene management |
-| 4 | Commercial Product | CE-marked SaMD — bears all EU MDR obligations |
+| 4 | Commercial Product | CE-marked {term}`SaMD` — bears all EU MDR obligations |
 
 MICROBOTICA does not produce physics data. It receives, displays, and
 allows interaction with physics data produced by upstream layers.
@@ -34,8 +34,8 @@ or silent modification.
 ## Commercial Boundary Statement
 
 When a downstream commercial manufacturer incorporates MICROBOTICA into
-a regulated medical device, MICROBOTICA is classified as SOUP (Software
-of Unknown Provenance) under IEC 62304. The device manufacturer is solely
+a regulated medical device, MICROBOTICA is classified as {term}`SOUP` (Software
+of Unknown Provenance) under {term}`IEC 62304`. The device manufacturer is solely
 responsible for:
 
 - Classifying MICROBOTICA under the applicable software safety class
@@ -55,7 +55,7 @@ It does not provide:
 - Network security controls
 
 When deployed in a clinical context, the downstream manufacturer must
-implement all required cybersecurity controls per MDCG 2019-16.
+implement all required cybersecurity controls per {term}`MDCG 2019-16`.
 
 ## AGPL Licence Statement
 

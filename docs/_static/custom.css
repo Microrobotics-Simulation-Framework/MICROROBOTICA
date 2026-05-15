@@ -281,3 +281,238 @@ body.msf-modal-open {
   white-space: normal;   /* allow long names to wrap */
   word-break: break-word;
 }
+
+/* ── MSF theme tokens ───────────────────────────────────────────────────
+ * Theme-aware colours used by both the glossary-term hint and the mermaid
+ * `classDef`s in the diagrams. The diagram classDefs reference these via
+ * `fill:var(--msf-ext-bg)` etc., so a CSS variable is all that has to flip
+ * between light and dark — mermaid itself never needs to know.
+ */
+:root {
+  /* glossary-term hover hint — a teal accent, distinct from body links */
+  --msf-term-hint: #0e7c86;
+  --msf-term-hint-strong: #0b626b;
+  /* Semantic mermaid node colours. These are deliberately THEME-INDEPENDENT
+   * (no dark override): a light pastel fill with dark text reads on both a
+   * light and a dark canvas, so a node keeps its identity colour whichever
+   * theme the reader is in. */
+  /* external / dependency nodes (dashed border) */
+  --msf-ext-bg: #e4ebfb;
+  --msf-ext-border: #7f8fc4;
+  --msf-ext-text: #2d3666;
+  /* regulatory-metadata nodes */
+  --msf-meta-bg: #fdeec2;
+  --msf-meta-border: #c79c00;
+  --msf-meta-text: #5a4500;
+  /* audit-trail nodes */
+  --msf-audit-bg: #fbdada;
+  --msf-audit-border: #cc4444;
+  --msf-audit-text: #7a1f1f;
+  /* abstract-interface nodes */
+  --msf-iface-bg: #efe1fb;
+  --msf-iface-border: #9c6ade;
+  --msf-iface-text: #4a2d6e;
+}
+html[data-theme="dark"] {
+  --msf-term-hint: #3fc9d6;
+  --msf-term-hint-strong: #6fe0ea;
+}
+
+/* ── Glossary term references ───────────────────────────────────────────
+ * Sphinx renders `{term}` refs as `<a class="reference internal" href="…
+ * #term-…">`. Strip the default link styling so a paragraph full of term
+ * references doesn't look like a list of disconnected hyperlinks; give a
+ * subtle teal dotted underline + help-cursor so readers know they can
+ * hover. The tippy bubble carries the actual definition.
+ */
+a.reference.internal[href*="#term-"] {
+  color: inherit;
+  text-decoration: none;
+  border-bottom: 1px dotted var(--msf-term-hint);
+  cursor: help;
+}
+a.reference.internal[href*="#term-"]:hover,
+a.reference.internal[href*="#term-"]:focus {
+  color: var(--msf-term-hint-strong);
+  border-bottom-style: solid;
+  border-bottom-color: currentColor;
+}
+/* Tippy popups occasionally land off-screen on narrow viewports — let them
+ * scroll vertically instead of clipping. */
+.tippy-box .tippy-content {
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+/* ── Mermaid edges with tooltips ────────────────────────────────────────
+ * Tippy is bound to <path.flowchart-link>; widen the hit area so a thin
+ * arrow is hoverable without pixel-perfect aiming.
+ */
+pre.mermaid path.flowchart-link,
+div.mermaid path.flowchart-link {
+  pointer-events: stroke;
+}
+pre.mermaid path.flowchart-link:hover,
+div.mermaid path.flowchart-link:hover {
+  stroke-width: 3px;
+}
+
+/* pydata-sphinx-theme applies a brightness/invert/contrast filter to
+ * <img> and other media in dark mode to auto-darken light screenshots.
+ * Mermaid SVGs get swept into that net and every colour we set below is
+ * inverted, which is what made plain nodes look beige and subgraph
+ * headings look dim. Opt out so our colours render at face value. */
+.mermaid svg,
+.mermaid-container svg,
+pre.mermaid svg,
+div.mermaid svg {
+  filter: none !important;
+}
+
+/* ── Mermaid styling (light + dark) ─────────────────────────────────────
+ * mermaid's own themes are low-contrast against the pydata canvas (esp.
+ * dark mode, where plain nodes and edges nearly vanish). We repaint every
+ * mermaid element from the --msf-* tokens below, which flip with the
+ * theme — mermaid itself never has to know.
+ *
+ * Why it works: mermaid styles BASE nodes/edges/clusters through a
+ * non-`!important` <style> block, so a plain `!important` rule outranks
+ * it. classDef'd nodes are the catch — mermaid emits classDef colours as
+ * inline AND ID-scoped `!important`, which no external rule can beat. So
+ * the diagram `classDef`s carry NO colour (structural props only); these
+ * rules then own every node's colour uniformly.
+ *
+ * Shape DOM varies by node type, but the shape element (or its wrapper
+ * <g> for stadium nodes) always carries `.label-container`. We target
+ * `.label-container` AND `.label-container path` to cover rect /
+ * polygon / stadium alike. The label background (`g.label > rect`, no
+ * class) is never matched.
+ */
+:root {
+  --msf-mmd-node-bg: #eef1f7;
+  --msf-mmd-node-border: #8b95ab;
+  --msf-mmd-node-text: #1f2733;
+  --msf-mmd-edge: #56607a;
+  --msf-mmd-cluster-bg: rgba(0, 0, 0, 0.03);
+  --msf-mmd-cluster-border: #aab2c4;
+  --msf-mmd-cluster-text: #11151c;
+  --msf-mmd-label-bg: #ffffff;
+  --msf-mmd-label-text: #1f2733;
+}
+html[data-theme="dark"] {
+  /* Plain nodes are a LIGHT cool-gray "card" on the dark canvas, with
+   * dark text. Dark-on-dark plain nodes wash out at the small sizes
+   * mermaid renders flowcharts at; a light card pops cleanly and stays
+   * neutrally distinct from the coloured classDef pastels. */
+  --msf-mmd-node-bg: #dde3ee;
+  --msf-mmd-node-border: #7a8497;
+  --msf-mmd-node-text: #1a2230;
+  --msf-mmd-edge: #c0c9da;
+  --msf-mmd-cluster-bg: rgba(255, 255, 255, 0.04);
+  --msf-mmd-cluster-border: #8993ab;
+  --msf-mmd-cluster-text: #ffffff;
+  --msf-mmd-label-bg: #14181f;
+  --msf-mmd-label-text: #eef1f6;
+}
+
+/* Plain nodes — :not() keeps classDef'd nodes for the rules further down.
+ * stroke-width 2px so the border is clearly visible at the scaled-down
+ * sizes mermaid renders flowcharts at on a narrow content column. */
+.mermaid g.node:not(.ext):not(.meta):not(.audit):not(.iface) > .label-container,
+.mermaid g.node:not(.ext):not(.meta):not(.audit):not(.iface) > .label-container path {
+  fill: var(--msf-mmd-node-bg) !important;
+  stroke: var(--msf-mmd-node-border) !important;
+  stroke-width: 2px !important;
+}
+.mermaid g.node:not(.ext):not(.meta):not(.audit):not(.iface) .nodeLabel,
+.mermaid g.node:not(.ext):not(.meta):not(.audit):not(.iface) .nodeLabel p {
+  color: var(--msf-mmd-node-text) !important;
+}
+
+/* classDef: ext / meta / audit / iface — colour from --msf-*-* tokens. */
+.mermaid g.node.ext > .label-container,
+.mermaid g.node.ext > .label-container path {
+  fill: var(--msf-ext-bg) !important;
+  stroke: var(--msf-ext-border) !important;
+}
+.mermaid g.node.ext .nodeLabel,
+.mermaid g.node.ext .nodeLabel p {
+  color: var(--msf-ext-text) !important;
+}
+.mermaid g.node.meta > .label-container,
+.mermaid g.node.meta > .label-container path {
+  fill: var(--msf-meta-bg) !important;
+  stroke: var(--msf-meta-border) !important;
+}
+.mermaid g.node.meta .nodeLabel,
+.mermaid g.node.meta .nodeLabel p {
+  color: var(--msf-meta-text) !important;
+}
+.mermaid g.node.audit > .label-container,
+.mermaid g.node.audit > .label-container path {
+  fill: var(--msf-audit-bg) !important;
+  stroke: var(--msf-audit-border) !important;
+}
+.mermaid g.node.audit .nodeLabel,
+.mermaid g.node.audit .nodeLabel p {
+  color: var(--msf-audit-text) !important;
+}
+.mermaid g.node.iface > .label-container,
+.mermaid g.node.iface > .label-container path {
+  fill: var(--msf-iface-bg) !important;
+  stroke: var(--msf-iface-border) !important;
+}
+.mermaid g.node.iface .nodeLabel,
+.mermaid g.node.iface .nodeLabel p {
+  color: var(--msf-iface-text) !important;
+}
+
+/* Edges + arrowheads. 2px stroke + brighter --msf-mmd-edge so the lines
+ * are visible at the compressed SVG sizes mermaid renders flowcharts at
+ * — 1px (mermaid's default) is nearly invisible in dark mode. */
+.mermaid .flowchart-link,
+.mermaid .edgePath .path,
+.mermaid path.flowchart-link {
+  stroke: var(--msf-mmd-edge) !important;
+  stroke-width: 2px !important;
+}
+.mermaid .marker,
+.mermaid .marker.cross,
+.mermaid marker path {
+  fill: var(--msf-mmd-edge) !important;
+  stroke: var(--msf-mmd-edge) !important;
+}
+/* Edge labels — opaque plate matching the page canvas, with text-colour
+ * that flips with the theme. Dark-on-dark and light-on-light were the
+ * default since edge labels reused the node-text token (sized for the
+ * light-card node fill, wrong for an edge sitting on dark canvas). */
+.mermaid .edgeLabel,
+.mermaid .edgeLabel p,
+.mermaid .edgeLabel foreignObject > div {
+  background-color: var(--msf-mmd-label-bg) !important;
+  color: var(--msf-mmd-label-text) !important;
+}
+.mermaid .edgeLabel rect {
+  fill: var(--msf-mmd-label-bg) !important;
+  opacity: 1 !important;
+}
+/* Subgraph clusters — visible border + slightly tinted bg. */
+.mermaid .cluster rect {
+  fill: var(--msf-mmd-cluster-bg) !important;
+  stroke: var(--msf-mmd-cluster-border) !important;
+  stroke-width: 2px !important;
+}
+/* Subgraph headings — bright + bold so they read as section labels.
+ * Size stays at mermaid's default; bold + the high-contrast colour are
+ * enough now that the dark-mode invert filter is neutralised. */
+.mermaid .cluster-label .nodeLabel,
+.mermaid .cluster-label .nodeLabel p,
+.mermaid .cluster-label p,
+.mermaid .cluster-label span,
+.mermaid .cluster-label text,
+.mermaid .cluster text,
+.mermaid .cluster span {
+  color: var(--msf-mmd-cluster-text) !important;
+  fill: var(--msf-mmd-cluster-text) !important;
+  font-weight: 700 !important;
+}
