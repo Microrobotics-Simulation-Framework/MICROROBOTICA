@@ -99,6 +99,12 @@ tippy_rtd_urls = []
 # anchors, etc.), which is too noisy. The regex below skips any href that
 # does not contain `#term-…` (negative lookahead).
 tippy_skip_urls = (r"^(?!.*#term-).*$",)
+# Pin tippy + popper to specific versions so unpkg can skip its `latest`
+# redirect (saves ~100 ms on first paint of the first page).
+tippy_js = (
+    "https://unpkg.com/@popperjs/core@2.11.8/dist/umd/popper.min.js",
+    "https://unpkg.com/tippy.js@6.3.7/dist/tippy.umd.min.js",
+)
 
 # Breathe (C++ via Doxygen XML) only for MICROROBOTICA.
 if current_project == "microrobotica":
@@ -122,12 +128,15 @@ myst_dmath_double_inline = True
 copybutton_prompt_text = r"\$ |>>> |\.\.\. "
 copybutton_prompt_is_regexp = True
 
-# sphinxcontrib-mermaid: use the CDN JS bundle
-mermaid_version = "11"
-# Enable D3-based zoom / pan / drag on every rendered mermaid diagram.
-# mermaid_zoom_max_items = -1 means "all diagrams, no cap".
-mermaid_d3_zoom = True
-mermaid_zoom_max_items = -1
+# sphinxcontrib-mermaid: pin a specific minor so the CDN doesn't have to
+# redirect through `@11`.
+mermaid_version = "11.15.0"
+# Disable the D3-zoom integration: it pulls d3.min.js (~91 KB gz / 273 KB
+# raw) on every page, blocking interaction-readiness. Our own pure-pointer
+# pan+zoom in _static/msf-diagrams.js handles the hero-modal diagrams;
+# inline diagrams stay static (a fine tradeoff for the byte savings).
+mermaid_d3_zoom = False
+mermaid_zoom_max_items = 0
 
 source_suffix = {
     ".rst": "restructuredtext",
@@ -259,3 +268,38 @@ intersphinx_mapping.pop(current_project, None)
 # Sphinx defaults to "index" — both .rst and .md are fine.
 master_doc = "index"
 root_doc = "index"
+
+
+# ── preconnect to the third-party CDNs we hit on every page ──────────
+# mermaid loads from jsdelivr; sphinx-tippy pulls tippy + popper from
+# unpkg. Opening the TLS connection eagerly shaves ~150 ms off the path
+# to first interaction on a cold network. Injected into <head> via the
+# page context's `metatags` block.
+_PRECONNECT_LINKS = (
+    '<link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>'
+    '<link rel="preconnect" href="https://unpkg.com" crossorigin>'
+    '<link rel="dns-prefetch" href="https://cdn.jsdelivr.net">'
+    '<link rel="dns-prefetch" href="https://unpkg.com">'
+)
+
+
+def _inject_preconnects(app, pagename, templatename, context, doctree):
+    context["metatags"] = (context.get("metatags") or "") + _PRECONNECT_LINKS
+
+
+def setup(app):
+    app.connect("html-page-context", _inject_preconnects)
+
+    # sphinxcontrib-mermaid v2 calls `app.add_js_file(d3_url, …)` from its
+    # `html-page-context` handler — its `mermaid_d3_zoom` flag only gates
+    # the integration script, not d3 itself. d3 is ~91 KB gz / 273 KB raw
+    # and we don't use mermaid_d3_zoom. Intercept add_js_file and drop
+    # any d3 entry.
+    _orig_add_js_file = app.add_js_file
+    def _filtered_add_js_file(filename, **kwargs):
+        if filename and "/d3@" in filename and filename.endswith(".js"):
+            return None
+        return _orig_add_js_file(filename, **kwargs)
+    app.add_js_file = _filtered_add_js_file
+
+    return {"version": "0.1", "parallel_read_safe": True, "parallel_write_safe": True}

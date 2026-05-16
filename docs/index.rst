@@ -93,7 +93,7 @@ Microrobotics Simulation Framework
      var _mermaidPromise = null;
      function getMermaid() {
        if (_mermaidPromise) return _mermaidPromise;
-       _mermaidPromise = import('https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs')
+       _mermaidPromise = import('https://cdn.jsdelivr.net/npm/mermaid@11.15.0/dist/mermaid.esm.min.mjs')
          .then(function (mod) {
            var m = mod.default || mod;
            var isDark = document.documentElement.dataset.theme === 'dark';
