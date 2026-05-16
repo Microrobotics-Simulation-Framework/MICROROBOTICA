@@ -282,6 +282,29 @@ body.msf-modal-open {
   word-break: break-word;
 }
 
+/* ── FontAwesome SVG sizing ─────────────────────────────────────────────
+ * The original pydata-sphinx-theme fontawesome.js bundle auto-injected
+ * the FA base stylesheet at load time. Our slim shim only carries icon
+ * paths, so we add the minimum sizing rules here. Without these every
+ * `<svg class="svg-inline--fa">` would render at its intrinsic
+ * viewBox-pixel size (huge — half a screen for fa-list, fa-file-lines
+ * in body content).
+ */
+.svg-inline--fa {
+  display: var(--fa-display, inline-block);
+  height: 1em;
+  overflow: visible;
+  vertical-align: -0.125em;
+}
+.svg-inline--fa.fa-fw { width: 1.25em; }
+.svg-inline--fa.fa-xs { font-size: 0.75em; }
+.svg-inline--fa.fa-sm { font-size: 0.875em; }
+.svg-inline--fa.fa-lg { font-size: 1.333em; line-height: 0.75em; vertical-align: -0.225em; }
+.svg-inline--fa.fa-xl { font-size: 1.5em; }
+.svg-inline--fa.fa-2xl { font-size: 2em; }
+.svg-inline--fa.fa-2x { font-size: 2em; }
+.svg-inline--fa.fa-3x { font-size: 3em; }
+
 /* ── MSF theme tokens ───────────────────────────────────────────────────
  * Theme-aware colours used by both the glossary-term hint and the mermaid
  * `classDef`s in the diagrams. The diagram classDefs reference these via

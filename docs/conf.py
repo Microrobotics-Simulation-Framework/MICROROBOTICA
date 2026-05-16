@@ -99,11 +99,13 @@ tippy_rtd_urls = []
 # anchors, etc.), which is too noisy. The regex below skips any href that
 # does not contain `#term-…` (negative lookahead).
 tippy_skip_urls = (r"^(?!.*#term-).*$",)
-# Pin tippy + popper to specific versions so unpkg can skip its `latest`
-# redirect (saves ~100 ms on first paint of the first page).
+# Pin tippy to the *bundle* build: one file that contains popper inline
+# AND auto-injects tippy's base CSS (background, border, arrows). The
+# plain `tippy.umd.min.js` build needs an external stylesheet to look
+# styled at all — the bundle is the version sphinx-tippy's default URL
+# resolves to.
 tippy_js = (
-    "https://unpkg.com/@popperjs/core@2.11.8/dist/umd/popper.min.js",
-    "https://unpkg.com/tippy.js@6.3.7/dist/tippy.umd.min.js",
+    "https://unpkg.com/tippy.js@6.3.7/dist/tippy-bundle.umd.min.js",
 )
 
 # Breathe (C++ via Doxygen XML) only for MICROROBOTICA.
