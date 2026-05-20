@@ -28,6 +28,15 @@ multiproject_projects = {
     "mime":          {"path": "projects/mime/docs"},
 }
 
+# Allow the multi-version preview Makefile target to point a project at
+# a git worktree of a specific tag/branch rather than the live
+# submodule (which is one commit on one ref).  The override env var
+# convention is MULTIPROJECT_PATH_<UPPER_PROJECT>=<dir>.
+for _p in multiproject_projects:
+    _override = os.environ.get(f"MULTIPROJECT_PATH_{_p.upper()}")
+    if _override:
+        multiproject_projects[_p]["path"] = _override
+
 current_project = get_project(multiproject_projects)
 
 # ── per-project metadata ─────────────────────────────────────────────
@@ -165,6 +174,14 @@ autosectionlabel_maxdepth = 2
 # ── HTML theme ───────────────────────────────────────────────────────
 html_theme = "pydata_sphinx_theme"
 html_static_path = ["_static"]
+# Also pick up the active sub-project's own _static/ (in particular
+# its switcher.json) when building a non-root project.  Resolved as
+# an absolute path so it works regardless of CWD or worktree path.
+_subproject_static = os.path.abspath(
+    os.path.join(multiproject_projects[current_project]["path"], "_static"),
+)
+if current_project != "microrobotica" and os.path.isdir(_subproject_static):
+    html_static_path.append(_subproject_static)
 html_css_files = ["custom.css"]
 # msf-mermaid-tippy.js promotes mermaid <title> tags and the sidecar
 # `mermaid-tips` directive into tippy.js bubbles — needed on every project.
@@ -185,9 +202,15 @@ if current_project == "microrobotica":
 if current_project == "microrobotica":
     html_extra_path = ["assets", "seo"]
 
-# sphinx-sitemap: each subproject emits its own sitemap.xml relative
-# to its public URL. The cross-project sitemap_index.xml in seo/
-# stitches them together at https://microrobotica.org/sitemap_index.xml.
+# ── Canonical URLs & sitemap ─────────────────────────────────────────
+# `html_baseurl` is intentionally version-LESS (.../maddening/, never
+# .../maddening/v0.2/).  Sphinx derives every page's
+# <link rel="canonical"> from it, so a versioned page (v0.1, v0.2, …)
+# canonicalises to the equivalent page in the *latest* build — search
+# engines consolidate all versions onto the unversioned "latest" URL.
+# Each subproject emits its own sitemap.xml relative to its public URL;
+# the cross-project sitemap_index.xml in seo/ stitches them together at
+# https://microrobotica.org/sitemap_index.xml.
 _BASEURLS = {
     "microrobotica": "https://microrobotica.org/",
     "maddening":     "https://microrobotica.org/maddening/",
@@ -203,6 +226,31 @@ html_favicon = None
 # breadcrumbs render correct cross-project links.
 _DEPLOY_BASE = os.environ.get("DOCS_DEPLOY_BASE", "https://microrobotica.org")
 
+# v0.2 preview: per-version site is opt-in via env vars so this branch
+# can be merged ahead of the actual release without affecting prod.
+#
+#   DOCS_MULTIVERSION=1    enables the PyData version-switcher dropdown
+#                          and adds it to the navbar.  Off by default
+#                          (so the production CI build keeps producing
+#                          single-version output).
+#   DOCS_VERSION=<tag>     tells the theme which switcher.json row is
+#                          the current page ("latest" by default).
+#   DOCS_DEPLOY_BASE=<url> the public root URL.  Overridden to
+#                          "http://localhost:8000" for local preview;
+#                          falls back to https://microrobotica.org for
+#                          published builds.
+_multiversion = os.environ.get("DOCS_MULTIVERSION") == "1"
+_docs_version = os.environ.get("DOCS_VERSION", "latest")
+
+# A sitemap belongs to the canonical (latest) build only.  A versioned
+# build canonicalises every page to the latest URL (see html_baseurl
+# above), so a per-version sitemap.xml would just be a redundant copy
+# pointing at latest URLs.  Drop sphinx-sitemap for non-latest builds;
+# `make all` (no DOCS_VERSION) and the latest / mime / microrobotica
+# builds all run with DOCS_VERSION=latest and keep it.
+if _docs_version != "latest" and "sphinx_sitemap" in extensions:
+    extensions.remove("sphinx_sitemap")
+
 html_theme_options = {
     "logo": {
         # Short brand name; always links back to the root site regardless of
@@ -212,7 +260,11 @@ html_theme_options = {
     },
     "navbar_start": ["navbar-logo"],
     "navbar_center": ["navbar-nav"],
-    "navbar_end": ["theme-switcher", "navbar-icon-links"],
+    "navbar_end": (
+        ["theme-switcher", "version-switcher", "navbar-icon-links"]
+        if _multiversion
+        else ["theme-switcher", "navbar-icon-links"]
+    ),
     "navbar_persistent": ["search-button"],
     "navbar_align": "left",
     "show_nav_level": 2,
@@ -250,9 +302,28 @@ html_theme_options = {
     "footer_end": ["theme-version"],
 }
 
+if _multiversion:
+    # Root-relative URL so it works on both
+    # https://microrobotica.org/<project>/<version>/ and on a local
+    # preview at http://localhost:8000/<project>/<version>/.  All
+    # versions fetch the SAME switcher.json (the one at the
+    # unversioned URL) — that way an old release picks up newer
+    # entries automatically when the canonical JSON is updated.
+    _project_root = f"/{current_project}/" if current_project != "microrobotica" else "/"
+    html_theme_options["switcher"] = {
+        "json_url": f"{_project_root}_static/switcher.json",
+        "version_match": _docs_version,
+    }
+    # When set, also include `check_switcher: False` to silence
+    # the theme's startup warning if the JSON URL isn't reachable
+    # at build time (it won't be, until make all-versions has run).
+    html_theme_options["check_switcher"] = False
+
 html_context = {
     "current_project": current_project,
     "deploy_base": _DEPLOY_BASE,
+    "multiversion": _multiversion,
+    "docs_version": _docs_version,
 }
 
 html_title = f"{project} — {_tagline}"
