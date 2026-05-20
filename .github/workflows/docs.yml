@@ -55,16 +55,18 @@ jobs:
       - name: Build site
         run: |
           cd docs
-          # Serial build (no `-j auto`): sphinx-tippy mutates
-          # `app.env.tippy_data` from `html-page-context`, which in
-          # parallel mode runs in worker processes; those mutations
-          # never reach the main process, so the `build-finished`
-          # hook writes no per-page `_static/tippy/*.js` files even
-          # though every HTML page still references them. Local
-          # `make all` works because Makefile default SPHINXOPTS is
-          # empty (serial).
-          # -W would elevate warnings to errors in CI; not enabled yet.
-          SPHINXOPTS="-q" make all
+          # `all-versions` builds every version in the Makefile's
+          # *_VERSIONS lists into /<project>/<version>/ subdirs
+          # (latest at /<project>/), each from a temp git worktree of
+          # the submodule at that tag/branch.  DOCS_DEPLOY_BASE must
+          # be set or the version targets fall back to their
+          # localhost preview default.
+          # Serial build (SPHINXOPTS="-q", no `-j auto`): sphinx-tippy
+          # mutates app.env.tippy_data from html-page-context, and in
+          # parallel mode those worker-process mutations never reach
+          # the build-finished hook that writes _static/tippy/*.js.
+          # -W (warnings-as-errors) is intentionally not enabled yet.
+          SPHINXOPTS="-q" DOCS_DEPLOY_BASE=https://microrobotica.org make all-versions
 
       - name: Upload Pages artifact
         if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
