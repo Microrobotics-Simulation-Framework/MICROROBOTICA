@@ -282,6 +282,21 @@ body.msf-modal-open {
   word-break: break-word;
 }
 
+/* ── Version switcher: widen so labels like "v0.2 (stable)" fit ───────── */
+/* The theme's default button is sized for short tokens ("stable",
+ * "latest") and clips longer switcher.json `name` values.  Let the
+ * button grow to its text and give the dropdown a matching min-width. */
+.version-switcher__button {
+  min-width: 8.5rem;
+  white-space: nowrap;
+}
+.version-switcher__menu {
+  min-width: 8.5rem;
+}
+.version-switcher__menu .list-group-item {
+  white-space: nowrap;
+}
+
 /* ── FontAwesome SVG sizing ─────────────────────────────────────────────
  * The original pydata-sphinx-theme fontawesome.js bundle auto-injected
  * the FA base stylesheet at load time. Our slim shim only carries icon
