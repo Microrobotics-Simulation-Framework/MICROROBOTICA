@@ -10,7 +10,10 @@
 # Subprojects are built from git-submodule sources under projects/.
 
 SPHINXOPTS    ?=
-SPHINXBUILD   ?= sphinx-build
+# Prefer the sibling shared venv (the msf/.venv layout) so `make` works
+# without activating it first; fall back to whatever `sphinx-build` is on
+# PATH.  Override explicitly with `make <target> SPHINXBUILD=/path/...`.
+SPHINXBUILD   ?= $(firstword $(wildcard ../../.venv/bin/sphinx-build) sphinx-build)
 SOURCEDIR     := .
 BUILDDIR      := _build
 
@@ -19,7 +22,8 @@ BUILDDIR      := _build
 COMMON        := -c $(SOURCEDIR) -d $(BUILDDIR)/.doctrees-$@ $(SPHINXOPTS)
 
 .PHONY: help all clean microrobotica maddening mime doxygen serve sync-glossary \
-        all-versions maddening-versions preview-versions clean-worktrees
+        all-versions maddening-versions mime-versions microrobotica-versions \
+        preview-versions preview-local clean-worktrees _check-sphinx
 
 help:
 	@echo "Targets:"
@@ -45,6 +49,16 @@ help:
 sync-glossary:
 	python3 ../scripts/sync_glossary.py
 
+# Fail early with an actionable message if Sphinx isn't reachable,
+# instead of the cryptic `env: 'sphinx-build': No such file or directory`.
+_check-sphinx:
+	@command -v $(SPHINXBUILD) >/dev/null 2>&1 || { \
+	  echo "ERROR: sphinx-build not found (tried: $(SPHINXBUILD))."; \
+	  echo "  Activate the docs venv:   source ../../.venv/bin/activate"; \
+	  echo "  and install docs deps:    pip install -r requirements.txt"; \
+	  echo "  or pass one explicitly:   make <target> SPHINXBUILD=/path/to/sphinx-build"; \
+	  exit 127; }
+
 doxygen:
 	@mkdir -p _doxygen/xml
 	cd .. && doxygen Doxyfile
@@ -52,16 +66,16 @@ doxygen:
 # sphinx-multiproject rewrites the srcdir based on $PROJECT — we always
 # pass conf.py's directory ($(SOURCEDIR)) as both confdir and srcdir.
 
-microrobotica: doxygen
+microrobotica: _check-sphinx doxygen
 	PROJECT=microrobotica $(SPHINXBUILD) -b html $(SOURCEDIR) $(BUILDDIR)/html $(COMMON)
 
-maddening:
+maddening: _check-sphinx
 	@test -f projects/maddening/docs/index.md \
 	  || (echo "ERROR: projects/maddening submodule missing or out of date." \
 	      "Run: git submodule update --init --recursive" && exit 1)
 	PROJECT=maddening $(SPHINXBUILD) -b html $(SOURCEDIR) $(BUILDDIR)/html/maddening $(COMMON)
 
-mime:
+mime: _check-sphinx
 	@test -f projects/mime/docs/index.md \
 	  || (echo "ERROR: projects/mime submodule missing or out of date." \
 	      "Run: git submodule update --init --recursive" && exit 1)
@@ -107,7 +121,7 @@ clean:
 # Use `origin/<branch>` for branch refs so a fresh `git fetch` picks
 # up the latest tip without requiring a local tracking branch.  Tags
 # don't need the `origin/` prefix.
-MADDENING_VERSIONS := v0.1:v0.1.0 v0.2-dev:origin/feat/v0.2 latest:origin/feat/v0.2
+MADDENING_VERSIONS := v0.1:v0.1.0 v0.2:v0.2.0 latest:origin/main
 MIME_VERSIONS      := latest:origin/main
 MICROROBOTICA_VERSIONS := latest:origin/main
 
@@ -166,7 +180,7 @@ _build-version:
 
 # Expand a project's VERSIONS list into a sequence of _build-version
 # calls.  Each PAIR is "label:ref".
-maddening-versions:
+maddening-versions: _check-sphinx
 	@test -e projects/maddening/.git \
 	  || (echo "ERROR: projects/maddening submodule missing." \
 	      "Run: git submodule update --init --recursive" && exit 1)
@@ -176,7 +190,7 @@ maddening-versions:
 	    || exit $$?; \
 	done
 
-mime-versions:
+mime-versions: _check-sphinx
 	@test -e projects/mime/.git \
 	  || (echo "ERROR: projects/mime submodule missing." \
 	      "Run: git submodule update --init --recursive" && exit 1)
@@ -190,7 +204,7 @@ mime-versions:
 # version subdir loop and just build it normally with DOCS_MULTIVERSION=1.
 # Doxygen is optional for the local preview (the C++ API pages won't
 # resolve, but the version switcher + cross-project navigation work).
-microrobotica-versions:
+microrobotica-versions: _check-sphinx
 	@if command -v doxygen >/dev/null 2>&1; then \
 	  $(MAKE) doxygen; \
 	else \
@@ -223,7 +237,7 @@ preview-versions: all-versions
 #
 # Usage:
 #   make preview-local MADDENING_LOCAL=/home/me/MSF/msf/MADDENING
-preview-local:
+preview-local: _check-sphinx
 	@if [ -z "$(MADDENING_LOCAL)" ]; then \
 	  echo "Usage: make preview-local MADDENING_LOCAL=/path/to/MADDENING"; \
 	  exit 2; \
@@ -231,10 +245,12 @@ preview-local:
 	@if [ ! -f "$(MADDENING_LOCAL)/docs/index.md" ]; then \
 	  echo "ERROR: $(MADDENING_LOCAL)/docs/index.md not found"; exit 1; \
 	fi
-	@# Build the older versions normally (from refs), then build
-	@# "latest" from the local working copy, overriding the worktree.
-	@for pair in v0.1:v0.1.0 v0.2-dev:origin/feat/v0.2; do \
+	@# Build every non-"latest" version from its git ref, then build
+	@# "latest" from the local working copy.  Derived from the single
+	@# MADDENING_VERSIONS list so the version set never drifts.
+	@for pair in $(MADDENING_VERSIONS); do \
 	  LABEL=$${pair%%:*}; REF=$${pair##*:}; \
+	  [ "$$LABEL" = latest ] && continue; \
 	  $(MAKE) _build-version PROJECT=maddening LABEL=$$LABEL REF=$$REF \
 	    || exit $$?; \
 	done

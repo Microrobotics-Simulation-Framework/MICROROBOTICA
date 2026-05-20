@@ -202,9 +202,15 @@ if current_project == "microrobotica":
 if current_project == "microrobotica":
     html_extra_path = ["assets", "seo"]
 
-# sphinx-sitemap: each subproject emits its own sitemap.xml relative
-# to its public URL. The cross-project sitemap_index.xml in seo/
-# stitches them together at https://microrobotica.org/sitemap_index.xml.
+# ── Canonical URLs & sitemap ─────────────────────────────────────────
+# `html_baseurl` is intentionally version-LESS (.../maddening/, never
+# .../maddening/v0.2/).  Sphinx derives every page's
+# <link rel="canonical"> from it, so a versioned page (v0.1, v0.2, …)
+# canonicalises to the equivalent page in the *latest* build — search
+# engines consolidate all versions onto the unversioned "latest" URL.
+# Each subproject emits its own sitemap.xml relative to its public URL;
+# the cross-project sitemap_index.xml in seo/ stitches them together at
+# https://microrobotica.org/sitemap_index.xml.
 _BASEURLS = {
     "microrobotica": "https://microrobotica.org/",
     "maddening":     "https://microrobotica.org/maddening/",
@@ -235,6 +241,15 @@ _DEPLOY_BASE = os.environ.get("DOCS_DEPLOY_BASE", "https://microrobotica.org")
 #                          published builds.
 _multiversion = os.environ.get("DOCS_MULTIVERSION") == "1"
 _docs_version = os.environ.get("DOCS_VERSION", "latest")
+
+# A sitemap belongs to the canonical (latest) build only.  A versioned
+# build canonicalises every page to the latest URL (see html_baseurl
+# above), so a per-version sitemap.xml would just be a redundant copy
+# pointing at latest URLs.  Drop sphinx-sitemap for non-latest builds;
+# `make all` (no DOCS_VERSION) and the latest / mime / microrobotica
+# builds all run with DOCS_VERSION=latest and keep it.
+if _docs_version != "latest" and "sphinx_sitemap" in extensions:
+    extensions.remove("sphinx_sitemap")
 
 html_theme_options = {
     "logo": {
