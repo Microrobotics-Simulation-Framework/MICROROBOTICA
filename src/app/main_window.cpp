@@ -438,9 +438,10 @@ void MainWindow::onFileOpen()
         connect(timelinePanel_, &panels::TimelinePanel::timeCodeChanged,
                 viewportWidget_, &viewport::ViewportWidget::setTimeCode);
 
-        // Show initial frame
+        // Show initial frame. No continuous rendering for recordings — the
+        // viewport repaints on demand (per played-back frame via setTimeCode,
+        // and on camera moves); a paused recording stays off the GPU.
         viewportWidget_->setTimeCode(start);
-        viewportWidget_->setContinuousRendering(true);
 
         statusBar()->showMessage(
             tr("Recording loaded: %1 frames at %2 fps")
@@ -649,7 +650,8 @@ void MainWindow::onSimulationStart()
     // Playback mode: play/resume the animation
     if (playbackMode_) {
         timelinePanel_->playbackPlay();
-        viewportWidget_->setContinuousRendering(true);
+        // Playback drives the viewport on demand: the playback timer emits a
+        // new timecode per frame, each of which repaints. No continuous loop.
         statusBar()->showMessage(tr("Playback started"));
         if (cameraToolbar_) cameraToolbar_->onSimStarted();
         return;
