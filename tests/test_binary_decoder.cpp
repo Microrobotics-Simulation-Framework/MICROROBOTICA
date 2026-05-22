@@ -51,6 +51,17 @@ nlohmann::json exampleSchemaJson() {
     };
 }
 
+// Return a double whose little-endian byte 0 is 0x7B ('{'), so a binary
+// frame carrying it as sim_time collides with the JSON discriminator.
+double makeDoubleStartingWith0x7B(double seed) {
+    std::uint64_t bits;
+    std::memcpy(&bits, &seed, sizeof(bits));
+    bits = (bits & ~static_cast<std::uint64_t>(0xFF)) | 0x7B;
+    double d;
+    std::memcpy(&d, &bits, sizeof(d));
+    return d;
+}
+
 // Build a 40-byte uncompressed binary frame for the example schema.
 std::vector<std::uint8_t> buildExampleFrame(double sim_time,
                                             float px, float py, float pz,
@@ -118,10 +129,12 @@ TEST_CASE("decodeBinaryFrame: round-trips a known frame", "[unit][binary]") {
     auto schema = parseBinarySchema(exampleSchemaJson());
 
     // All values are exactly representable in float32, so equality holds.
+    // The quaternion uses four distinct values so a wrong w/x/y/z order
+    // would be caught.
     auto frame_bytes = buildExampleFrame(
         /*sim_time=*/2.25,
         /*pos=*/0.5f, -1.25f, 3.0f,
-        /*quat=*/1.0f, 0.0f, 0.0f, 0.0f,
+        /*quat=*/0.5f, 0.25f, -0.125f, 0.75f,
         /*drag=*/-7.5f);
 
     REQUIRE(frame_bytes.size() == 40u);
@@ -137,10 +150,10 @@ TEST_CASE("decodeBinaryFrame: round-trips a known frame", "[unit][binary]") {
     REQUIRE(frame.positions.at("body").z == 3.0);
 
     REQUIRE(frame.orientations.count("body") == 1);
-    REQUIRE(frame.orientations.at("body").w == 1.0);
-    REQUIRE(frame.orientations.at("body").x == 0.0);
-    REQUIRE(frame.orientations.at("body").y == 0.0);
-    REQUIRE(frame.orientations.at("body").z == 0.0);
+    REQUIRE(frame.orientations.at("body").w == 0.5);
+    REQUIRE(frame.orientations.at("body").x == 0.25);
+    REQUIRE(frame.orientations.at("body").y == -0.125);
+    REQUIRE(frame.orientations.at("body").z == 0.75);
 
     REQUIRE(frame.scalars.count("drag_torque_z") == 1);
     REQUIRE(frame.scalars.at("drag_torque_z") == -7.5);
@@ -244,6 +257,48 @@ TEST_CASE("looksLikeJsonMessage: discriminates by leading byte", "[unit][binary]
     REQUIRE_FALSE(looksLikeJsonMessage(nullptr, 0));
 }
 
+TEST_CASE("decodeBinaryFrame: decodes a frame whose sim_time starts with 0x7B",
+          "[unit][binary]") {
+    auto schema = parseBinarySchema(exampleSchemaJson());
+
+    // sim_time engineered so the frame's first byte is '{' (0x7B) — the
+    // same leading byte as a JSON message. ~1/256 of real frames hit this.
+    // The decoder is byte-exact and does not depend on the discriminator;
+    // the worker resolves the ambiguity by attempting a JSON parse first.
+    const double sim_time = makeDoubleStartingWith0x7B(12.5);
+    auto frame_bytes = buildExampleFrame(
+        sim_time, 1.0f, 2.0f, 3.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f);
+
+    REQUIRE(frame_bytes[0] == 0x7B);
+    REQUIRE(looksLikeJsonMessage(frame_bytes.data(), frame_bytes.size()));
+
+    ResultFrame frame = decodeBinaryFrame(
+        frame_bytes.data(), frame_bytes.size(), schema);
+    REQUIRE(frame.simTime == sim_time);
+    REQUIRE(frame.positions.at("body").x == 1.0);
+    REQUIRE(frame.positions.at("body").z == 3.0);
+}
+
+TEST_CASE("decodeBinaryFrame: rejects a schema field out of range",
+          "[unit][binary]") {
+    // total_floats=8, but body.quat claims floats [6, 10) — past the end.
+    nlohmann::json j = {
+        {"type", "schema"},
+        {"fields", nlohmann::json::array({
+            {{"node","poses"},{"field","body.pos"},{"offset",0},{"count",3}},
+            {{"node","poses"},{"field","body.quat"},{"offset",6},{"count",4}},
+        })},
+        {"total_floats", 8},
+        {"frame_bytes", 40},
+        {"compression", "none"},
+    };
+    auto schema = parseBinarySchema(j);
+    auto buf = buildExampleFrame(1.0, 0, 0, 0, 1, 0, 0, 0, 0);
+    REQUIRE_THROWS_AS(
+        decodeBinaryFrame(buf.data(), buf.size(), schema),
+        std::runtime_error);
+}
+
 // ── End-to-end: handshake + binary stream over ZMQ ───────────────────────────
 
 #ifdef MICROBOTICA_HAS_ZMQ
@@ -253,6 +308,44 @@ TEST_CASE("looksLikeJsonMessage: discriminates by leading byte", "[unit][binary]
 #include <zmq.hpp>
 
 #include "mime_adapter/mime_physics_process.h"
+
+namespace {
+
+/// Mock MIME REP server. Replies {"status":"ok"} to launch/stop and any
+/// command, except `stream_info`, which gets the caller-supplied reply.
+/// Runs until *running becomes false.
+void runMockRepServer(const std::string& endpoint,
+                      std::atomic<bool>* running,
+                      std::string stream_info_reply) {
+    zmq::context_t ctx(1);
+    zmq::socket_t rep(ctx, zmq::socket_type::rep);
+    rep.set(zmq::sockopt::linger, 0);
+    rep.set(zmq::sockopt::rcvtimeo, 300);
+    rep.bind(endpoint);
+
+    while (running->load()) {
+        zmq::message_t msg;
+        if (!rep.recv(msg, zmq::recv_flags::none)) continue;
+        const std::string cmd(static_cast<char*>(msg.data()), msg.size());
+
+        std::string reply = R"({"status":"ok"})";
+        if (cmd != "launch" && cmd != "stop") {
+            try {
+                auto j = nlohmann::json::parse(cmd);
+                const std::string type =
+                    j.value("command", j.value("type", std::string()));
+                if (type == "stream_info") reply = stream_info_reply;
+            } catch (const std::exception&) {
+                // non-JSON command — keep the default ok reply
+            }
+        }
+        zmq::message_t out(reply.size());
+        std::memcpy(out.data(), reply.data(), reply.size());
+        rep.send(out, zmq::send_flags::none);
+    }
+}
+
+} // namespace
 
 TEST_CASE("MimePhysicsProcess: handshakes and decodes a binary stream",
           "[integration][binary]") {
@@ -371,9 +464,205 @@ TEST_CASE("MimePhysicsProcess: handshakes and decodes a binary stream",
     REQUIRE(stats.framesReceived >= 3);
     REQUIRE(stats.lastFrameBytes == 40);
     REQUIRE(stats.bytesReceived >= 120); // >= 3 frames * 40 bytes
+    REQUIRE(stats.decodeErrors == 0);
 
     proc.stop();
     REQUIRE(proc.status() == ProcessStatus::Stopped);
+
+    rep_running.store(false);
+    rep_thread.join();
+    pub_thread.join();
+}
+
+TEST_CASE("MimePhysicsProcess: handshakes and decodes a JSON stream",
+          "[integration][binary]") {
+    const std::string req_ep = "tcp://127.0.0.1:15567";
+    const std::string pub_ep = "tcp://127.0.0.1:15568";
+
+    // Runner declares JSON — exercises the fallback path end-to-end.
+    std::atomic<bool> rep_running{true};
+    std::thread rep_thread(
+        runMockRepServer, req_ep, &rep_running,
+        std::string(R"({"status":"ok","format":"json","schema":null})"));
+
+    std::thread pub_thread([&]() {
+        zmq::context_t ctx(1);
+        zmq::socket_t pub(ctx, zmq::socket_type::pub);
+        pub.set(zmq::sockopt::linger, 0);
+        pub.bind(pub_ep);
+        std::this_thread::sleep_for(std::chrono::milliseconds(250));
+
+        // One-time startup params notice, then JSON ResultFrames.
+        const std::string params = R"({"type":"params","data":{"freq":2.0}})";
+        zmq::message_t pmsg(params.size());
+        std::memcpy(pmsg.data(), params.data(), params.size());
+        pub.send(pmsg, zmq::send_flags::none);
+
+        for (int i = 0; i < 8; ++i) {
+            ResultFrame f;
+            f.simTime = static_cast<double>(i) * 0.5;
+            f.positions["body"] = Vec3f{1.0 * i, 2.0, 3.0};
+            f.orientations["body"] = Quatf{1.0, 0.0, 0.0, 0.0};
+            const std::string data = nlohmann::json(f).dump();
+            zmq::message_t fmsg(data.size());
+            std::memcpy(fmsg.data(), data.data(), data.size());
+            pub.send(fmsg, zmq::send_flags::none);
+            std::this_thread::sleep_for(std::chrono::milliseconds(50));
+        }
+    });
+
+    MimePhysicsProcess proc(req_ep, pub_ep);
+    PhysicsConfig config;
+    config.actorToPrimPath["body"] = "/World/Body";
+    proc.launch(config);
+    REQUIRE(proc.status() == ProcessStatus::Running);
+
+    int received = 0;
+    for (int attempt = 0; attempt < 20 && received < 3; ++attempt) {
+        auto frame = proc.receiveResult();
+        if (frame && frame->simTime >= 0.0) {
+            REQUIRE(frame->positions.at("body").y == 2.0);
+            received++;
+        }
+    }
+    REQUIRE(received >= 3);
+
+    const auto stats = proc.streamStats();
+    REQUIRE(stats.format == "json");
+    REQUIRE(stats.framesReceived >= 3);
+    REQUIRE(stats.decodeErrors == 0);
+
+    proc.stop();
+    REQUIRE(proc.status() == ProcessStatus::Stopped);
+
+    rep_running.store(false);
+    rep_thread.join();
+    pub_thread.join();
+}
+
+TEST_CASE("MimePhysicsProcess: a binary frame starting with 0x7B is not "
+          "mistaken for a JSON message", "[integration][binary]") {
+    const std::string req_ep = "tcp://127.0.0.1:15569";
+    const std::string pub_ep = "tcp://127.0.0.1:15570";
+
+    const nlohmann::json info = {
+        {"status", "ok"}, {"format", "binary"},
+        {"schema", exampleSchemaJson()}};
+
+    std::atomic<bool> rep_running{true};
+    std::thread rep_thread(runMockRepServer, req_ep, &rep_running, info.dump());
+
+    std::thread pub_thread([&]() {
+        zmq::context_t ctx(1);
+        zmq::socket_t pub(ctx, zmq::socket_type::pub);
+        pub.set(zmq::sockopt::linger, 0);
+        pub.bind(pub_ep);
+        std::this_thread::sleep_for(std::chrono::milliseconds(250));
+
+        for (int i = 0; i < 8; ++i) {
+            // Every frame's sim_time is engineered so the frame begins
+            // with 0x7B — the JSON discriminator byte.
+            const double st =
+                makeDoubleStartingWith0x7B(10.0 + static_cast<double>(i));
+            auto frame = buildExampleFrame(
+                st, 1.0f * i, 2.0f, 3.0f, 1.0f, 0.0f, 0.0f, 0.0f, -0.5f);
+            zmq::message_t fmsg(frame.size());
+            std::memcpy(fmsg.data(), frame.data(), frame.size());
+            pub.send(fmsg, zmq::send_flags::none);
+            std::this_thread::sleep_for(std::chrono::milliseconds(50));
+        }
+    });
+
+    MimePhysicsProcess proc(req_ep, pub_ep);
+    PhysicsConfig config;
+    config.actorToPrimPath["body"] = "/World/Body";
+    proc.launch(config);
+    REQUIRE(proc.status() == ProcessStatus::Running);
+
+    int received = 0;
+    for (int attempt = 0; attempt < 20 && received < 3; ++attempt) {
+        auto frame = proc.receiveResult();
+        if (frame && frame->simTime >= 0.0) {
+            REQUIRE(frame->positions.count("body") == 1);
+            received++;
+        }
+    }
+    REQUIRE(received >= 3);
+
+    // The 0x7B frames must decode as binary — failed JSON parses must fall
+    // through to the binary decoder, not be counted as decode errors.
+    const auto stats = proc.streamStats();
+    REQUIRE(stats.format == "binary");
+    REQUIRE(stats.framesReceived >= 3);
+    REQUIRE(stats.decodeErrors == 0);
+
+    proc.stop();
+    rep_running.store(false);
+    rep_thread.join();
+    pub_thread.join();
+}
+
+TEST_CASE("MimePhysicsProcess: a corrupt frame is counted and the stream "
+          "keeps flowing", "[integration][binary]") {
+    const std::string req_ep = "tcp://127.0.0.1:15571";
+    const std::string pub_ep = "tcp://127.0.0.1:15572";
+
+    const nlohmann::json info = {
+        {"status", "ok"}, {"format", "binary"},
+        {"schema", exampleSchemaJson()}};
+
+    std::atomic<bool> rep_running{true};
+    std::thread rep_thread(runMockRepServer, req_ep, &rep_running, info.dump());
+
+    std::thread pub_thread([&]() {
+        zmq::context_t ctx(1);
+        zmq::socket_t pub(ctx, zmq::socket_type::pub);
+        pub.set(zmq::sockopt::linger, 0);
+        pub.bind(pub_ep);
+        std::this_thread::sleep_for(std::chrono::milliseconds(250));
+
+        // A wrong-sized binary message (8-byte header + 12 bytes = 3 floats;
+        // the schema expects 8) — decodeBinaryFrame must reject it.
+        const std::vector<std::uint8_t> garbage(20, 0x11);
+
+        for (int i = 0; i < 12; ++i) {
+            auto good = buildExampleFrame(
+                static_cast<double>(i), 1.0f * i, 2.0f, 3.0f,
+                1.0f, 0.0f, 0.0f, 0.0f, 0.0f);
+            zmq::message_t g(good.size());
+            std::memcpy(g.data(), good.data(), good.size());
+            pub.send(g, zmq::send_flags::none);
+            std::this_thread::sleep_for(std::chrono::milliseconds(35));
+
+            if (i >= 2 && i % 2 == 0) {
+                zmq::message_t bad(garbage.size());
+                std::memcpy(bad.data(), garbage.data(), garbage.size());
+                pub.send(bad, zmq::send_flags::none);
+                std::this_thread::sleep_for(std::chrono::milliseconds(35));
+            }
+        }
+    });
+
+    MimePhysicsProcess proc(req_ep, pub_ep);
+    PhysicsConfig config;
+    config.actorToPrimPath["body"] = "/World/Body";
+    proc.launch(config);
+    REQUIRE(proc.status() == ProcessStatus::Running);
+
+    int received = 0;
+    for (int attempt = 0; attempt < 40 && received < 6; ++attempt) {
+        auto frame = proc.receiveResult();
+        if (frame && frame->simTime >= 0.0) received++;
+    }
+    REQUIRE(received >= 3);
+
+    proc.stop();
+
+    // Good frames flowed; the wrong-sized messages were rejected, not
+    // decoded, and did not stall the stream.
+    const auto stats = proc.streamStats();
+    REQUIRE(stats.framesReceived >= 3);
+    REQUIRE(stats.decodeErrors >= 1);
 
     rep_running.store(false);
     rep_thread.join();
