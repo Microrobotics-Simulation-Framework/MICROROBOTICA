@@ -7,6 +7,7 @@
 #include "types.h"
 #include "result_frame.h"
 #include "physics_config.h"
+#include "stream_stats.h"
 
 namespace microbotica::core {
 
@@ -74,6 +75,11 @@ public:
 
     /// @return Current process status.
     virtual ProcessStatus status() const = 0;
+
+    /// Live wire-format statistics for the result stream (frames/sec,
+    /// bytes/frame, decode latency). Default is all-zeros for backends
+    /// that do not stream over a wire (e.g. stubs). Thread-safe.
+    virtual StreamStats streamStats() const { return {}; }
 };
 
 } // namespace microbotica::core

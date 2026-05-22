@@ -25,6 +25,11 @@ public:
     /// Get the experiment directory path.
     std::string experimentDir() const;
 
+    /// Get the requested ResultFrame stream format (MIME v0.2 fit-up §8):
+    /// "" (Auto — runner default), "json", or "binary". Passed to the
+    /// MIME runner as MIME_STREAM_FORMAT when non-empty.
+    std::string streamFormat() const;
+
     /// Update connection status display.
     void setConnectionStatus(const QString& status);
 
@@ -38,6 +43,7 @@ Q_SIGNALS:
 
 private:
     QComboBox* modeCombo_ = nullptr;
+    QComboBox* streamFormatCombo_ = nullptr;
     QLineEdit* experimentDirEdit_ = nullptr;
     QPushButton* launchButton_ = nullptr;
     QPushButton* stopButton_ = nullptr;

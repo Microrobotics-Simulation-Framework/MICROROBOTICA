@@ -64,8 +64,14 @@ public:
 
     /// Start a MIME runner subprocess for the given experiment directory.
     /// @param experiment_dir  Absolute path to the experiment directory
+    /// @param stream_format   ResultFrame wire format to request of the
+    ///                        runner (MIME v0.2 fit-up §8): "json", "binary",
+    ///                        or "" to leave it at the runner default. When
+    ///                        non-empty it is passed as the MIME_STREAM_FORMAT
+    ///                        environment variable to the subprocess.
     /// @return true if the process started successfully
-    bool start(const std::string& experiment_dir);
+    bool start(const std::string& experiment_dir,
+               const std::string& stream_format = "");
 
     /// Block until the runner's ZMQ REP port (default 5555) accepts a
     /// connection, or timeout. This is a *liveness probe* — useful

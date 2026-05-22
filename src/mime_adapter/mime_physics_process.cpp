@@ -131,6 +131,11 @@ core::ProcessStatus MimePhysicsProcess::status() const {
     return status_.load();
 }
 
+core::StreamStats MimePhysicsProcess::streamStats() const {
+    std::lock_guard<std::mutex> lock(stats_mutex_);
+    return stats_;
+}
+
 void MimePhysicsProcess::workerLoop() {
 #ifdef MICROBOTICA_HAS_ZMQ
     try {
@@ -158,6 +163,18 @@ void MimePhysicsProcess::workerLoop() {
             }
         }
 
+        // Publish the negotiated format/compression into the live stats.
+        {
+            std::lock_guard<std::mutex> lock(stats_mutex_);
+            stats_.format = (stream_format_ == StreamFormat::Binary)
+                          ? "binary" : "json";
+            stats_.compression = (stream_format_ == StreamFormat::Binary)
+                               ? binary_schema_.compression : "none";
+        }
+
+        bool have_prev_frame = false;
+        std::chrono::steady_clock::time_point prev_frame_tp;
+
         while (running_.load()) {
             zmq::message_t msg;
             auto result = sub.recv(msg, zmq::recv_flags::none);
@@ -180,11 +197,22 @@ void MimePhysicsProcess::workerLoop() {
             // '{' (0x7B); a binary frame starts with an 8-byte float64
             // sim_time. The runner also publishes a one-time JSON
             // {"type":"params",...} notice regardless of stream format.
+            const auto decode_start = std::chrono::steady_clock::now();
+            std::optional<core::ResultFrame> frame;
+            bool is_params = false;
+            bool failed = false;
+
             try {
+                bool decoded_as_json = false;
                 if (looksLikeJsonMessage(bytes, size)) {
                     try {
-                        handleJsonMessage(bytes, size);
-                        continue;
+                        auto parsed = decodeJsonMessage(bytes, size);
+                        decoded_as_json = true;
+                        if (parsed.has_value()) {
+                            frame = std::move(parsed);
+                        } else {
+                            is_params = true;
+                        }
                     } catch (const nlohmann::json::parse_error&) {
                         // Not valid JSON. In binary mode this is a frame
                         // whose float64 sim_time happened to begin with
@@ -194,18 +222,70 @@ void MimePhysicsProcess::workerLoop() {
                         }
                     }
                 }
-
-                if (stream_format_ == StreamFormat::Binary) {
-                    auto frame = decodeBinaryFrame(bytes, size, binary_schema_);
-                    queue_.push(std::move(frame));
-                } else {
-                    spdlog::warn("MimePhysicsProcess: dropping non-JSON message "
-                                 "({} bytes) in JSON stream mode", size);
+                if (!decoded_as_json) {
+                    if (stream_format_ == StreamFormat::Binary) {
+                        frame = decodeBinaryFrame(bytes, size, binary_schema_);
+                    } else {
+                        throw std::runtime_error(
+                            "non-JSON message in JSON stream mode");
+                    }
                 }
             } catch (const std::exception& e) {
-                spdlog::warn("MimePhysicsProcess: Failed to decode frame: {}", e.what());
-                // Drop the bad frame, continue receiving.
+                spdlog::warn("MimePhysicsProcess: Failed to decode frame: {}",
+                             e.what());
+                failed = true;
             }
+
+            const double decode_us =
+                std::chrono::duration<double, std::micro>(
+                    std::chrono::steady_clock::now() - decode_start).count();
+
+            if (failed) {
+                std::lock_guard<std::mutex> lock(stats_mutex_);
+                stats_.decodeErrors++;
+                continue;
+            }
+            if (is_params) {
+                std::lock_guard<std::mutex> lock(stats_mutex_);
+                stats_.paramsMessages++;
+                continue;
+            }
+            if (!frame.has_value()) {
+                continue; // defensive — should not happen
+            }
+
+            // Frame-rate EWMA from inter-frame wall time.
+            const auto now_tp = std::chrono::steady_clock::now();
+            double inst_fps = 0.0;
+            if (have_prev_frame) {
+                const double dt =
+                    std::chrono::duration<double>(now_tp - prev_frame_tp).count();
+                if (dt > 0.0) {
+                    inst_fps = 1.0 / dt;
+                }
+            }
+            prev_frame_tp = now_tp;
+            have_prev_frame = true;
+
+            {
+                std::lock_guard<std::mutex> lock(stats_mutex_);
+                stats_.framesReceived++;
+                stats_.bytesReceived += size;
+                stats_.lastFrameBytes = static_cast<std::uint32_t>(size);
+                stats_.decodeAvgUs +=
+                    (decode_us - stats_.decodeAvgUs)
+                    / static_cast<double>(stats_.framesReceived);
+                if (decode_us > stats_.decodeMaxUs) {
+                    stats_.decodeMaxUs = decode_us;
+                }
+                if (inst_fps > 0.0) {
+                    stats_.receivedFps = (stats_.receivedFps <= 0.0)
+                        ? inst_fps
+                        : 0.9 * stats_.receivedFps + 0.1 * inst_fps;
+                }
+            }
+
+            queue_.push(std::move(*frame));
         }
     } catch (const zmq::error_t& e) {
         spdlog::error("MimePhysicsProcess: ZMQ error in worker: {}", e.what());
@@ -215,8 +295,8 @@ void MimePhysicsProcess::workerLoop() {
 #endif
 }
 
-void MimePhysicsProcess::handleJsonMessage(const std::uint8_t* data,
-                                            std::size_t size) {
+std::optional<core::ResultFrame> MimePhysicsProcess::decodeJsonMessage(
+    const std::uint8_t* data, std::size_t size) {
     const std::string text(reinterpret_cast<const char*>(data), size);
     auto j = nlohmann::json::parse(text); // throws json::parse_error on bad JSON
 
@@ -225,11 +305,10 @@ void MimePhysicsProcess::handleJsonMessage(const std::uint8_t* data,
     // it is not a ResultFrame.
     if (j.is_object() && j.value("type", std::string()) == "params") {
         spdlog::debug("MimePhysicsProcess: received startup params notice");
-        return;
+        return std::nullopt;
     }
 
-    auto frame = j.get<core::ResultFrame>();
-    queue_.push(std::move(frame));
+    return j.get<core::ResultFrame>();
 }
 
 void MimePhysicsProcess::negotiateStreamFormat() {

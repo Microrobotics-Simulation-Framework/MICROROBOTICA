@@ -364,6 +364,14 @@ TEST_CASE("MimePhysicsProcess: handshakes and decodes a binary stream",
     // The handshake re-queried stream_info at least twice (null, then schema).
     REQUIRE(stream_info_calls.load() >= 2);
 
+    // Stream stats reflect the binary wire: every frame is 8 + 8*4 = 40 bytes.
+    const auto stats = proc.streamStats();
+    REQUIRE(stats.format == "binary");
+    REQUIRE(stats.compression == "none");
+    REQUIRE(stats.framesReceived >= 3);
+    REQUIRE(stats.lastFrameBytes == 40);
+    REQUIRE(stats.bytesReceived >= 120); // >= 3 frames * 40 bytes
+
     proc.stop();
     REQUIRE(proc.status() == ProcessStatus::Stopped);
 

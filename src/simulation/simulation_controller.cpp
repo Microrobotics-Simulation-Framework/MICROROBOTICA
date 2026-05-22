@@ -3,7 +3,58 @@
 #include "core/profiler.h"
 #include <spdlog/spdlog.h>
 
+#include <algorithm>
+#include <ctime>
+#include <filesystem>
+#include <fstream>
+
 namespace microbotica::simulation {
+
+namespace {
+
+/// Append one row to the stream-benchmark CSV in the working directory, so
+/// JSON-mode and binary-mode runs can be compared after the fact. The
+/// header is written once when the file is first created.
+void appendBenchmarkCsv(const core::StreamStats& s, int applied) {
+    namespace fs = std::filesystem;
+    const fs::path path = "microbotica_stream_benchmark.csv";
+    std::error_code ec;
+    const bool existed = fs::exists(path, ec);
+
+    std::ofstream out(path, std::ios::app);
+    if (!out) {
+        spdlog::warn("SimulationController: could not open {} for the "
+                     "stream benchmark log", path.string());
+        return;
+    }
+    if (!existed) {
+        out << "timestamp,format,compression,frames_received,applied,"
+               "dropped,total_bytes,avg_frame_bytes,decode_avg_us,"
+               "decode_max_us,decode_errors,wire_fps\n";
+    }
+
+    const std::time_t now = std::time(nullptr);
+    char ts[32] = {0};
+    std::strftime(ts, sizeof(ts), "%Y-%m-%dT%H:%M:%S", std::localtime(&now));
+
+    const long long dropped = std::max<long long>(
+        0, static_cast<long long>(s.framesReceived) - applied);
+    const double avg_frame = s.framesReceived
+        ? static_cast<double>(s.bytesReceived)
+              / static_cast<double>(s.framesReceived)
+        : 0.0;
+
+    out << ts << ',' << s.format << ',' << s.compression << ','
+        << s.framesReceived << ',' << applied << ',' << dropped << ','
+        << s.bytesReceived << ',' << avg_frame << ',' << s.decodeAvgUs << ','
+        << s.decodeMaxUs << ',' << s.decodeErrors << ',' << s.receivedFps
+        << '\n';
+
+    spdlog::info("SimulationController: stream benchmark row appended to {}",
+                 fs::absolute(path, ec).string());
+}
+
+} // namespace
 
 SimulationController::SimulationController(scene::SceneManager& sceneMgr,
                                              core::AuditLogger& logger,
@@ -101,7 +152,34 @@ void SimulationController::stop() {
 
     spdlog::info("SimulationController: Stopped after {} frames", frameCount_);
     logger_->logEvent("simulation_stop", {{"frames", frameCount_}});
+
+    // Stream benchmark summary (fit-up §8). The worker has joined, so the
+    // backend's stats are final and stable.
+    if (physics_) {
+        const core::StreamStats s = physics_->streamStats();
+        if (s.framesReceived > 0) {
+            const long long dropped = std::max<long long>(
+                0, static_cast<long long>(s.framesReceived) - frameCount_);
+            const double avg_frame =
+                static_cast<double>(s.bytesReceived)
+                / static_cast<double>(s.framesReceived);
+            spdlog::info(
+                "SimulationController: stream benchmark — format={} "
+                "compression={} received={} applied={} dropped={} "
+                "total_bytes={} avg_frame={:.0f}B decode_avg={:.1f}us "
+                "decode_max={:.1f}us decode_errors={} wire_fps={:.1f}",
+                s.format, s.compression, s.framesReceived, frameCount_,
+                dropped, s.bytesReceived, avg_frame, s.decodeAvgUs,
+                s.decodeMaxUs, s.decodeErrors, s.receivedFps);
+            appendBenchmarkCsv(s, frameCount_);
+        }
+    }
+
     simulationStopped();
+}
+
+core::StreamStats SimulationController::streamStats() const {
+    return physics_ ? physics_->streamStats() : core::StreamStats{};
 }
 
 void SimulationController::setPaused(bool paused) {

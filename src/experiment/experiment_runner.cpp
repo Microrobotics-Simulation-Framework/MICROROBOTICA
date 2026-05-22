@@ -1,5 +1,6 @@
 #include "experiment/experiment_runner.h"
 #include <spdlog/spdlog.h>
+#include <QProcessEnvironment>
 
 #include <chrono>
 #include <thread>
@@ -22,7 +23,8 @@ ExperimentRunner::~ExperimentRunner() {
     stop();
 }
 
-bool ExperimentRunner::start(const std::string& experiment_dir) {
+bool ExperimentRunner::start(const std::string& experiment_dir,
+                              const std::string& stream_format) {
     if (process_ && process_->state() != QProcess::NotRunning) {
         spdlog::warn("ExperimentRunner: Process already running — stop it first");
         return false;
@@ -32,6 +34,18 @@ bool ExperimentRunner::start(const std::string& experiment_dir) {
     status_ = RunnerStatus::Starting;
 
     process_ = new QProcess(this);
+
+    // Request a ResultFrame wire format from the runner (fit-up §8). The
+    // subprocess otherwise inherits this process's environment unchanged.
+    if (!stream_format.empty()) {
+        QProcessEnvironment env = QProcessEnvironment::systemEnvironment();
+        env.insert("MIME_STREAM_FORMAT",
+                   QString::fromStdString(stream_format));
+        process_->setProcessEnvironment(env);
+        spdlog::info("ExperimentRunner: requesting MIME_STREAM_FORMAT={}",
+                     stream_format);
+    }
+
     connect(process_,
             QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
             this, &ExperimentRunner::onProcessFinished);

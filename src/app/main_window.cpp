@@ -719,9 +719,14 @@ void MainWindow::onSimulationStart()
             }
         }
 
+        // Stream format requested in the Run Configuration panel (fit-up
+        // §8): "" Auto, "json", or "binary" → MIME_STREAM_FORMAT.
+        const std::string streamFormat =
+            runConfigPanel_ ? runConfigPanel_->streamFormat() : std::string();
+
         bool spawned = false;
         for (int attempt = 1; attempt <= 3; ++attempt) {
-            if (experimentRunner_->start(experimentDir_)) {
+            if (experimentRunner_->start(experimentDir_, streamFormat)) {
                 spawned = true;
                 break;
             }

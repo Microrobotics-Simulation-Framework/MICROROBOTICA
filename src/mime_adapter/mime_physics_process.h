@@ -3,11 +3,14 @@
 #include <atomic>
 #include <cstddef>
 #include <cstdint>
+#include <mutex>
+#include <optional>
 #include <thread>
 #include <string>
 #include "core/physics_process.h"
 #include "core/component_meta.h"
 #include "core/stability.h"
+#include "core/stream_stats.h"
 #include "core/threadsafe_queue.h"
 #include "connection/connection_config.h"
 #include "mime_adapter/binary_frame_decoder.h"
@@ -83,6 +86,11 @@ public:
     void stop() override;
     core::ProcessStatus status() const override;
 
+    /// Snapshot of the live stream statistics (thread-safe). Reflects the
+    /// negotiated format and the per-frame wire size / decode cost measured
+    /// in the SUB worker.
+    core::StreamStats streamStats() const override;
+
     /// Negotiated 5556 wire format (MIME v0.2 fit-up §8).
     enum class StreamFormat { Json, Binary };
 
@@ -103,11 +111,12 @@ private:
     /// worker thread.
     bool acquireBinarySchema();
 
-    /// Parse a JSON text message off the SUB socket: the one-time startup
-    /// {"type":"params",...} notice is recognised and skipped; anything
-    /// else is decoded as a JSON ResultFrame and queued. Throws on
-    /// malformed JSON.
-    void handleJsonMessage(const std::uint8_t* data, std::size_t size);
+    /// Decode a JSON text message off the SUB socket. Returns the decoded
+    /// ResultFrame, or std::nullopt for the one-time startup
+    /// {"type":"params",...} notice. Throws nlohmann::json::parse_error on
+    /// malformed JSON (the caller uses that to fall back to binary decoding).
+    std::optional<core::ResultFrame> decodeJsonMessage(const std::uint8_t* data,
+                                                       std::size_t size);
 
     std::string req_endpoint_;
     std::string sub_endpoint_;
@@ -123,6 +132,11 @@ private:
     // write); thereafter touched only by the worker thread.
     StreamFormat stream_format_ = StreamFormat::Json;
     BinaryStreamSchema binary_schema_;
+
+    // Live stream statistics. Updated by the worker thread, read via
+    // streamStats() from the UI thread — guarded by stats_mutex_.
+    mutable std::mutex stats_mutex_;
+    core::StreamStats stats_;
 };
 
 } // namespace microbotica::mime
