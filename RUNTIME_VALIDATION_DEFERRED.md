@@ -84,6 +84,26 @@ Intentionally unregistered — no MBCA-COMP IDs. These are pure UI panels with n
 
 ---
 
+## Geometry-budget guard at scene load (deferred feature)
+
+Not a compile-verified component — a planned viewer feature, recorded here as
+the nearest deferred-work home.
+
+On opening a USD scene/recording, sum the triangle count across its meshes; if
+it exceeds a viewer-friendly budget (~a few hundred k), log a warning / surface
+a UI notice. This catches over-tessellated assets immediately, instead of
+letting them surface as **geometric-aliasing shimmer** during camera motion
+(the AR4 recording hit exactly this — ~1M triangles).
+
+| Field | Value |
+|---|---|
+| **Effort** | Small — ~20 lines: traverse meshes at load, sum `faceVertexCounts`, log/notify above a threshold |
+| **Stretch goal** | A real LOD path (authored mesh LODs, or render-time decimation) — substantially larger, lower priority |
+| **Trigger** | Any time; a cheap safety net for future experiment assets |
+| **Context** | MIME `docs/experiment_recordings.md`; mitigated for now by decimation in MIME's `_bake_meshes.py` and `scripts/decimate_ar4_meshes.py` |
+
+---
+
 ## Validation checklist
 
 When a component is validated at runtime, update this document by:

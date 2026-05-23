@@ -95,6 +95,15 @@ public:
     /// Get the physics config.
     const core::PhysicsConfig& physicsConfig() const { return config_; }
 
+    /// Live wire-format statistics from the physics backend (frames/sec,
+    /// bytes/frame, decode latency). All-zeros when no backend streams.
+    core::StreamStats streamStats() const;
+
+    /// Number of frames actually applied to the scene. Differs from
+    /// StreamStats::framesReceived because requestNextFrame() drains to the
+    /// latest frame — the gap is the UI-side drop count.
+    int appliedFrameCount() const { return frameCount_; }
+
 signals:
     void frameReady(const microbotica::core::ResultFrame& frame);
     void backendCrashed(const QString& reason);

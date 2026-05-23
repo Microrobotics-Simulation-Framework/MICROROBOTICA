@@ -26,14 +26,20 @@ TimelinePanel::TimelinePanel(simulation::SimulationController& simCtrl,
     layout->setContentsMargins(4, 2, 4, 2);
     layout->setSpacing(2);
 
-    // Top row: time label + fps
+    // Top row: time label + stream benchmark readout + fps
     auto* topRow = new QHBoxLayout;
     timeLabel_ = new QLabel(tr("Sim: 0.000 s"), container);
     timeLabel_->setFont(QFont("Monospace", 11));
+    streamLabel_ = new QLabel(tr(""), container);
+    streamLabel_->setFont(QFont("Monospace", 9));
+    streamLabel_->setToolTip(
+        tr("ResultFrame stream: wire format, bytes/frame, mean decode time, "
+           "and frames dropped by the UI (received minus applied)."));
     fpsLabel_ = new QLabel(tr(""), container);
     fpsLabel_->setFont(QFont("Monospace", 9));
     topRow->addWidget(timeLabel_);
     topRow->addStretch();
+    topRow->addWidget(streamLabel_);
     topRow->addWidget(fpsLabel_);
     layout->addLayout(topRow);
 
@@ -89,6 +95,30 @@ void TimelinePanel::onTimerTick()
         fpsLabel_->setText(QString("%1 fps").arg(framesSinceLastFps_));
         framesSinceLastFps_ = 0;
         lastFpsTime_ = now;
+
+        // Stream benchmark readout (fit-up §8): wire format, on-wire frame
+        // size, mean decode cost, and UI-side drop count.
+        const auto stats = simCtrl_.streamStats();
+        if (stats.framesReceived > 0) {
+            qint64 dropped = static_cast<qint64>(stats.framesReceived)
+                           - simCtrl_.appliedFrameCount();
+            if (dropped < 0) dropped = 0;
+            QString text = QString("%1  %2 B/f  %3 us")
+                .arg(QString::fromStdString(
+                         stats.compression == "none" || stats.format == "json"
+                             ? stats.format
+                             : stats.format + "/" + stats.compression))
+                .arg(stats.lastFrameBytes)
+                .arg(stats.decodeAvgUs, 0, 'f', 1);
+            if (dropped > 0) {
+                text += QString("  %1 drop").arg(dropped);
+            }
+            if (stats.decodeErrors > 0) {
+                text += QString("  %1 err")
+                    .arg(static_cast<qulonglong>(stats.decodeErrors));
+            }
+            streamLabel_->setText(text);
+        }
     }
 }
 
@@ -107,6 +137,7 @@ void TimelinePanel::onSimulationStarted()
 {
     lastFpsTime_ = QDateTime::currentMSecsSinceEpoch();
     framesSinceLastFps_ = 0;
+    streamLabel_->setText(tr(""));
     pollTimer_->start();
 }
 
@@ -114,6 +145,7 @@ void TimelinePanel::onSimulationStopped()
 {
     pollTimer_->stop();
     fpsLabel_->setText(tr(""));
+    streamLabel_->setText(tr(""));
 }
 
 // --- Playback mode ---
@@ -148,6 +180,7 @@ void TimelinePanel::enterPlaybackMode(double startTime, double endTime, double f
 
     // Hide simulation-mode widgets
     fpsLabel_->setVisible(false);
+    streamLabel_->setVisible(false);
     pollTimer_->stop();
 
     updateFrameLabel();
@@ -160,6 +193,7 @@ void TimelinePanel::enterSimulationMode()
     playbackSlider_->setVisible(false);
     frameLabel_->setVisible(false);
     fpsLabel_->setVisible(true);
+    streamLabel_->setVisible(true);
     timeLabel_->setText(tr("Sim: 0.000 s"));
 }
 

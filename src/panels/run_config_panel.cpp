@@ -23,6 +23,19 @@ RunConfigPanel::RunConfigPanel(QWidget* parent)
     modeCombo_->addItem(tr("Cloud (SkyPilot)"), static_cast<int>(connection::ConnectionMode::Cloud));
     form->addRow(tr("Mode:"), modeCombo_);
 
+    // Stream format selector (MIME v0.2 fit-up §8). "Auto" leaves the
+    // runner at its default; JSON/Binary set MIME_STREAM_FORMAT on the
+    // spawned runner. MICROROBOTICA decodes whichever the handshake reports.
+    streamFormatCombo_ = new QComboBox(container);
+    streamFormatCombo_->addItem(tr("Auto (runner default)"), QString());
+    streamFormatCombo_->addItem(tr("JSON"), QStringLiteral("json"));
+    streamFormatCombo_->addItem(tr("Binary"), QStringLiteral("binary"));
+    streamFormatCombo_->setToolTip(
+        tr("ResultFrame wire format the spawned MIME runner streams.\n"
+           "Binary is compact (~7x smaller); MICROROBOTICA negotiates and\n"
+           "decodes whichever the runner declares."));
+    form->addRow(tr("Stream format:"), streamFormatCombo_);
+
     // Experiment directory
     auto* dirLayout = new QHBoxLayout;
     experimentDirEdit_ = new QLineEdit(container);
@@ -73,6 +86,17 @@ connection::ConnectionMode RunConfigPanel::selectedMode() const {
 
 std::string RunConfigPanel::experimentDir() const {
     return experimentDirEdit_->text().toStdString();
+}
+
+void RunConfigPanel::setExperimentDir(const std::string& path) {
+    // experimentDirChanged is only emitted from the browse button — calling
+    // QLineEdit::setText here triggers Qt's built-in textChanged but not
+    // our custom signal, so this does not re-enter initExperiment.
+    experimentDirEdit_->setText(QString::fromStdString(path));
+}
+
+std::string RunConfigPanel::streamFormat() const {
+    return streamFormatCombo_->currentData().toString().toStdString();
 }
 
 void RunConfigPanel::setConnectionStatus(const QString& status) {

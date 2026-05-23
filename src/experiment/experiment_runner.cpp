@@ -1,5 +1,6 @@
 #include "experiment/experiment_runner.h"
 #include <spdlog/spdlog.h>
+#include <QProcessEnvironment>
 
 #include <chrono>
 #include <thread>
@@ -22,7 +23,8 @@ ExperimentRunner::~ExperimentRunner() {
     stop();
 }
 
-bool ExperimentRunner::start(const std::string& experiment_dir) {
+bool ExperimentRunner::start(const std::string& experiment_dir,
+                              const std::string& stream_format) {
     if (process_ && process_->state() != QProcess::NotRunning) {
         spdlog::warn("ExperimentRunner: Process already running — stop it first");
         return false;
@@ -32,6 +34,18 @@ bool ExperimentRunner::start(const std::string& experiment_dir) {
     status_ = RunnerStatus::Starting;
 
     process_ = new QProcess(this);
+
+    // Request a ResultFrame wire format from the runner (fit-up §8). The
+    // subprocess otherwise inherits this process's environment unchanged.
+    if (!stream_format.empty()) {
+        QProcessEnvironment env = QProcessEnvironment::systemEnvironment();
+        env.insert("MIME_STREAM_FORMAT",
+                   QString::fromStdString(stream_format));
+        process_->setProcessEnvironment(env);
+        spdlog::info("ExperimentRunner: requesting MIME_STREAM_FORMAT={}",
+                     stream_format);
+    }
+
     connect(process_,
             QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
             this, &ExperimentRunner::onProcessFinished);
@@ -85,6 +99,54 @@ bool ExperimentRunner::isRunning() const {
     return process_ && process_->state() == QProcess::Running;
 }
 
+namespace {
+
+/// Single non-blocking TCP probe of 127.0.0.1:port. Used by both the
+/// blocking waitUntilReady (in a sleep loop) and the async probeReady
+/// (driven from a QTimer).
+bool probeLocalhostPort(int port, int select_timeout_ms) {
+    int s = ::socket(AF_INET, SOCK_STREAM, 0);
+    if (s < 0) return false;
+
+    sockaddr_in addr{};
+    addr.sin_family = AF_INET;
+    addr.sin_port = htons(static_cast<uint16_t>(port));
+    ::inet_pton(AF_INET, "127.0.0.1", &addr.sin_addr);
+
+    int flags = ::fcntl(s, F_GETFL, 0);
+    ::fcntl(s, F_SETFL, flags | O_NONBLOCK);
+
+    int rc = ::connect(s, reinterpret_cast<sockaddr*>(&addr), sizeof(addr));
+    bool connected = (rc == 0);
+    if (rc < 0 && errno == EINPROGRESS) {
+        fd_set wfds;
+        FD_ZERO(&wfds);
+        FD_SET(s, &wfds);
+        timeval tv{select_timeout_ms / 1000,
+                    (select_timeout_ms % 1000) * 1000};
+        int sel = ::select(s + 1, nullptr, &wfds, nullptr, &tv);
+        if (sel > 0) {
+            int err = 0;
+            socklen_t errlen = sizeof(err);
+            if (::getsockopt(s, SOL_SOCKET, SO_ERROR, &err, &errlen) == 0
+                && err == 0) {
+                connected = true;
+            }
+        }
+    }
+    ::close(s);
+    return connected;
+}
+
+} // namespace
+
+bool ExperimentRunner::probeReady(int port, int timeout_ms) {
+    if (!process_ || process_->state() != QProcess::Running) {
+        return false;
+    }
+    return probeLocalhostPort(port, timeout_ms);
+}
+
 bool ExperimentRunner::waitUntilReady(int timeout_ms, int port) {
     using clock = std::chrono::steady_clock;
     const auto deadline = clock::now()
@@ -98,42 +160,7 @@ bool ExperimentRunner::waitUntilReady(int timeout_ms, int port) {
             return false;
         }
 
-        // Try to open a TCP connection to localhost:<port>. If it
-        // succeeds, ZMQ has bound and we're good. If it refuses, retry.
-        int s = ::socket(AF_INET, SOCK_STREAM, 0);
-        if (s < 0) {
-            std::this_thread::sleep_for(std::chrono::milliseconds(100));
-            continue;
-        }
-
-        sockaddr_in addr{};
-        addr.sin_family = AF_INET;
-        addr.sin_port = htons(static_cast<uint16_t>(port));
-        ::inet_pton(AF_INET, "127.0.0.1", &addr.sin_addr);
-
-        // Non-blocking connect with 200 ms select.
-        int flags = ::fcntl(s, F_GETFL, 0);
-        ::fcntl(s, F_SETFL, flags | O_NONBLOCK);
-
-        int rc = ::connect(s, reinterpret_cast<sockaddr*>(&addr), sizeof(addr));
-        bool connected = (rc == 0);
-        if (rc < 0 && errno == EINPROGRESS) {
-            fd_set wfds;
-            FD_ZERO(&wfds);
-            FD_SET(s, &wfds);
-            timeval tv{0, 200000};
-            int sel = ::select(s + 1, nullptr, &wfds, nullptr, &tv);
-            if (sel > 0) {
-                int err = 0;
-                socklen_t errlen = sizeof(err);
-                if (::getsockopt(s, SOL_SOCKET, SO_ERROR, &err, &errlen) == 0
-                    && err == 0) {
-                    connected = true;
-                }
-            }
-        }
-        ::close(s);
-        if (connected) {
+        if (probeLocalhostPort(port, 200)) {
             spdlog::info("ExperimentRunner::waitUntilReady: ZMQ port {} "
                           "is accepting", port);
             return true;

@@ -16,6 +16,7 @@
 namespace microbotica::viewport {
 class ViewportWidget;
 class CameraToolbar;
+class NoticeOverlay;
 } // namespace microbotica::viewport
 
 namespace microbotica::panels {
@@ -86,6 +87,17 @@ private:
     /// Returns true if the experiment is ready to be launched.
     bool initExperiment(const QString& dir);
 
+    /// Async launch helpers — split out of onSimulationStart so the UI
+    /// thread stays responsive while the MIME runner's REP port comes up.
+    void startWaitingForRunner();
+    void finishWaitingForRunner(bool ok);
+    void finishSimulationStart();
+
+    /// Read the persisted notice-overlay preferences from QSettings and
+    /// apply them to noticeOverlay_. Called on startup and after the
+    /// Settings dialog is accepted.
+    void applyNoticeSettings();
+
     // Core services
     core::NullAuditLogger auditLogger_;
     std::unique_ptr<scene::SceneManager> sceneMgr_;
@@ -102,6 +114,7 @@ private:
 
     // Central widget
     viewport::ViewportWidget* viewportWidget_ = nullptr;
+    viewport::NoticeOverlay* noticeOverlay_ = nullptr;
 
     // Toolbars
     viewport::CameraToolbar* cameraToolbar_ = nullptr;

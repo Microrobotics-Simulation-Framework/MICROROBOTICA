@@ -12,6 +12,7 @@
         "spdlog",
         "zeromq",
         "cppzmq",
+        "zstd",
         "catch2",
         "pybind11"
     ],

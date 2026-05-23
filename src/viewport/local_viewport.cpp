@@ -5,7 +5,9 @@
 
 #include <QPainter>
 #include <QOpenGLFunctions>
+#include <QOpenGLContext>
 #include <QSurfaceFormat>
+#include <QTimer>
 #include <spdlog/spdlog.h>
 #include "core/profiler.h"
 
@@ -16,13 +18,18 @@
 #include <pxr/base/gf/vec4d.h>
 #include <pxr/base/gf/vec4f.h>
 #include <pxr/base/gf/vec3f.h>
+#include <pxr/base/gf/range3d.h>
+#include <pxr/base/vt/value.h>
+#include <pxr/imaging/hgi/tokens.h>
 #include <pxr/usd/usd/prim.h>
+#include <pxr/usd/usdGeom/bboxCache.h>
+#include <pxr/usd/usdGeom/tokens.h>
 #endif
 
 namespace microbotica::viewport {
 
-LocalViewport::LocalViewport(QWidget* parent)
-    : QOpenGLWidget(parent)
+LocalViewport::LocalViewport(QWindow* parent)
+    : QOpenGLWindow(QOpenGLWindow::NoPartialUpdate, parent)
 {
     MBCA_EXPERIMENTAL_WARN("LocalViewport");
 
@@ -35,14 +42,36 @@ LocalViewport::LocalViewport(QWidget* parent)
     fmt.setProfile(QSurfaceFormat::CompatibilityProfile);
     fmt.setDepthBufferSize(24);
     fmt.setStencilBufferSize(8);
+    // 4x MSAA. Also required by params.enableSampleAlphaToCoverage (set in
+    // paintGL): Storm fakes order-independent transparency by turning fragment
+    // alpha into multisample coverage, so the translucent vessel / tube
+    // materials only render see-through when a multisample buffer exists.
     fmt.setSamples(4);
+    // Swap interval 0 — do NOT vsync this window. It is a native window
+    // composited by the desktop compositor, which already presents at the
+    // display refresh. Vsyncing here too creates a double-sync: this window's
+    // buffer swap blocks on vblank and contends with the compositor's own
+    // present, which hitches the whole desktop — worst during continuous
+    // repaints such as zooming. Let the compositor be the sole vsync.
+    fmt.setSwapInterval(0);
     setFormat(fmt);
 
     cameraController_ = new CameraController(this);
     installEventFilter(cameraController_);
 
-    setFocusPolicy(Qt::StrongFocus);
-    setMouseTracking(true);
+    // Repaint on demand when the camera moves. The camera controller cannot
+    // call update() on us directly — this is a native QWindow, not a QWidget —
+    // so it signals instead.
+    connect(cameraController_, &CameraController::cameraChanged,
+            this, [this]() { update(); });
+
+    // Continuous-rendering timer, used only for live simulation (the USD stage
+    // mutates every step with nothing else triggering a repaint). Started and
+    // stopped by setContinuousRendering(); it stays idle for recordings, which
+    // repaint on demand and otherwise leave the GPU alone.
+    renderTimer_ = new QTimer(this);
+    renderTimer_->setInterval(16);  // ~60 fps
+    connect(renderTimer_, &QTimer::timeout, this, [this]() { update(); });
 
 #ifdef MICROBOTICA_HAS_USD
     usdAvailable_ = true;
@@ -52,10 +81,9 @@ LocalViewport::LocalViewport(QWidget* parent)
 }
 
 void LocalViewport::setContinuousRendering(bool enabled) {
+    // The viewport renders continuously whenever a stage is loaded (the timer
+    // is started by setStage), so this flag is informational only.
     continuousRendering_ = enabled;
-    if (enabled) {
-        update(); // Kick off the loop
-    }
 }
 
 void LocalViewport::setTimeCode(double t) {
@@ -78,10 +106,45 @@ void LocalViewport::setStage(UsdStageRefPtr stage)
     stage_ = stage;
     engine_.reset();
 
+    // Compute the scene's world-space bounds once, here, so paintGL can fit the
+    // near/far clip planes to it (see the depth-precision note there). Union
+    // start / middle / end so an animated recording is fully enclosed.
+    sceneCenter_ = GfVec3d(0.0);
+    sceneRadius_ = 0.0;
     if (stage_) {
-        // Engine will be (re)created on the next paintGL when GL context is current.
+        UsdGeomBBoxCache bboxCache(
+            UsdTimeCode::Default(),
+            {UsdGeomTokens->default_, UsdGeomTokens->render},
+            /*useExtentsHint*/ true);
+        GfRange3d range;
+        const double t0 = stage_->GetStartTimeCode();
+        const double t1 = stage_->GetEndTimeCode();
+        for (double t : {t0, 0.5 * (t0 + t1), t1}) {
+            bboxCache.SetTime(UsdTimeCode(t));
+            range.UnionWith(bboxCache.ComputeWorldBound(
+                stage_->GetPseudoRoot()).ComputeAlignedRange());
+        }
+        if (!range.IsEmpty()) {
+            sceneCenter_ = range.GetMidpoint();
+            sceneRadius_ = 0.5 * range.GetSize().GetLength();
+        }
     }
 
+    // Storm warms up over the first frames after the engine is recreated
+    // (shader compiles, texture loads); allow a bounded burst of repaints to
+    // converge that. See the convergence pump in paintGL().
+    convergencePumpsLeft_ = 180;
+
+    // Drive the viewport from the repaint timer the whole time a stage is
+    // loaded. On-demand repainting proved unreliable for this embedded native
+    // window (paintGL simply stopped being called), so render continuously
+    // instead — the same configuration that worked after the native-window
+    // switch. The engine is (re)created on the next paintGL.
+    if (stage_) {
+        renderTimer_->start();
+    } else {
+        renderTimer_->stop();
+    }
     update();
 }
 #endif
@@ -135,7 +198,7 @@ void LocalViewport::paintGL()
         QPainter painter(this);
         painter.setPen(Qt::white);
         painter.setFont(QFont("Sans", 12));
-        painter.drawText(rect(), Qt::AlignCenter,
+        painter.drawText(QRect(0, 0, width(), height()), Qt::AlignCenter,
             QStringLiteral("Hydra/Storm render failed (GL errors)\n"
                            "Scene loaded OK — viewport will switch to Software mode"));
         painter.end();
@@ -178,8 +241,18 @@ void LocalViewport::paintGL()
 
     GfVec3d up(0.0, 0.0, 1.0);
 
-    const double nearPlane = std::max(dist * 0.001, 1e-7);
-    const double farPlane  = dist * 10000.0;
+    // Fit the clip planes to the scene bounds rather than using a fixed,
+    // enormous near/far ratio (which would wreck depth-buffer precision).
+    // Falls back to a distance-based estimate if the bounds are unavailable.
+    double nearPlane, farPlane;
+    if (sceneRadius_ > 0.0) {
+        const double camToScene = (eye - sceneCenter_).GetLength();
+        farPlane  = camToScene + sceneRadius_ * 1.25;
+        nearPlane = std::max(camToScene - sceneRadius_ * 1.25, farPlane * 1e-4);
+    } else {
+        nearPlane = std::max(dist * 0.001, 1e-7);
+        farPlane  = dist * 10.0;
+    }
 
     // Build view and projection matrices directly.
     // SetLookAt(eye, target, up) produces the world-to-camera transform.
@@ -238,9 +311,27 @@ void LocalViewport::paintGL()
 
     engine_->SetLightingState(lights_, material_, sceneAmbient_);
 
+    // Present Storm's result into the framebuffer this QOpenGLWindow draws to.
+    // In NoPartialUpdate mode that is framebuffer 0 (the window surface), which
+    // is also Storm's default — but binding it explicitly keeps this correct if
+    // the update mode ever changes to an FBO-backed one. Re-set every frame
+    // because the framebuffer can be recreated on resize.
+    engine_->SetPresentationOutput(
+        HgiTokens->OpenGL,
+        VtValue(static_cast<uint32_t>(defaultFramebufferObject())));
+
     {
         MBCA_PROFILE_SCOPE("hydra_render");
         engine_->Render(stage_->GetPseudoRoot(), params);
+    }
+
+    // Storm normally converges in a single Render(); the exception is warm-up
+    // right after a stage loads (shader compiles, texture loads). Pump a
+    // bounded number of repaints to get through that — bounded so a backend
+    // that never reports convergence cannot spin the render loop forever.
+    if (!engine_->IsConverged() && convergencePumpsLeft_ > 0) {
+        --convergencePumpsLeft_;
+        update();
     }
 
 #else
@@ -248,17 +339,10 @@ void LocalViewport::paintGL()
     QPainter painter(this);
     painter.setPen(Qt::white);
     painter.setFont(QFont("Sans", 14));
-    painter.drawText(rect(), Qt::AlignCenter,
+    painter.drawText(QRect(0, 0, width(), height()), Qt::AlignCenter,
                      QStringLiteral("OpenUSD not available"));
     painter.end();
 #endif
-
-    // Self-driving render loop: when continuous rendering is enabled
-    // (simulation running), schedule the next repaint immediately.
-    // This creates a vsync-paced loop instead of relying on QTimer.
-    if (continuousRendering_) {
-        update();
-    }
 }
 
 void LocalViewport::resizeGL(int w, int h)

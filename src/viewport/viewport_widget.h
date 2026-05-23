@@ -85,6 +85,7 @@ signals:
 
 private:
     LocalViewport* localViewport_ = nullptr;
+    QWidget* localViewportContainer_ = nullptr;
     SoftwareViewport* softwareViewport_ = nullptr;
     core::RenderMode currentMode_ = core::RenderMode::Software;
 

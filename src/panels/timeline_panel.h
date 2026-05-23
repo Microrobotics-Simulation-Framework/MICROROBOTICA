@@ -69,6 +69,7 @@ private:
 
     // Shared widgets
     QLabel* timeLabel_ = nullptr;
+    QLabel* streamLabel_ = nullptr;  ///< wire-format benchmark readout
     QLabel* fpsLabel_ = nullptr;
 
     // Simulation mode

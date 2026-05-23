@@ -69,6 +69,24 @@ void SettingsDialog::createGeneralTab(QTabWidget* tabs) {
     zmqReqPort_->setValue(5555);
     form->addRow(tr("ZMQ REQ port:"), zmqReqPort_);
 
+    // ── Notices: viewport overlay shown for long-running background state
+    // (waiting on the MIME runner, decode errors, ...). Style is inspired
+    // by noice.nvim — top-right floating cards with a severity accent.
+    form->addRow(new QLabel(tr(""), page)); // spacer
+    auto* noticesHeader = new QLabel(
+        tr("<b>Viewport notices</b>"), page);
+    form->addRow(noticesHeader);
+
+    showNotices_ = new QCheckBox(tr("Show notices over the 3D viewport"), page);
+    form->addRow(showNotices_);
+
+    noticeOpacity_ = new QSlider(Qt::Horizontal, page);
+    noticeOpacity_->setRange(20, 100);
+    noticeOpacity_->setValue(85);
+    noticeOpacity_->setToolTip(
+        tr("Background opacity of the notice cards (20–100%)."));
+    form->addRow(tr("Notice opacity:"), noticeOpacity_);
+
     tabs->addTab(page, tr("General"));
 }
 
@@ -167,6 +185,11 @@ void SettingsDialog::loadSettings() {
     zmqReqPort_->setValue(s.value("zmq_req_port", 5555).toInt());
     s.endGroup();
 
+    s.beginGroup("notices");
+    showNotices_->setChecked(s.value("enabled", true).toBool());
+    noticeOpacity_->setValue(s.value("opacity", 85).toInt());
+    s.endGroup();
+
     s.beginGroup("theme");
     QString theme = s.value("mode", "system").toString();
     int idx = themeCombo_->findData(theme);
@@ -203,6 +226,11 @@ void SettingsDialog::saveSettings() {
     s.setValue("zmq_req_port", zmqReqPort_->value());
     s.endGroup();
 
+    s.beginGroup("notices");
+    s.setValue("enabled", showNotices_->isChecked());
+    s.setValue("opacity", noticeOpacity_->value());
+    s.endGroup();
+
     s.beginGroup("theme");
     QString theme = themeCombo_->currentData().toString();
     s.setValue("mode", theme);
@@ -216,6 +244,7 @@ void SettingsDialog::saveSettings() {
     s.endGroup();
 
     Q_EMIT themeChanged(themeCombo_->currentData().toString());
+    Q_EMIT noticesChanged();
 }
 
 void SettingsDialog::refreshCredentialStatus() {

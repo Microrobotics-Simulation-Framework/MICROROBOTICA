@@ -4,6 +4,7 @@
 
 #include "core/stability.h"
 #include <QOpenGLContext>
+#include <QWidget>
 #include <spdlog/spdlog.h>
 
 namespace microbotica::viewport {
@@ -89,9 +90,14 @@ void ViewportWidget::setRenderMode(core::RenderMode mode)
                 return;
             }
 
-            localViewport_ = new LocalViewport(this);
-            addWidget(localViewport_);
-            spdlog::info("ViewportWidget: LocalViewport created on demand");
+            localViewport_ = new LocalViewport();
+            // LocalViewport is a native QOpenGLWindow — embed it in the widget
+            // hierarchy via a window container so it presents directly to the
+            // screen instead of through Qt's composited-widget path.
+            localViewportContainer_ = QWidget::createWindowContainer(localViewport_, this);
+            localViewportContainer_->setFocusPolicy(Qt::StrongFocus);
+            addWidget(localViewportContainer_);
+            spdlog::info("ViewportWidget: LocalViewport (native GL window) created on demand");
 
             // If Hydra fails on the first frame, fall back to Software
             connect(localViewport_, &LocalViewport::renderFailed,
@@ -114,7 +120,7 @@ void ViewportWidget::setRenderMode(core::RenderMode mode)
             }
 #endif
         }
-        setCurrentWidget(localViewport_);
+        setCurrentWidget(localViewportContainer_);
         break;
     }
     case core::RenderMode::Software:

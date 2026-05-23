@@ -1,10 +1,12 @@
 #pragma once
 
-#include <QOpenGLWidget>
+#include <QOpenGLWindow>
+#include <QTimer>
 
 #include "core/stability.h"
 
 #ifdef MICROBOTICA_HAS_USD
+#include <pxr/base/gf/vec3d.h>
 #include <pxr/usd/usd/stage.h>
 #include <pxr/usdImaging/usdImagingGL/engine.h>
 #include <pxr/imaging/glf/simpleLight.h>
@@ -16,15 +18,18 @@ namespace microbotica::viewport {
 
 class CameraController;
 
-/// QOpenGLWidget that renders a USD stage via UsdImagingGLEngine (Hydra/Storm).
+/// Native QOpenGLWindow that renders a USD stage via UsdImagingGLEngine
+/// (Hydra/Storm). Embedded into the widget hierarchy by ViewportWidget via
+/// QWidget::createWindowContainer — a native GL window presents directly
+/// (like glxgears) instead of going through Qt's composited-widget path.
 ///
 /// When USD is not available at build time, displays a placeholder message
 /// indicating that OpenUSD rendering is unavailable.
-class LocalViewport : public QOpenGLWidget {
+class LocalViewport : public QOpenGLWindow {
     Q_OBJECT
 
 public:
-    explicit LocalViewport(QWidget* parent = nullptr);
+    explicit LocalViewport(QWindow* parent = nullptr);
     ~LocalViewport() override;
 
 #ifdef MICROBOTICA_HAS_USD
@@ -56,11 +61,13 @@ Q_SIGNALS:
 
 private:
     CameraController* cameraController_ = nullptr;
+    QTimer* renderTimer_ = nullptr;
     bool usdAvailable_ = false;
     bool renderFailed_ = false;
     bool continuousRendering_ = false;
     bool useCustomTimeCode_ = false;
     double customTime_ = 0.0;
+    int convergencePumpsLeft_ = 0;
 
 #ifdef MICROBOTICA_HAS_USD
     UsdStageRefPtr stage_;
@@ -71,6 +78,11 @@ private:
     GlfSimpleLightVector lights_;
     GlfSimpleMaterial material_;
     GfVec4f sceneAmbient_;
+
+    // Scene bounds (world space), computed once when the stage is set. Used to
+    // fit the near/far clip planes snugly so depth-buffer precision stays high.
+    GfVec3d sceneCenter_ = GfVec3d(0.0);
+    double sceneRadius_ = 0.0;
 #endif
 };
 

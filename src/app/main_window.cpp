@@ -31,6 +31,9 @@
 #include "viewport/camera_toolbar.h"
 #include "viewport/camera_controller.h"
 #include "viewport/local_viewport.h"
+#include "viewport/notice_overlay.h"
+#include <QTimer>
+#include <chrono>
 #include "stubs/local_compute_backend.h"
 #include "experiment/experiment_runner.h"
 #include "experiment/experiment_loader.h"
@@ -74,6 +77,11 @@ MainWindow::MainWindow(QWidget* parent)
     viewportLayout->addWidget(viewportWidget_);
     setCentralWidget(viewportContainer);
 
+    // Top-level transparent-input notice overlay that follows the viewport
+    // (must be top-level — LocalViewport is a native window that hides
+    // sibling Qt widgets). Parented to `this` for lifetime management.
+    noticeOverlay_ = new viewport::NoticeOverlay(viewportWidget_);
+
     // Bottom-left corner goes to left dock area (hierarchy stays on left)
     setCorner(Qt::BottomLeftCorner, Qt::LeftDockWidgetArea);
     setCorner(Qt::TopRightCorner, Qt::RightDockWidgetArea);
@@ -90,6 +98,8 @@ MainWindow::MainWindow(QWidget* parent)
 
     // Restore user layout (overrides factory if saved)
     restoreLayout();
+
+    applyNoticeSettings();
 }
 
 MainWindow::~MainWindow()
@@ -438,9 +448,10 @@ void MainWindow::onFileOpen()
         connect(timelinePanel_, &panels::TimelinePanel::timeCodeChanged,
                 viewportWidget_, &viewport::ViewportWidget::setTimeCode);
 
-        // Show initial frame
+        // Show initial frame. No continuous rendering for recordings — the
+        // viewport repaints on demand (per played-back frame via setTimeCode,
+        // and on camera moves); a paused recording stays off the GPU.
         viewportWidget_->setTimeCode(start);
-        viewportWidget_->setContinuousRendering(true);
 
         statusBar()->showMessage(
             tr("Recording loaded: %1 frames at %2 fps")
@@ -485,7 +496,9 @@ bool MainWindow::initExperiment(const QString& dirStr)
     // user's next Launch press.
     experimentDir_ = dirStr.toStdString();
 
-    // Load the experiment's USD scene so the viewport has a stage.
+    // Load the experiment's USD scene so the viewport has a stage. If a
+    // previous experiment's scene is loaded, close it first — otherwise
+    // switching experiments would leave the old world.usda on screen.
     const QStringList candidates = {
         dirStr + "/scene/world.usda",
         dirStr + "/scene/world.usd",
@@ -495,7 +508,12 @@ bool MainWindow::initExperiment(const QString& dirStr)
     for (const QString& c : candidates) {
         if (QFile::exists(c)) { sceneUsd = c; break; }
     }
-    if (!sceneUsd.isEmpty() && !sceneMgr_->isLoaded()) {
+    if (!sceneUsd.isEmpty()) {
+        if (sceneMgr_->isLoaded()) {
+            spdlog::info("initExperiment: closing previous scene before "
+                          "loading the new one");
+            sceneMgr_->closeScene();
+        }
         spdlog::info("initExperiment: loading scene {}",
                       sceneUsd.toStdString());
         if (sceneMgr_->loadScene(sceneUsd.toStdString())) {
@@ -510,9 +528,16 @@ bool MainWindow::initExperiment(const QString& dirStr)
                 tr("Experiment scene file failed to load:\n%1\n"
                    "Open it manually via File → Open USD Scene.").arg(sceneUsd));
         }
-    } else if (sceneUsd.isEmpty()) {
+    } else {
         spdlog::warn("initExperiment: no scene/world.usd[a|c] under {}",
                       dirStr.toStdString());
+    }
+
+    // Mirror the path into the Run Configuration panel so File → Open
+    // Experiment shows up in the folder selector. setExperimentDir does
+    // not emit experimentDirChanged, so this won't re-enter initExperiment.
+    if (runConfigPanel_) {
+        runConfigPanel_->setExperimentDir(dirStr.toStdString());
     }
 
     // Note: the MIME runner subprocess is NOT spawned here. It is
@@ -605,15 +630,9 @@ void MainWindow::onFileOpenExperiment()
 
     if (dirStr.isEmpty()) return;
 
-    if (!initExperiment(dirStr)) return;
-
-    // Mirror the directory into RunConfigPanel (guarded so the
-    // re-entrant experimentDirChanged → initExperiment chain doesn't
-    // double-fire).
-    if (runConfigPanel_) {
-        QSignalBlocker blocker(runConfigPanel_);
-        Q_EMIT runConfigPanel_->experimentDirChanged(dirStr);
-    }
+    // initExperiment mirrors the path into runConfigPanel_ via
+    // setExperimentDir, so nothing else is needed here.
+    initExperiment(dirStr);
 }
 
 void MainWindow::onFileClose()
@@ -649,7 +668,8 @@ void MainWindow::onSimulationStart()
     // Playback mode: play/resume the animation
     if (playbackMode_) {
         timelinePanel_->playbackPlay();
-        viewportWidget_->setContinuousRendering(true);
+        // Playback drives the viewport on demand: the playback timer emits a
+        // new timecode per frame, each of which repaints. No continuous loop.
         statusBar()->showMessage(tr("Playback started"));
         if (cameraToolbar_) cameraToolbar_->onSimStarted();
         return;
@@ -719,9 +739,14 @@ void MainWindow::onSimulationStart()
             }
         }
 
+        // Stream format requested in the Run Configuration panel (fit-up
+        // §8): "" Auto, "json", or "binary" → MIME_STREAM_FORMAT.
+        const std::string streamFormat =
+            runConfigPanel_ ? runConfigPanel_->streamFormat() : std::string();
+
         bool spawned = false;
         for (int attempt = 1; attempt <= 3; ++attempt) {
-            if (experimentRunner_->start(experimentDir_)) {
+            if (experimentRunner_->start(experimentDir_, streamFormat)) {
                 spawned = true;
                 break;
             }
@@ -737,46 +762,114 @@ void MainWindow::onSimulationStart()
         }
     }
 
-    // The MIME runner spends ~2 s building the graph + JIT-compiling
-    // before it binds its ZMQ ports. Probe the REP port (5555) until it
-    // accepts so the upcoming MimePhysicsProcess::launch sendCommand()
-    // doesn't hit a 5 s receive timeout against an unbound port.
+    // The MIME runner spends a few seconds building the graph + JIT-compiling
+    // before its ZMQ ports accept. Defer the rest of the launch sequence
+    // until the REP port is up, keeping the Qt event loop running so the
+    // viewport stays interactive and the notice overlay can render.
     if (!experimentDir_.empty()
         && experimentRunner_ && experimentRunner_->isRunning()) {
-        statusBar()->showMessage(tr("Waiting for MIME runner..."));
-        QApplication::processEvents();
-        if (!experimentRunner_->waitUntilReady(30000, 5555)) {
-            spdlog::error("onSimulationStart: MIME runner not ready");
+        startWaitingForRunner();
+        return;
+    }
+
+    // No experiment dir → stub-backend path: finish synchronously.
+    finishSimulationStart();
+}
+
+void MainWindow::startWaitingForRunner()
+{
+    statusBar()->showMessage(tr("Waiting for MIME runner..."));
+    if (runConfigPanel_) {
+        runConfigPanel_->setLaunchEnabled(false);
+        runConfigPanel_->setConnectionStatus(tr("Waiting for runner..."));
+    }
+    if (noticeOverlay_) {
+        noticeOverlay_->addNotice(
+            QStringLiteral("waiting-mime"),
+            viewport::NoticeOverlay::Severity::Info,
+            tr("Starting MIME runner"),
+            tr("Compiling the physics graph and binding ZMQ sockets — "
+               "this usually takes a few seconds. "
+               "You can keep navigating the viewport while it finishes."));
+    }
+
+    auto* timer = new QTimer(this);
+    timer->setInterval(150);
+    const auto start = std::chrono::steady_clock::now();
+    connect(timer, &QTimer::timeout, this, [this, timer, start]() {
+        if (!experimentRunner_ || !experimentRunner_->isRunning()) {
+            timer->stop();
+            timer->deleteLater();
+            spdlog::error("startWaitingForRunner: runner stopped before becoming ready");
+            finishWaitingForRunner(false);
+            QMessageBox::critical(this, tr("Experiment failed"),
+                tr("The MIME runner stopped before becoming ready. "
+                   "Check the console for a Python traceback."));
+            return;
+        }
+        if (experimentRunner_->probeReady(5555, 80)) {
+            timer->stop();
+            timer->deleteLater();
+            finishWaitingForRunner(true);
+            return;
+        }
+        const auto elapsed = std::chrono::steady_clock::now() - start;
+        if (elapsed > std::chrono::seconds(30)) {
+            timer->stop();
+            timer->deleteLater();
+            spdlog::error("startWaitingForRunner: MIME runner not ready in 30s");
+            finishWaitingForRunner(false);
             QMessageBox::critical(this, tr("Experiment startup timeout"),
                 tr("The MIME runner subprocess did not finish initialising "
                    "within 30 s. Check the console for a Python traceback."));
-        } else {
-            // graph.json is now written by the runner. Refresh the
-            // GraphInspector if it didn't pick it up during init.
-            const QString graphJson =
-                QString::fromStdString(experimentDir_) + "/graph.json";
-            if (graphInspector_ && QFile::exists(graphJson)) {
-                QFile f(graphJson);
-                if (f.open(QIODevice::ReadOnly)) {
-                    try {
-                        auto j = nlohmann::json::parse(
-                            f.readAll().toStdString());
-                        graphInspector_->loadFromJson(j);
-                        spdlog::info(
-                            "GraphInspector: refreshed after Launch ({} nodes)",
-                            j.value("nodes",
-                                     nlohmann::json::object()).size());
-                    } catch (...) { /* already-logged in init path */ }
-                }
+        }
+    });
+    timer->start();
+}
+
+void MainWindow::finishWaitingForRunner(bool ok)
+{
+    if (noticeOverlay_) {
+        noticeOverlay_->removeNotice(QStringLiteral("waiting-mime"));
+    }
+    if (!ok) {
+        statusBar()->showMessage(tr("Experiment failed to start"));
+        if (runConfigPanel_) {
+            runConfigPanel_->setLaunchEnabled(true);
+            runConfigPanel_->setConnectionStatus(tr("Idle"));
+        }
+        return;
+    }
+    // graph.json is now written by the runner. Refresh the GraphInspector
+    // if it didn't pick it up during init.
+    if (!experimentDir_.empty()) {
+        const QString graphJson =
+            QString::fromStdString(experimentDir_) + "/graph.json";
+        if (graphInspector_ && QFile::exists(graphJson)) {
+            QFile f(graphJson);
+            if (f.open(QIODevice::ReadOnly)) {
+                try {
+                    auto j = nlohmann::json::parse(
+                        f.readAll().toStdString());
+                    graphInspector_->loadFromJson(j);
+                    spdlog::info(
+                        "GraphInspector: refreshed after Launch ({} nodes)",
+                        j.value("nodes",
+                                 nlohmann::json::object()).size());
+                } catch (...) { /* already-logged in init path */ }
             }
         }
     }
+    finishSimulationStart();
+}
 
+void MainWindow::finishSimulationStart()
+{
     core::PhysicsConfig config;
 
     const bool have_experiment = !experimentDir_.empty()
         && experimentRunner_ && experimentRunner_->isRunning();
-    spdlog::info("onSimulationStart: experimentDir='{}' runner={}  → {}",
+    spdlog::info("finishSimulationStart: experimentDir='{}' runner={}  → {}",
                   experimentDir_,
                   (experimentRunner_ ? (experimentRunner_->isRunning()
                                          ? "running" : "stopped")
@@ -888,7 +981,21 @@ void MainWindow::onSettings()
     connect(&dialog, &SettingsDialog::themeChanged, this, [](const QString& theme) {
         ThemeManager::applyTheme(theme);
     });
+    connect(&dialog, &SettingsDialog::noticesChanged, this,
+            &MainWindow::applyNoticeSettings);
     dialog.exec();
+}
+
+void MainWindow::applyNoticeSettings()
+{
+    if (!noticeOverlay_) return;
+    QSettings s;
+    s.beginGroup("notices");
+    const bool enabled = s.value("enabled", true).toBool();
+    const int opacity  = s.value("opacity", 85).toInt();
+    s.endGroup();
+    noticeOverlay_->setOverlayEnabled(enabled);
+    noticeOverlay_->setOpacityPercent(opacity);
 }
 
 void MainWindow::onFrameReady(const core::ResultFrame& frame)
