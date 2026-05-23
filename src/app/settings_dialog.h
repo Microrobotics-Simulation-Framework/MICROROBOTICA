@@ -5,6 +5,8 @@
 #include <QLineEdit>
 #include <QSpinBox>
 #include <QDoubleSpinBox>
+#include <QCheckBox>
+#include <QSlider>
 #include <QLabel>
 
 namespace microbotica::app {
@@ -30,6 +32,10 @@ Q_SIGNALS:
     /// Emitted when the theme changes and the caller should re-apply the palette.
     void themeChanged(const QString& theme);
 
+    /// Emitted after Save so the caller can re-apply the notice-overlay
+    /// preferences (enabled/opacity) to the live NoticeOverlay widget.
+    void noticesChanged();
+
 private:
     void createGeneralTab(QTabWidget* tabs);
     void createThemeTab(QTabWidget* tabs);
@@ -40,6 +46,10 @@ private:
     QLineEdit* defaultExperimentDir_ = nullptr;
     QSpinBox* zmqPubPort_ = nullptr;
     QSpinBox* zmqReqPort_ = nullptr;
+
+    // Notices group (in General tab)
+    QCheckBox* showNotices_ = nullptr;
+    QSlider* noticeOpacity_ = nullptr;
 
     // Theme tab
     QComboBox* themeCombo_ = nullptr;

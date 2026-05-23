@@ -88,6 +88,13 @@ std::string RunConfigPanel::experimentDir() const {
     return experimentDirEdit_->text().toStdString();
 }
 
+void RunConfigPanel::setExperimentDir(const std::string& path) {
+    // experimentDirChanged is only emitted from the browse button — calling
+    // QLineEdit::setText here triggers Qt's built-in textChanged but not
+    // our custom signal, so this does not re-enter initExperiment.
+    experimentDirEdit_->setText(QString::fromStdString(path));
+}
+
 std::string RunConfigPanel::streamFormat() const {
     return streamFormatCombo_->currentData().toString().toStdString();
 }

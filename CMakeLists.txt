@@ -145,6 +145,7 @@ target_sources(microbotica PRIVATE
     src/viewport/software_viewport.cpp
     src/viewport/camera_controller.cpp
     src/viewport/camera_toolbar.cpp
+    src/viewport/notice_overlay.cpp
     src/panels/scene_hierarchy_panel.cpp
     src/panels/property_panel.cpp
     src/panels/timeline_panel.cpp

@@ -81,6 +81,13 @@ public:
     /// @return true if the port is accepting within timeout_ms.
     bool waitUntilReady(int timeout_ms = 30000, int port = 5555);
 
+    /// Single non-blocking TCP probe of localhost:port with a short
+    /// select() timeout. Returns true if the port accepts a connection
+    /// within `timeout_ms` (default 100). Intended to be driven from a
+    /// QTimer so the UI thread stays responsive while the MIME runner
+    /// is JIT-compiling.
+    bool probeReady(int port = 5555, int timeout_ms = 100);
+
     /// Stop the running MIME subprocess gracefully.
     void stop();
 

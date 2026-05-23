@@ -25,6 +25,12 @@ public:
     /// Get the experiment directory path.
     std::string experimentDir() const;
 
+    /// Set the experiment directory text. Does NOT emit
+    /// experimentDirChanged — call this from code paths that already know
+    /// the experiment is loaded (e.g. File → Open Experiment) to mirror
+    /// the path into the panel without re-triggering initExperiment.
+    void setExperimentDir(const std::string& path);
+
     /// Get the requested ResultFrame stream format (MIME v0.2 fit-up §8):
     /// "" (Auto — runner default), "json", or "binary". Passed to the
     /// MIME runner as MIME_STREAM_FORMAT when non-empty.
