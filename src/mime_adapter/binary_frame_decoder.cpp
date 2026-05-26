@@ -11,9 +11,19 @@ namespace microbotica::mime {
 
 namespace {
 
-// Little-endian readers. The wire format is explicitly little-endian
-// (fit-up §8); building each value byte-by-byte keeps the decoder correct
-// regardless of host endianness.
+// The wire format is little-endian (fit-up §8). On a little-endian host the
+// float32 payload is byte-identical to native float32, so a single memcpy
+// suffices for the whole array; on big-endian hosts we fall back to a
+// per-float byte-reassembly loop.
+#if defined(__BYTE_ORDER__) && __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+constexpr bool kHostIsLittleEndian = true;
+#elif defined(__BYTE_ORDER__) && __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
+constexpr bool kHostIsLittleEndian = false;
+#else
+// Unknown — be safe and use the byte-reassembly path.
+constexpr bool kHostIsLittleEndian = false;
+#endif
+
 std::uint32_t readU32LE(const std::uint8_t* p) {
     return static_cast<std::uint32_t>(p[0])
          | (static_cast<std::uint32_t>(p[1]) << 8)
@@ -48,6 +58,76 @@ bool endsWith(const std::string& s, const std::string& suffix) {
         && s.compare(s.size() - suffix.size(), suffix.size(), suffix) == 0;
 }
 
+// Decompress (or directly copy) the wire payload into `scratch` as
+// total_floats consecutive float32s. Throws on size mismatch or
+// unsupported compression.
+void payloadToFloats(const std::uint8_t* body, std::size_t body_size,
+                     const BinaryStreamSchema& schema,
+                     std::vector<float>& scratch) {
+    const std::size_t total = static_cast<std::size_t>(schema.total_floats);
+    const std::size_t expected_bytes = total * 4u;
+    scratch.resize(total);
+
+    const std::string& comp = schema.compression;
+    if (comp == "none") {
+        if (body_size != expected_bytes) {
+            throw std::runtime_error(
+                "binary frame payload size mismatch: got "
+                + std::to_string(body_size) + " bytes, schema expects "
+                + std::to_string(expected_bytes) + " ("
+                + std::to_string(schema.total_floats) + " float32s)");
+        }
+        if constexpr (kHostIsLittleEndian) {
+            std::memcpy(scratch.data(), body, expected_bytes);
+        } else {
+            for (std::size_t i = 0; i < total; ++i) {
+                scratch[i] = readF32LE(body + i * 4);
+            }
+        }
+        return;
+    }
+
+    if (comp == "zstd") {
+#ifdef MICROBOTICA_HAS_ZSTD
+        const std::size_t got = ZSTD_decompress(
+            scratch.data(), expected_bytes, body, body_size);
+        if (ZSTD_isError(got)) {
+            throw std::runtime_error(
+                std::string("zstd decompression failed: ")
+                + ZSTD_getErrorName(got));
+        }
+        if (got != expected_bytes) {
+            throw std::runtime_error(
+                "binary frame payload size mismatch after zstd: got "
+                + std::to_string(got) + " bytes, schema expects "
+                + std::to_string(expected_bytes));
+        }
+        // ZSTD wrote bytes into scratch's float storage. On big-endian
+        // hosts that storage interprets each 4-byte chunk in the wrong
+        // order; reswap into place.
+        if constexpr (!kHostIsLittleEndian) {
+            auto* bytes = reinterpret_cast<std::uint8_t*>(scratch.data());
+            std::vector<std::uint8_t> tmp(bytes, bytes + expected_bytes);
+            for (std::size_t i = 0; i < total; ++i) {
+                scratch[i] = readF32LE(tmp.data() + i * 4);
+            }
+        }
+        return;
+#else
+        throw std::runtime_error(
+            "binary frame uses zstd compression, but MICROROBOTICA was built "
+            "without libzstd support — rebuild with libzstd available");
+#endif
+    }
+
+    if (comp == "zstd+xor") {
+        throw std::runtime_error(
+            "binary frame uses 'zstd+xor' compression, which is stateful and "
+            "unsupported (the runner does not emit it)");
+    }
+    throw std::runtime_error("unknown binary compression: '" + comp + "'");
+}
+
 } // namespace
 
 BinaryStreamSchema parseBinarySchema(const nlohmann::json& schema_json) {
@@ -75,9 +155,53 @@ BinaryStreamSchema parseBinarySchema(const nlohmann::json& schema_json) {
     return schema;
 }
 
+std::vector<DecodePlanEntry> compileDecodePlan(
+    const BinaryStreamSchema& schema) {
+    std::vector<DecodePlanEntry> plan;
+    plan.reserve(schema.fields.size());
+    const std::size_t total = static_cast<std::size_t>(schema.total_floats);
+
+    for (const auto& field : schema.fields) {
+        // Validate the offset/count once here so the hot path never has to.
+        if (field.offset < 0 || field.count < 0
+            || static_cast<std::size_t>(field.offset)
+                   + static_cast<std::size_t>(field.count) > total) {
+            throw std::runtime_error(
+                "binary schema field '" + field.node + "/" + field.field
+                + "' is out of range for total_floats="
+                + std::to_string(schema.total_floats));
+        }
+
+        DecodePlanEntry entry;
+        entry.offset = field.offset;
+        entry.kind = DecodePlanEntry::Kind::Skip;
+
+        if (field.node == "poses" && field.count == 3
+            && endsWith(field.field, ".pos")) {
+            entry.kind = DecodePlanEntry::Kind::Position;
+            entry.name = field.field.substr(0, field.field.size() - 4);
+        } else if (field.node == "poses" && field.count == 4
+                   && endsWith(field.field, ".quat")) {
+            entry.kind = DecodePlanEntry::Kind::Orientation;
+            entry.name = field.field.substr(0, field.field.size() - 5);
+        } else if (field.node == "scalars" && field.count == 1) {
+            entry.kind = DecodePlanEntry::Kind::Scalar;
+            entry.name = field.field;
+        }
+        // Other shapes (e.g. mesh data, non-3 pos) → Skip — the JSON path
+        // never sees mesh data through binary; downstream rendering keeps
+        // the last mesh state, exactly as for JSON frames that omit
+        // "meshes".
+        plan.push_back(std::move(entry));
+    }
+    return plan;
+}
+
 core::ResultFrame decodeBinaryFrame(const std::uint8_t* data,
                                     std::size_t size,
-                                    const BinaryStreamSchema& schema) {
+                                    const BinaryStreamSchema& schema,
+                                    const std::vector<DecodePlanEntry>& plan,
+                                    std::vector<float>& scratch) {
     if (size < 8) {
         throw std::runtime_error(
             "binary frame too short: " + std::to_string(size)
@@ -87,99 +211,39 @@ core::ResultFrame decodeBinaryFrame(const std::uint8_t* data,
     core::ResultFrame frame;
     frame.simTime = readF64LE(data);
 
-    // The 8-byte sim_time header is always plaintext; everything after it
-    // is the (possibly compressed) float payload.
-    const std::uint8_t* body = data + 8;
-    const std::size_t body_size = size - 8;
+    payloadToFloats(data + 8, size - 8, schema, scratch);
 
-    std::vector<std::uint8_t> decompressed;
-    const std::uint8_t* floats_ptr = body;
-    std::size_t floats_size = body_size;
-
-    const std::string& comp = schema.compression;
-    if (comp == "none") {
-        // Payload is already raw float32s — nothing to do.
-    } else if (comp == "zstd") {
-#ifdef MICROBOTICA_HAS_ZSTD
-        const std::size_t expected =
-            static_cast<std::size_t>(schema.total_floats) * 4u;
-        decompressed.resize(expected);
-        const std::size_t got = ZSTD_decompress(
-            decompressed.data(), decompressed.size(), body, body_size);
-        if (ZSTD_isError(got)) {
-            throw std::runtime_error(
-                std::string("zstd decompression failed: ")
-                + ZSTD_getErrorName(got));
+    // Hot loop: precompiled plan + tight float lookups — no string ops.
+    for (const auto& entry : plan) {
+        const float* v = scratch.data() + entry.offset;
+        switch (entry.kind) {
+            case DecodePlanEntry::Kind::Position:
+                frame.positions[entry.name] = core::Vec3f{v[0], v[1], v[2]};
+                break;
+            case DecodePlanEntry::Kind::Orientation:
+                // Binary quat order is [w, x, y, z], matching core::Quatf.
+                frame.orientations[entry.name] =
+                    core::Quatf{v[0], v[1], v[2], v[3]};
+                break;
+            case DecodePlanEntry::Kind::Scalar:
+                frame.scalars[entry.name] = v[0];
+                break;
+            case DecodePlanEntry::Kind::Skip:
+                break;
         }
-        decompressed.resize(got);
-        floats_ptr = decompressed.data();
-        floats_size = decompressed.size();
-#else
-        throw std::runtime_error(
-            "binary frame uses zstd compression, but MICROROBOTICA was built "
-            "without libzstd support — rebuild with libzstd available");
-#endif
-    } else if (comp == "zstd+xor") {
-        throw std::runtime_error(
-            "binary frame uses 'zstd+xor' compression, which is stateful and "
-            "unsupported (the runner does not emit it)");
-    } else {
-        throw std::runtime_error("unknown binary compression: '" + comp + "'");
     }
-
-    const std::size_t expected_bytes =
-        static_cast<std::size_t>(schema.total_floats) * 4u;
-    if (floats_size != expected_bytes) {
-        throw std::runtime_error(
-            "binary frame payload size mismatch: got "
-            + std::to_string(floats_size) + " bytes, schema expects "
-            + std::to_string(expected_bytes) + " ("
-            + std::to_string(schema.total_floats) + " float32s)");
-    }
-
-    // Read the flat float32 array.
-    std::vector<float> values(static_cast<std::size_t>(schema.total_floats));
-    for (std::size_t i = 0; i < values.size(); ++i) {
-        values[i] = readF32LE(floats_ptr + i * 4);
-    }
-
-    // Walk the schema, mapping each field back into the ResultFrame — the
-    // inverse of the runner's _result_frame_to_binary_state():
-    //   poses/<actor>.pos  (3 floats) -> positions[<actor>]
-    //   poses/<actor>.quat (4 floats) -> orientations[<actor>]
-    //   scalars/<name>     (1 float)  -> scalars[<name>]
-    for (const auto& field : schema.fields) {
-        if (field.offset < 0 || field.count < 0
-            || static_cast<std::size_t>(field.offset)
-                   + static_cast<std::size_t>(field.count) > values.size()) {
-            throw std::runtime_error(
-                "binary schema field '" + field.node + "/" + field.field
-                + "' is out of range for total_floats="
-                + std::to_string(schema.total_floats));
-        }
-        const float* v = values.data() + field.offset;
-
-        if (field.node == "poses" && field.count == 3
-            && endsWith(field.field, ".pos")) {
-            const std::string actor =
-                field.field.substr(0, field.field.size() - 4);
-            frame.positions[actor] = core::Vec3f{v[0], v[1], v[2]};
-        } else if (field.node == "poses" && field.count == 4
-                   && endsWith(field.field, ".quat")) {
-            const std::string actor =
-                field.field.substr(0, field.field.size() - 5);
-            // Binary quat order is [w, x, y, z], matching core::Quatf.
-            frame.orientations[actor] = core::Quatf{v[0], v[1], v[2], v[3]};
-        } else if (field.node == "scalars" && field.count == 1) {
-            frame.scalars[field.field] = v[0];
-        }
-        // Any other node/field is ignored. The JSON path also carries
-        // meshes, but binary mode never streams them — downstream
-        // rendering keeps the last mesh state, exactly as for JSON
-        // frames that omit the "meshes" key.
-    }
-
     return frame;
+}
+
+core::ResultFrame decodeBinaryFrame(const std::uint8_t* data,
+                                    std::size_t size,
+                                    const BinaryStreamSchema& schema) {
+    // Slow path — compile the plan on every call. Convenient for one-shot
+    // use (tests, debugging); production callers should cache the plan and
+    // call the 5-arg overload.
+    const auto plan = compileDecodePlan(schema);
+    std::vector<float> scratch;
+    return decodeBinaryFrame(data, size, schema, plan, scratch);
 }
 
 bool looksLikeJsonMessage(const std::uint8_t* data, std::size_t size) {

@@ -9,6 +9,9 @@
 
 namespace microbotica::panels {
 
+class PythonHighlighter;
+
+
 /// Script editor dock panel with tabbed file editing.
 ///
 /// Opens experiment files (params.py, controller.py, setup.py) in tabs
@@ -35,6 +38,11 @@ public:
     /// Save all modified tabs.
     void saveAll();
 
+    /// Apply a Python highlighter theme by name (e.g. "Default", "Monokai")
+    /// to every open tab. Persists via QSettings on the call-side; the
+    /// panel itself just re-styles its highlighters.
+    void setHighlightTheme(const QString& themeName);
+
 Q_SIGNALS:
     /// Emitted when a file is saved (for triggering param reload etc.)
     void fileSaved(const QString& path);
@@ -49,6 +57,7 @@ private:
         QPlainTextEdit* editor = nullptr;
         std::string filePath;
         bool modified = false;
+        PythonHighlighter* highlighter = nullptr;  // null for non-.py files
     };
 
     int findTab(const std::string& path) const;

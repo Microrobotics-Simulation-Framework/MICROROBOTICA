@@ -983,6 +983,11 @@ void MainWindow::onSettings()
     });
     connect(&dialog, &SettingsDialog::noticesChanged, this,
             &MainWindow::applyNoticeSettings);
+    connect(&dialog, &SettingsDialog::codeHighlightThemeChanged, this,
+            [this](const QString& name) {
+        if (scriptEditor_) scriptEditor_->setHighlightTheme(name);
+        if (consoleWidget_) consoleWidget_->setHighlightTheme(name);
+    });
     dialog.exec();
 }
 

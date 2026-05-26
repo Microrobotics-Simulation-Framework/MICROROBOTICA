@@ -36,6 +36,10 @@ Q_SIGNALS:
     /// preferences (enabled/opacity) to the live NoticeOverlay widget.
     void noticesChanged();
 
+    /// Emitted after Save with the new Python-highlighter theme name so
+    /// the caller can restyle the script editor and console highlighters.
+    void codeHighlightThemeChanged(const QString& themeName);
+
 private:
     void createGeneralTab(QTabWidget* tabs);
     void createThemeTab(QTabWidget* tabs);
@@ -53,6 +57,7 @@ private:
 
     // Theme tab
     QComboBox* themeCombo_ = nullptr;
+    QComboBox* codeHighlightCombo_ = nullptr;
 
     // Cloud tab
     QLineEdit* credentialFilePath_ = nullptr;

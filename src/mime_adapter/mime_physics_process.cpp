@@ -172,6 +172,23 @@ void MimePhysicsProcess::workerLoop() {
                                ? binary_schema_.compression : "none";
         }
 
+        // For binary streams, compile the decode plan once and pre-size
+        // the scratch float buffer — the hot loop then avoids every
+        // per-frame allocation and string operation.
+        if (stream_format_ == StreamFormat::Binary) {
+            try {
+                decode_plan_ = compileDecodePlan(binary_schema_);
+            } catch (const std::exception& e) {
+                spdlog::error("MimePhysicsProcess: invalid binary schema "
+                              "({}) — aborting receive loop", e.what());
+                status_.store(core::ProcessStatus::Error);
+                running_.store(false);
+                return;
+            }
+            decode_scratch_.reserve(
+                static_cast<std::size_t>(binary_schema_.total_floats));
+        }
+
         bool have_prev_frame = false;
         std::chrono::steady_clock::time_point prev_frame_tp;
 
@@ -224,7 +241,9 @@ void MimePhysicsProcess::workerLoop() {
                 }
                 if (!decoded_as_json) {
                     if (stream_format_ == StreamFormat::Binary) {
-                        frame = decodeBinaryFrame(bytes, size, binary_schema_);
+                        frame = decodeBinaryFrame(
+                            bytes, size, binary_schema_,
+                            decode_plan_, decode_scratch_);
                     } else {
                         throw std::runtime_error(
                             "non-JSON message in JSON stream mode");

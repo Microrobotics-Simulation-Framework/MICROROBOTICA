@@ -41,6 +41,28 @@ struct BinaryStreamSchema {
 /// is malformed.
 BinaryStreamSchema parseBinarySchema(const nlohmann::json& schema_json);
 
+/// Precompiled per-field instruction for the hot decode loop.
+///
+/// Built once from a BinaryStreamSchema via compileDecodePlan(). Walking
+/// `vector<DecodePlanEntry>` instead of the schema's strings on each frame
+/// eliminates per-frame string compares, suffix tests and substr() allocs.
+struct DecodePlanEntry {
+    enum class Kind : std::uint8_t {
+        Position,    ///< 3 floats → ResultFrame::positions[name]
+        Orientation, ///< 4 floats → ResultFrame::orientations[name]
+        Scalar,      ///< 1 float  → ResultFrame::scalars[name]
+        Skip,        ///< schema entry we can't map (ignored)
+    };
+    Kind kind = Kind::Skip;
+    int offset = 0;     ///< first float32 index in the decoded array
+    std::string name;   ///< actor (Position/Orientation) or scalar name
+};
+
+/// Compile a schema into a flat list of decode instructions. Validates
+/// field counts and offsets; entries with offset+count out of range cause
+/// a std::runtime_error here so the hot path never sees a bad schema.
+std::vector<DecodePlanEntry> compileDecodePlan(const BinaryStreamSchema& schema);
+
 /// Decode one binary ResultFrame into the same struct the JSON path produces.
 ///
 /// Wire layout (MIME v0.2 fit-up §8):
@@ -56,6 +78,18 @@ BinaryStreamSchema parseBinarySchema(const nlohmann::json& schema_json);
 core::ResultFrame decodeBinaryFrame(const std::uint8_t* data,
                                     std::size_t size,
                                     const BinaryStreamSchema& schema);
+
+/// Fast-path overload — caller provides a precomputed plan and a reusable
+/// float scratch buffer. Identical wire semantics; avoids re-walking the
+/// schema's strings and the per-frame std::vector<float> allocation.
+///
+/// `scratch` is resized to `schema.total_floats` and overwritten with the
+/// payload's float32s (memcpy fast-path on little-endian hosts).
+core::ResultFrame decodeBinaryFrame(const std::uint8_t* data,
+                                    std::size_t size,
+                                    const BinaryStreamSchema& schema,
+                                    const std::vector<DecodePlanEntry>& plan,
+                                    std::vector<float>& scratch);
 
 /// True if a received message looks like a JSON text message (starts with
 /// '{' = 0x7B), false if it should be treated as a binary frame.

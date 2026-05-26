@@ -133,6 +133,11 @@ private:
     StreamFormat stream_format_ = StreamFormat::Json;
     BinaryStreamSchema binary_schema_;
 
+    // Hot-path decode state — built once the schema is acquired, then
+    // reused on every frame. Owned by the worker thread.
+    std::vector<DecodePlanEntry> decode_plan_;
+    std::vector<float> decode_scratch_;
+
     // Live stream statistics. Updated by the worker thread, read via
     // streamStats() from the UI thread — guarded by stats_mutex_.
     mutable std::mutex stats_mutex_;

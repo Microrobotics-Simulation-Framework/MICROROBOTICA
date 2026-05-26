@@ -1,4 +1,6 @@
 #include "app/settings_dialog.h"
+#include "panels/python_highlighter.h"
+
 #include <QTabWidget>
 #include <QVBoxLayout>
 #include <QFormLayout>
@@ -100,6 +102,18 @@ void SettingsDialog::createThemeTab(QTabWidget* tabs) {
     themeCombo_->addItem(tr("Dark"), "dark");
     form->addRow(tr("Theme:"), themeCombo_);
 
+    // Python syntax-highlighter theme — applies to the script editor and
+    // the embedded console. The preset list lives in PythonHighlighter so
+    // we don't have to keep two enumerations in sync.
+    codeHighlightCombo_ = new QComboBox(page);
+    for (const auto& name : panels::PythonHighlighter::presetNames()) {
+        codeHighlightCombo_->addItem(name, name);
+    }
+    codeHighlightCombo_->setToolTip(
+        tr("Colour scheme for Python files in the script editor and the "
+           "interactive console."));
+    form->addRow(tr("Code highlight:"), codeHighlightCombo_);
+
     auto* note = new QLabel(
         tr("Changes take effect after clicking OK."), page);
     note->setWordWrap(true);
@@ -196,6 +210,12 @@ void SettingsDialog::loadSettings() {
     if (idx >= 0) themeCombo_->setCurrentIndex(idx);
     s.endGroup();
 
+    s.beginGroup("code_highlight");
+    QString codeTheme = s.value("theme", "Default").toString();
+    int chIdx = codeHighlightCombo_->findData(codeTheme);
+    codeHighlightCombo_->setCurrentIndex(chIdx >= 0 ? chIdx : 0);
+    s.endGroup();
+
     s.beginGroup("cloud");
     QString credPath = s.value("credentials_path",
         QDir::homePath() + "/.maddening/cloud_credentials.yaml").toString();
@@ -236,6 +256,11 @@ void SettingsDialog::saveSettings() {
     s.setValue("mode", theme);
     s.endGroup();
 
+    const QString codeTheme = codeHighlightCombo_->currentData().toString();
+    s.beginGroup("code_highlight");
+    s.setValue("theme", codeTheme);
+    s.endGroup();
+
     s.beginGroup("cloud");
     s.setValue("credentials_path", credentialFilePath_->text());
     s.setValue("max_cost_per_hour", maxCostPerHour_->value());
@@ -245,6 +270,7 @@ void SettingsDialog::saveSettings() {
 
     Q_EMIT themeChanged(themeCombo_->currentData().toString());
     Q_EMIT noticesChanged();
+    Q_EMIT codeHighlightThemeChanged(codeHighlightCombo_->currentData().toString());
 }
 
 void SettingsDialog::refreshCredentialStatus() {

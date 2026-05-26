@@ -69,4 +69,48 @@ bool ScriptingEngine::execute(const std::string& code,
     }
 }
 
+CompletionStatus ScriptingEngine::checkComplete(const std::string& source) {
+    if (!initialized_) return CompletionStatus::Complete; // submit and fail loudly
+    try {
+        py::module_ codemod = py::module_::import("code");
+        // compile_command returns:
+        //   None  → incomplete
+        //   code  → complete and valid
+        //   raises SyntaxError → genuinely invalid
+        try {
+            py::object result =
+                codemod.attr("compile_command")(source, "<console>", "single");
+            return result.is_none() ? CompletionStatus::Incomplete
+                                     : CompletionStatus::Complete;
+        } catch (const py::error_already_set&) {
+            return CompletionStatus::Invalid;
+        }
+    } catch (const std::exception&) {
+        return CompletionStatus::Complete;
+    }
+}
+
+std::vector<std::string> ScriptingEngine::completions(const std::string& prefix) {
+    std::vector<std::string> out;
+    if (!initialized_) return out;
+    try {
+        py::module_ rl = py::module_::import("rlcompleter");
+        py::module_ builtins = py::module_::import("builtins");
+        py::dict ns = py::module_::import("__main__").attr("__dict__");
+        py::object completer = rl.attr("Completer")(ns);
+
+        // Walk completer.complete(prefix, i) for i=0,1,... until None.
+        for (int i = 0; i < 64; ++i) {
+            py::object c = completer.attr("complete")(prefix, i);
+            if (c.is_none()) break;
+            out.push_back(c.cast<std::string>());
+        }
+    } catch (const py::error_already_set&) {
+        out.clear();
+    } catch (const std::exception&) {
+        out.clear();
+    }
+    return out;
+}
+
 } // namespace microbotica::scripting
