@@ -59,6 +59,13 @@ public:
                 const std::string& job_config,
                 const std::string& cluster_name);
 
+    /// Build the `sky launch ...` argv that launch() would invoke. Pure
+    /// function, no side effects — exposed so tests can verify the CLI
+    /// contract without spawning the SkyPilot process.
+    static QStringList buildLaunchArgs(const std::string& experiment_dir,
+                                        const std::string& job_config,
+                                        const std::string& cluster_name);
+
     /// Cancel a running SkyPilot job.
     /// @param cluster_name  SkyPilot cluster name to cancel
     void cancel(const std::string& cluster_name);

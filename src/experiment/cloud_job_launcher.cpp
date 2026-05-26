@@ -24,25 +24,16 @@ bool CloudJobLauncher::launch(const std::string& experiment_dir,
         return false;
     }
 
-    std::string job_path = experiment_dir + "/" + job_config;
-
     process_ = new QProcess(this);
     connect(process_,
             QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
             this, &CloudJobLauncher::onLaunchFinished);
 
-    // `sky launch -c <name> -y -d` (NOT `sky jobs launch`) — we want a
-    // persistent cluster we can resolve, tunnel to, and keep talking to;
-    // managed jobs would tear themselves down. `-d` (detach-run) returns
-    // once the task is dispatched, leaving the cluster up.
-    QStringList args;
-    args << "launch" << "-y" << "-d"
-         << "-c" << QString::fromStdString(cluster_name)
-         << "--workdir" << QString::fromStdString(experiment_dir)
-         << QString::fromStdString(job_path);
+    const QStringList args =
+        buildLaunchArgs(experiment_dir, job_config, cluster_name);
 
-    spdlog::info("CloudJobLauncher: sky launch -c {} -y -d --workdir {} {}",
-                 cluster_name, experiment_dir, job_path);
+    spdlog::info("CloudJobLauncher: sky {}",
+                 args.join(QLatin1Char(' ')).toStdString());
     process_->start("sky", args);
 
     if (!process_->waitForStarted(10000)) {
@@ -55,6 +46,26 @@ bool CloudJobLauncher::launch(const std::string& experiment_dir,
     }
 
     return true;
+}
+
+QStringList CloudJobLauncher::buildLaunchArgs(
+        const std::string& experiment_dir,
+        const std::string& job_config,
+        const std::string& cluster_name) {
+    // `sky launch -c <name> -y -d` (NOT `sky jobs launch`) — we want a
+    // persistent cluster we can resolve, tunnel to, and keep talking to;
+    // managed jobs would tear themselves down on completion. `-d`
+    // (detach-run) returns once the task is dispatched, leaving the
+    // cluster up.
+    const std::string job_path = experiment_dir + "/" + job_config;
+    QStringList args;
+    args << QStringLiteral("launch")
+         << QStringLiteral("-y")
+         << QStringLiteral("-d")
+         << QStringLiteral("-c") << QString::fromStdString(cluster_name)
+         << QStringLiteral("--workdir") << QString::fromStdString(experiment_dir)
+         << QString::fromStdString(job_path);
+    return args;
 }
 
 void CloudJobLauncher::cancel(const std::string& cluster_name) {

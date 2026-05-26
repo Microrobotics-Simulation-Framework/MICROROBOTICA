@@ -7,6 +7,7 @@ add_executable(microbotica_tests
     test_scripting_engine.cpp
     test_mime_adapter.cpp
     test_binary_decoder.cpp
+    test_cloud_orchestration.cpp
     test_mime_stub.cpp
     test_experiment_loader.cpp
     test_ansi_parser.cpp
@@ -74,6 +75,15 @@ endif()
 
 include(CTest)
 include(Catch)
+# DISCOVERY_MODE PRE_TEST defers test enumeration to `ctest` time. The
+# default POST_BUILD runs the binary right after linking, which breaks
+# ASan/TSan builds before LSAN_OPTIONS can be set. PROPERTIES ENVIRONMENT
+# threads the leak-suppression file through to every test invocation so
+# ASan runs are clean out of the box.
 catch_discover_tests(microbotica_tests
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+    DISCOVERY_MODE PRE_TEST
+    PROPERTIES
+        ENVIRONMENT
+        "LSAN_OPTIONS=suppressions=${CMAKE_SOURCE_DIR}/lsan.suppressions"
 )

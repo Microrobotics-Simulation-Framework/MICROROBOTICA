@@ -881,6 +881,78 @@ TEST_CASE("MimePhysicsProcess: a binary frame starting with 0x7B is not "
     pub_thread.join();
 }
 
+TEST_CASE("MimePhysicsProcess: skip-to-latest drops intermediate frames "
+          "without decoding them", "[integration][binary]") {
+    // Stress the worker's drain loop by publishing many frames back-to-back
+    // with zero spacing; the SUB queue should pile up faster than the
+    // consumer reads, and the skip-to-latest drain should bump
+    // framesSkipped while keeping framesReceived bounded.
+    const std::string req_ep = "tcp://127.0.0.1:15573";
+    const std::string pub_ep = "tcp://127.0.0.1:15574";
+
+    const nlohmann::json info = {
+        {"status", "ok"}, {"format", "binary"},
+        {"schema", exampleSchemaJson()}};
+
+    std::atomic<bool> rep_running{true};
+    std::thread rep_thread(runMockRepServer, req_ep, &rep_running, info.dump());
+
+    constexpr int kBurst = 256;
+    std::thread pub_thread([&]() {
+        zmq::context_t ctx(1);
+        zmq::socket_t pub(ctx, zmq::socket_type::pub);
+        pub.set(zmq::sockopt::linger, 0);
+        pub.bind(pub_ep);
+        std::this_thread::sleep_for(std::chrono::milliseconds(250));
+        // Fire `kBurst` frames with NO sleep — far faster than the
+        // consumer can keep up. ZMQ's PUB high-water-mark buffers them.
+        for (int i = 0; i < kBurst; ++i) {
+            auto good = buildExampleFrame(
+                static_cast<double>(i) * 0.01,
+                1.0f * i, 2.0f, 3.0f,
+                1.0f, 0.0f, 0.0f, 0.0f, 0.0f);
+            zmq::message_t f(good.size());
+            std::memcpy(f.data(), good.data(), good.size());
+            pub.send(f, zmq::send_flags::none);
+        }
+        // Hold the socket open briefly so the consumer can drain.
+        std::this_thread::sleep_for(std::chrono::milliseconds(400));
+    });
+
+    MimePhysicsProcess proc(req_ep, pub_ep);
+    PhysicsConfig config;
+    config.actorToPrimPath["body"] = "/World/Body";
+    proc.launch(config);
+    REQUIRE(proc.status() == ProcessStatus::Running);
+
+    // Give the worker time to process the burst.
+    std::this_thread::sleep_for(std::chrono::milliseconds(600));
+
+    // Drain a few frames from the application-facing queue.
+    int received = 0;
+    for (int i = 0; i < 4; ++i) {
+        auto frame = proc.receiveResult();
+        if (frame && frame->simTime >= 0.0) received++;
+    }
+    REQUIRE(received >= 1);
+
+    proc.stop();
+
+    const auto stats = proc.streamStats();
+    REQUIRE(stats.decodeErrors == 0);
+    REQUIRE(stats.framesReceived >= 1);
+    // The publisher emitted `kBurst` frames; the worker decoded a small
+    // fraction and skipped the rest. We're conservative on the lower
+    // bound to keep the test stable under heavily-loaded CI runs.
+    REQUIRE(stats.framesSkipped > 0);
+    REQUIRE(stats.framesReceived + stats.framesSkipped <=
+            static_cast<std::uint64_t>(kBurst));
+
+    rep_running.store(false);
+    rep_thread.join();
+    pub_thread.join();
+}
+
 TEST_CASE("MimePhysicsProcess: a corrupt frame is counted and the stream "
           "keeps flowing", "[integration][binary]") {
     const std::string req_ep = "tcp://127.0.0.1:15571";
