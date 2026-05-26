@@ -170,9 +170,11 @@ void SimulationController::stop() {
     logger_->logEvent("simulation_stop", {{"frames", frameCount_}});
 
     // Stream benchmark summary (fit-up §8). The worker has joined, so the
-    // backend's stats are final and stable.
+    // backend's stats are final and stable. Use our own streamStats() so
+    // the snapshot includes the UI-thread apply_avg/max metrics — the
+    // backend-only snapshot would record them as zero.
     if (physics_) {
-        const core::StreamStats s = physics_->streamStats();
+        const core::StreamStats s = streamStats();
         if (s.framesReceived > 0) {
             const long long dropped = std::max<long long>(
                 0, static_cast<long long>(s.framesReceived) - frameCount_);
