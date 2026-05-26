@@ -1,5 +1,6 @@
 #include <catch2/catch_test_macros.hpp>
 
+#include <chrono>
 #include <cstdint>
 #include <cstring>
 #include <string>
@@ -81,6 +82,116 @@ std::vector<std::uint8_t> buildExampleFrame(double sim_time,
 }
 
 } // namespace
+
+// ── Microbenchmark (hidden — run with `microbotica_tests "[.bench]"`) ───────
+
+namespace {
+
+// Build an ar4_helical_drive-shaped schema: 9 actors × (3-float pos +
+// 4-float quat) + 2 scalars = 65 floats per frame. Closely matches the
+// real ar4 wire layout we benchmark against.
+nlohmann::json ar4LikeSchemaJson() {
+    nlohmann::json fields = nlohmann::json::array();
+    int offset = 0;
+    const char* actors[] = {
+        "arm_link_0", "arm_link_1", "arm_link_2", "arm_link_3",
+        "arm_link_4", "arm_link_5", "motor_rotor", "magnet", "body"
+    };
+    for (const auto* a : actors) {
+        fields.push_back({
+            {"node", "poses"}, {"field", std::string(a) + ".pos"},
+            {"shape", {3}}, {"offset", offset}, {"count", 3}});
+        offset += 3;
+        fields.push_back({
+            {"node", "poses"}, {"field", std::string(a) + ".quat"},
+            {"shape", {4}}, {"offset", offset}, {"count", 4}});
+        offset += 4;
+    }
+    fields.push_back({
+        {"node", "scalars"}, {"field", "drag_torque_z"},
+        {"shape", nlohmann::json::array()},
+        {"offset", offset}, {"count", 1}});
+    offset += 1;
+    fields.push_back({
+        {"node", "scalars"}, {"field", "sim_time_progress"},
+        {"shape", nlohmann::json::array()},
+        {"offset", offset}, {"count", 1}});
+    offset += 1;
+    return nlohmann::json{
+        {"type", "schema"}, {"fields", fields},
+        {"total_floats", offset},
+        {"frame_bytes", 8 + offset * 4},
+        {"compression", "none"},
+    };
+}
+
+std::vector<std::uint8_t> ar4LikeFrame(const BinaryStreamSchema& schema) {
+    std::vector<std::uint8_t> buf;
+    putF64LE(buf, 1.234567);
+    for (int i = 0; i < schema.total_floats; ++i) {
+        // Just a deterministic, non-trivial value pattern.
+        putF32LE(buf, 0.125f + 0.0625f * static_cast<float>(i));
+    }
+    return buf;
+}
+
+} // namespace
+
+TEST_CASE("benchmark: decode hot path — ar4-shaped frame, slow vs fast",
+          "[.bench][binary]") {
+    const auto schemaJson = ar4LikeSchemaJson();
+    const auto schema = parseBinarySchema(schemaJson);
+    const auto frame = ar4LikeFrame(schema);
+
+    const auto plan = compileDecodePlan(schema);
+    std::vector<float> scratch;
+    scratch.reserve(static_cast<std::size_t>(schema.total_floats));
+
+    constexpr int kWarmup = 2000;
+    constexpr int kIter   = 200000;
+
+    // Warmup — pages, TLB, branch predictor.
+    for (int i = 0; i < kWarmup; ++i) {
+        auto f = decodeBinaryFrame(frame.data(), frame.size(),
+                                   schema, plan, scratch);
+        (void)f;
+    }
+
+    // Fast path: cached plan + reused scratch.
+    auto t0 = std::chrono::steady_clock::now();
+    double simSum = 0.0;
+    for (int i = 0; i < kIter; ++i) {
+        auto f = decodeBinaryFrame(frame.data(), frame.size(),
+                                   schema, plan, scratch);
+        simSum += f.simTime; // keep the optimiser honest
+    }
+    auto t1 = std::chrono::steady_clock::now();
+    const double fastNs =
+        std::chrono::duration<double, std::nano>(t1 - t0).count() / kIter;
+
+    // Slow path: recompiles the plan and allocates a fresh scratch buffer
+    // on every call — representative of what the old code did each frame.
+    t0 = std::chrono::steady_clock::now();
+    for (int i = 0; i < kIter; ++i) {
+        auto f = decodeBinaryFrame(frame.data(), frame.size(), schema);
+        simSum += f.simTime;
+    }
+    t1 = std::chrono::steady_clock::now();
+    const double slowNs =
+        std::chrono::duration<double, std::nano>(t1 - t0).count() / kIter;
+
+    INFO("ar4-shaped frame: total_floats=" << schema.total_floats
+         << "  bytes=" << frame.size());
+    INFO("slow path (recompile plan + alloc each call): "
+         << slowNs << " ns / frame");
+    INFO("fast path (cached plan + reused scratch):     "
+         << fastNs << " ns / frame");
+    INFO("speedup: " << (slowNs / fastNs) << "x  ("
+         << (slowNs - fastNs) << " ns saved / frame)");
+    WARN("BENCH slow=" << slowNs << "ns  fast=" << fastNs
+         << "ns  speedup=" << (slowNs / fastNs) << "x"
+         << "  (sum=" << simSum << ")"); // anchor sum so it isn't DCE'd
+}
 
 // ── Schema parsing ───────────────────────────────────────────────────────────
 
