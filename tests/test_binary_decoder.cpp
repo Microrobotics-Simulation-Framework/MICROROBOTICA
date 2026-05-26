@@ -253,6 +253,90 @@ BenchResult runBenchAt(int actorCount, int iterations) {
 
 } // namespace
 
+#ifdef MICROBOTICA_HAS_ZSTD
+#include <zstd.h>
+
+namespace {
+
+// Compress a raw uncompressed frame ([8B sim_time][N*float32]) into a
+// zstd-wire frame ([8B sim_time][zstd payload]). Mirrors what the runner
+// does when MIME_STREAM_FORMAT=binary + compression=zstd.
+std::vector<std::uint8_t> compressFrameZstd(
+        const std::vector<std::uint8_t>& uncompressed, int level = 3) {
+    const std::size_t payloadLen = uncompressed.size() - 8;
+    const std::size_t bound = ZSTD_compressBound(payloadLen);
+    std::vector<std::uint8_t> out(8 + bound);
+    std::memcpy(out.data(), uncompressed.data(), 8);
+    const std::size_t written = ZSTD_compress(
+        out.data() + 8, bound,
+        uncompressed.data() + 8, payloadLen, level);
+    if (ZSTD_isError(written)) {
+        throw std::runtime_error(std::string("zstd compress failed: ")
+                                  + ZSTD_getErrorName(written));
+    }
+    out.resize(8 + written);
+    return out;
+}
+
+} // namespace
+
+TEST_CASE("benchmark: decode hot path — zstd wire format",
+          "[.bench][binary]") {
+    struct Row { int actors; int iters; };
+    const std::vector<Row> sweeps = {
+        {9,    100000},
+        {50,    50000},
+        {200,   20000},
+        {500,    8000},
+        {1000,   5000},
+    };
+
+    for (const auto& row : sweeps) {
+        auto schemaJsonRaw = syntheticSchemaJson(row.actors);
+        const auto schemaRaw = parseBinarySchema(schemaJsonRaw);
+        const auto rawFrame = syntheticFrame(schemaRaw);
+
+        auto schemaJsonZ = schemaJsonRaw;
+        schemaJsonZ["compression"] = "zstd";
+        const auto schemaZ = parseBinarySchema(schemaJsonZ);
+        const auto zFrame = compressFrameZstd(rawFrame);
+
+        const auto planZ = compileDecodePlan(schemaZ);
+        std::vector<float> scratch;
+        scratch.reserve(static_cast<std::size_t>(schemaZ.total_floats));
+
+        // Warmup.
+        for (int i = 0; i < 1000; ++i) {
+            auto f = decodeBinaryFrame(zFrame.data(), zFrame.size(),
+                                       schemaZ, planZ, scratch);
+            (void)f;
+        }
+
+        auto t0 = std::chrono::steady_clock::now();
+        double simSum = 0.0;
+        for (int i = 0; i < row.iters; ++i) {
+            auto f = decodeBinaryFrame(zFrame.data(), zFrame.size(),
+                                       schemaZ, planZ, scratch);
+            simSum += f.simTime;
+        }
+        auto t1 = std::chrono::steady_clock::now();
+        const double zstdNs =
+            std::chrono::duration<double, std::nano>(t1 - t0).count()
+            / row.iters;
+        (void)simSum;
+
+        const double ratio = static_cast<double>(rawFrame.size())
+                             / static_cast<double>(zFrame.size());
+        WARN("BENCH-ZSTD actors=" << row.actors
+             << " floats=" << schemaZ.total_floats
+             << " raw_bytes=" << rawFrame.size()
+             << " zstd_bytes=" << zFrame.size()
+             << " ratio=" << ratio << "x"
+             << " decode=" << zstdNs << "ns");
+    }
+}
+#endif // MICROBOTICA_HAS_ZSTD
+
 TEST_CASE("benchmark: decode hot path — scaling with actor count",
           "[.bench][binary]") {
     struct Row { int actors; int iters; };

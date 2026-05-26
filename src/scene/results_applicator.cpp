@@ -40,25 +40,29 @@ void ResultsApplicator::apply(const core::ResultFrame& frame,
     // Without this, each Set() triggers recomposition separately — expensive.
     SdfChangeBlock changeBlock;
 
+    // Build the direct actor → CachedOps* lookup once per scene
+    // generation. After this, the per-actor hot path is a single hash
+    // lookup against actorOpsCache_ instead of two (actorToPrimPath +
+    // opsCache_).
+    rebuildActorOpsCacheIfNeeded(config);
+
     // Write positions and orientations using cached xform op handles.
-    // getCachedOps() populates the cache on first call and invalidates
-    // when scene generation changes.
     for (const auto& [actor, pos] : frame.positions) {
-        auto it = config.actorToPrimPath.find(actor);
-        if (it == config.actorToPrimPath.end()) {
+        auto it = actorOpsCache_.find(actor);
+        if (it == actorOpsCache_.end()) {
             spdlog::warn("ResultsApplicator: No prim path mapping for actor '{}' — skipping", actor);
             continue;
         }
-        auto& cached = getCachedOps(it->second, cacheGeneration_);
+        const auto& cached = *it->second;
         if (cached.valid && cached.translateOp) {
             cached.translateOp.Set(GfVec3d(pos.x, pos.y, pos.z));
         }
     }
 
     for (const auto& [actor, quat] : frame.orientations) {
-        auto it = config.actorToPrimPath.find(actor);
-        if (it == config.actorToPrimPath.end()) continue;
-        auto& cached = getCachedOps(it->second, cacheGeneration_);
+        auto it = actorOpsCache_.find(actor);
+        if (it == actorOpsCache_.end()) continue;
+        const auto& cached = *it->second;
         if (cached.valid && cached.orientOp) {
             // Match the attribute's precision — MIME recordings use GfQuatf,
             // hand-authored .usda scenes may use GfQuatd.
@@ -152,20 +156,24 @@ ResultsApplicator::CachedOps& ResultsApplicator::getCachedOps(
     // Invalidate entire cache if scene generation changed
     if (cacheGeneration_ != currentGen) {
         opsCache_.clear();
+        actorOpsCache_.clear();
+        actorOpsCacheGen_ = static_cast<std::uint64_t>(-1);
         cacheGeneration_ = currentGen;
     }
 
     auto it = opsCache_.find(primPath);
-    if (it != opsCache_.end() && it->second.valid) {
+    if (it != opsCache_.end() && it->second && it->second->valid) {
         // Safety net: check handles are still defined (survives hot-swap)
-        if (it->second.translateOp && !it->second.translateOp.IsDefined()) {
-            it->second.valid = false;
+        if (it->second->translateOp && !it->second->translateOp.IsDefined()) {
+            it->second->valid = false;
         }
-        if (it->second.valid) return it->second;
+        if (it->second->valid) return *it->second;
     }
 
-    // Populate cache for this prim
-    CachedOps ops;
+    // Populate cache for this prim. unique_ptr keeps the address stable
+    // across opsCache_ rehashes, so actorOpsCache_'s raw pointers remain
+    // valid for the life of the scene generation.
+    auto ops = std::make_unique<CachedOps>();
     auto prim = stage_->GetPrimAtPath(SdfPath(primPath));
     if (prim.IsValid()) {
         UsdGeomXformable xformable(prim);
@@ -174,21 +182,36 @@ ResultsApplicator::CachedOps& ResultsApplicator::getCachedOps(
             auto xfOps = xformable.GetOrderedXformOps(&resetXformStack);
             for (auto& op : xfOps) {
                 if (op.GetOpType() == UsdGeomXformOp::TypeTranslate) {
-                    ops.translateOp = op;
+                    ops->translateOp = op;
                 }
                 if (op.GetOpType() == UsdGeomXformOp::TypeOrient) {
-                    ops.orientOp = op;
+                    ops->orientOp = op;
                 }
             }
             // Create ops if they don't exist yet
-            if (!ops.translateOp) ops.translateOp = xformable.AddTranslateOp();
-            if (!ops.orientOp) ops.orientOp = xformable.AddOrientOp();
-            ops.valid = true;
+            if (!ops->translateOp) ops->translateOp = xformable.AddTranslateOp();
+            if (!ops->orientOp) ops->orientOp = xformable.AddOrientOp();
+            ops->valid = true;
         }
     }
 
-    opsCache_[primPath] = ops;
-    return opsCache_[primPath];
+    auto [inserted, ok] = opsCache_.emplace(primPath, std::move(ops));
+    return *inserted->second;
+}
+
+void ResultsApplicator::rebuildActorOpsCacheIfNeeded(
+    const core::PhysicsConfig& config)
+{
+    if (actorOpsCacheGen_ == cacheGeneration_
+        && actorOpsCache_.size() == config.actorToPrimPath.size()) {
+        return;
+    }
+    actorOpsCache_.clear();
+    actorOpsCache_.reserve(config.actorToPrimPath.size() * 2);
+    for (const auto& [actor, primPath] : config.actorToPrimPath) {
+        actorOpsCache_[actor] = &getCachedOps(primPath, cacheGeneration_);
+    }
+    actorOpsCacheGen_ = cacheGeneration_;
 }
 
 #else

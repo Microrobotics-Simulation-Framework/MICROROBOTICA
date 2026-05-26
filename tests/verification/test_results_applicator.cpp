@@ -12,6 +12,12 @@
 PXR_NAMESPACE_USING_DIRECTIVE
 #endif
 
+#include <chrono>
+#include <cstdio>
+#include <filesystem>
+#include <fstream>
+#include <string>
+
 // ── MBCA-VER-003 ──────────────────────────────────────────────────────────────
 
 REGISTER_VERIFICATION_BENCHMARK(
@@ -218,3 +224,97 @@ TEST_CASE("MeshData vertexColors map exactly to primvars:displayColor",
     WARN("USD not available — MBCA-VER-008 skipped");
 #endif
 }
+
+// ── Apply-path scaling benchmark (hidden) ──────────────────────────────────
+//
+// Measures `SceneManager::applyResultFrame` on a synthetic stage with N
+// Xform actors. Captures the cost of the per-actor hot loop on the UI
+// thread — the side that matters once decode is fast.
+//
+// Run with: ./microbotica_tests "[.bench-apply]"
+
+#ifdef MICROBOTICA_HAS_USD
+namespace {
+
+std::string makeUsdaForActors(int n) {
+    std::string s =
+        "#usda 1.0\n"
+        "(\n"
+        "    defaultPrim = \"World\"\n"
+        ")\n\n"
+        "def Xform \"World\"\n"
+        "{\n";
+    for (int i = 0; i < n; ++i) {
+        s += "    def Xform \"Actor_" + std::to_string(i) + "\"\n";
+        s += "    {\n";
+        s += "        double3 xformOp:translate = (0, 0, 0)\n";
+        s += "        quatd xformOp:orient = (1, 0, 0, 0)\n";
+        s += "        uniform token[] xformOpOrder = [\"xformOp:translate\", \"xformOp:orient\"]\n";
+        s += "    }\n";
+    }
+    s += "}\n";
+    return s;
+}
+
+} // namespace
+
+TEST_CASE("benchmark: scene apply — scaling with actor count",
+          "[.bench-apply]") {
+    namespace fs = std::filesystem;
+
+    struct Row { int actors; int iters; };
+    const std::vector<Row> sweeps = {
+        {9,    5000},
+        {50,   2000},
+        {200,  1000},
+        {500,   400},
+        {1000,  200},
+    };
+
+    for (const auto& row : sweeps) {
+        const fs::path tmp = fs::temp_directory_path()
+            / ("apply_bench_" + std::to_string(row.actors) + ".usda");
+        {
+            std::ofstream f(tmp);
+            f << makeUsdaForActors(row.actors);
+        }
+
+        microbotica::scene::SceneManager mgr;
+        REQUIRE(mgr.loadScene(tmp.string()));
+
+        microbotica::core::PhysicsConfig config;
+        microbotica::core::ResultFrame frame;
+        frame.simTime = 1.0;
+        for (int i = 0; i < row.actors; ++i) {
+            const std::string actor = "actor_" + std::to_string(i);
+            const std::string primPath = "/World/Actor_" + std::to_string(i);
+            config.actorToPrimPath[actor] = primPath;
+            frame.positions[actor] = {0.1 * i, 0.2 * i, 0.3 * i};
+            frame.orientations[actor] = {1.0, 0.0, 0.0, 0.0};
+        }
+
+        // Warmup — builds actorOpsCache + populates opsCache.
+        for (int i = 0; i < 50; ++i) {
+            mgr.applyResultFrame(frame, config);
+        }
+
+        const auto t0 = std::chrono::steady_clock::now();
+        for (int i = 0; i < row.iters; ++i) {
+            // Vary translate slightly so USD actually writes.
+            for (auto& [actor, pos] : frame.positions) {
+                pos.x = static_cast<double>(i) * 0.001;
+            }
+            mgr.applyResultFrame(frame, config);
+        }
+        const auto t1 = std::chrono::steady_clock::now();
+        const double us =
+            std::chrono::duration<double, std::micro>(t1 - t0).count()
+            / row.iters;
+        WARN("BENCH-APPLY actors=" << row.actors
+             << " apply_avg_us=" << us
+             << " (" << (us / row.actors) << " us / actor)");
+
+        fs::remove(tmp);
+    }
+}
+#endif // MICROBOTICA_HAS_USD
