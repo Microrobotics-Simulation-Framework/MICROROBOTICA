@@ -5,6 +5,7 @@
 #include <QPushButton>
 #include <QLabel>
 #include <QLineEdit>
+#include <QSpinBox>
 #include "connection/connection_config.h"
 
 namespace microbotica::panels {
@@ -36,6 +37,11 @@ public:
     /// MIME runner as MIME_STREAM_FORMAT when non-empty.
     std::string streamFormat() const;
 
+    /// Target publish rate to request of the MIME runner, in frames per
+    /// second. Returns 0 to mean "leave the runner at its default" — the
+    /// caller should only set MIME_PUBLISH_FPS when this is > 0.
+    int publishFps() const;
+
     /// Update connection status display.
     void setConnectionStatus(const QString& status);
 
@@ -50,6 +56,7 @@ Q_SIGNALS:
 private:
     QComboBox* modeCombo_ = nullptr;
     QComboBox* streamFormatCombo_ = nullptr;
+    QSpinBox* publishFpsSpin_ = nullptr;
     QLineEdit* experimentDirEdit_ = nullptr;
     QPushButton* launchButton_ = nullptr;
     QPushButton* stopButton_ = nullptr;

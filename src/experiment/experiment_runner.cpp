@@ -24,7 +24,8 @@ ExperimentRunner::~ExperimentRunner() {
 }
 
 bool ExperimentRunner::start(const std::string& experiment_dir,
-                              const std::string& stream_format) {
+                              const std::string& stream_format,
+                              int publish_fps) {
     if (process_ && process_->state() != QProcess::NotRunning) {
         spdlog::warn("ExperimentRunner: Process already running — stop it first");
         return false;
@@ -35,15 +36,27 @@ bool ExperimentRunner::start(const std::string& experiment_dir,
 
     process_ = new QProcess(this);
 
-    // Request a ResultFrame wire format from the runner (fit-up §8). The
-    // subprocess otherwise inherits this process's environment unchanged.
-    if (!stream_format.empty()) {
+    // Inherit the parent environment; layer on the runner-tweaking env
+    // vars when the UI has requested a non-default value. We only call
+    // setProcessEnvironment() if we're actually changing something, so
+    // the default-everything path stays cost-free.
+    const bool wantStreamFormat = !stream_format.empty();
+    const bool wantPublishFps   = (publish_fps > 0);
+    if (wantStreamFormat || wantPublishFps) {
         QProcessEnvironment env = QProcessEnvironment::systemEnvironment();
-        env.insert("MIME_STREAM_FORMAT",
-                   QString::fromStdString(stream_format));
+        if (wantStreamFormat) {
+            env.insert("MIME_STREAM_FORMAT",
+                       QString::fromStdString(stream_format));
+            spdlog::info("ExperimentRunner: requesting MIME_STREAM_FORMAT={}",
+                         stream_format);
+        }
+        if (wantPublishFps) {
+            env.insert("MIME_PUBLISH_FPS",
+                       QString::number(publish_fps));
+            spdlog::info("ExperimentRunner: requesting MIME_PUBLISH_FPS={}",
+                         publish_fps);
+        }
         process_->setProcessEnvironment(env);
-        spdlog::info("ExperimentRunner: requesting MIME_STREAM_FORMAT={}",
-                     stream_format);
     }
 
     connect(process_,

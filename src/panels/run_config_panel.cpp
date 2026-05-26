@@ -36,6 +36,20 @@ RunConfigPanel::RunConfigPanel(QWidget* parent)
            "decodes whichever the runner declares."));
     form->addRow(tr("Stream format:"), streamFormatCombo_);
 
+    // Target publish rate for the runner. 0 means "use the runner's
+    // default" (60 fps as of MIME v0.2). Useful for stress-testing the
+    // worker-side skip-to-latest path on complex scenes.
+    publishFpsSpin_ = new QSpinBox(container);
+    publishFpsSpin_->setRange(0, 1000);
+    publishFpsSpin_->setValue(0);
+    publishFpsSpin_->setSpecialValueText(tr("Runner default"));
+    publishFpsSpin_->setSuffix(tr(" fps"));
+    publishFpsSpin_->setToolTip(
+        tr("Target on-the-wire publish rate for the spawned MIME runner.\n"
+           "0 = leave at runner default (60 fps). Higher values stress the\n"
+           "worker / scene-apply pipeline; lower values reduce CPU."));
+    form->addRow(tr("Publish rate:"), publishFpsSpin_);
+
     // Experiment directory
     auto* dirLayout = new QHBoxLayout;
     experimentDirEdit_ = new QLineEdit(container);
@@ -97,6 +111,10 @@ void RunConfigPanel::setExperimentDir(const std::string& path) {
 
 std::string RunConfigPanel::streamFormat() const {
     return streamFormatCombo_->currentData().toString().toStdString();
+}
+
+int RunConfigPanel::publishFps() const {
+    return publishFpsSpin_->value();
 }
 
 void RunConfigPanel::setConnectionStatus(const QString& status) {

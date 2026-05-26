@@ -739,14 +739,18 @@ void MainWindow::onSimulationStart()
             }
         }
 
-        // Stream format requested in the Run Configuration panel (fit-up
-        // §8): "" Auto, "json", or "binary" → MIME_STREAM_FORMAT.
+        // Stream format + publish rate requested in the Run Configuration
+        // panel (fit-up §8): pass through as MIME_STREAM_FORMAT and
+        // MIME_PUBLISH_FPS on the spawned runner's environment.
         const std::string streamFormat =
             runConfigPanel_ ? runConfigPanel_->streamFormat() : std::string();
+        const int publishFps =
+            runConfigPanel_ ? runConfigPanel_->publishFps() : 0;
 
         bool spawned = false;
         for (int attempt = 1; attempt <= 3; ++attempt) {
-            if (experimentRunner_->start(experimentDir_, streamFormat)) {
+            if (experimentRunner_->start(experimentDir_, streamFormat,
+                                          publishFps)) {
                 spawned = true;
                 break;
             }

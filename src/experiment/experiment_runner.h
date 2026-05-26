@@ -69,9 +69,13 @@ public:
     ///                        or "" to leave it at the runner default. When
     ///                        non-empty it is passed as the MIME_STREAM_FORMAT
     ///                        environment variable to the subprocess.
+    /// @param publish_fps     Target publish rate (frames/sec). 0 leaves the
+    ///                        runner at its default (60 fps); positive values
+    ///                        are passed via MIME_PUBLISH_FPS.
     /// @return true if the process started successfully
     bool start(const std::string& experiment_dir,
-               const std::string& stream_format = "");
+               const std::string& stream_format = "",
+               int publish_fps = 0);
 
     /// Block until the runner's ZMQ REP port (default 5555) accepts a
     /// connection, or timeout. This is a *liveness probe* — useful
