@@ -31,15 +31,18 @@ bool CloudJobLauncher::launch(const std::string& experiment_dir,
             QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
             this, &CloudJobLauncher::onLaunchFinished);
 
+    // `sky launch -c <name> -y -d` (NOT `sky jobs launch`) — we want a
+    // persistent cluster we can resolve, tunnel to, and keep talking to;
+    // managed jobs would tear themselves down. `-d` (detach-run) returns
+    // once the task is dispatched, leaving the cluster up.
     QStringList args;
-    args << "jobs" << "launch"
-         << QString::fromStdString(job_path)
-         << "--name" << QString::fromStdString(cluster_name)
+    args << "launch" << "-y" << "-d"
+         << "-c" << QString::fromStdString(cluster_name)
          << "--workdir" << QString::fromStdString(experiment_dir)
-         << "-y";  // non-interactive
+         << QString::fromStdString(job_path);
 
-    spdlog::info("CloudJobLauncher: Launching SkyPilot job '{}' from {}",
-                 cluster_name, job_path);
+    spdlog::info("CloudJobLauncher: sky launch -c {} -y -d --workdir {} {}",
+                 cluster_name, experiment_dir, job_path);
     process_->start("sky", args);
 
     if (!process_->waitForStarted(10000)) {
@@ -55,13 +58,15 @@ bool CloudJobLauncher::launch(const std::string& experiment_dir,
 }
 
 void CloudJobLauncher::cancel(const std::string& cluster_name) {
-    QProcess cancel_proc;
+    // For interactive `sky launch -c <name>` clusters, the cleanup is
+    // `sky down -y <name>`. Run it detached because tearing down a SkyPilot
+    // cluster can take 30+ seconds and we don't want to block the UI Stop
+    // path on it.
     QStringList args;
-    args << "jobs" << "cancel" << QString::fromStdString(cluster_name) << "-y";
-    cancel_proc.start("sky", args);
-    cancel_proc.waitForFinished(30000);
-
-    spdlog::info("CloudJobLauncher: Cancelled SkyPilot job '{}'", cluster_name);
+    args << "down" << "-y" << QString::fromStdString(cluster_name);
+    QProcess::startDetached("sky", args);
+    spdlog::info("CloudJobLauncher: requested `sky down -y {}` (detached)",
+                 cluster_name);
 }
 
 bool CloudJobLauncher::isLaunching() const {

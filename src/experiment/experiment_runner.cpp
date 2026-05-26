@@ -160,6 +160,10 @@ bool ExperimentRunner::probeReady(int port, int timeout_ms) {
     return probeLocalhostPort(port, timeout_ms);
 }
 
+bool ExperimentRunner::probePort(int port, int timeout_ms) {
+    return probeLocalhostPort(port, timeout_ms);
+}
+
 bool ExperimentRunner::waitUntilReady(int timeout_ms, int port) {
     using clock = std::chrono::steady_clock;
     const auto deadline = clock::now()

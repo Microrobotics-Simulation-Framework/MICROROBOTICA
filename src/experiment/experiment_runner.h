@@ -92,6 +92,12 @@ public:
     /// is JIT-compiling.
     bool probeReady(int port = 5555, int timeout_ms = 100);
 
+    /// Process-less version of probeReady — does the same TCP accept
+    /// probe but does not require ExperimentRunner to own a child
+    /// process. Useful for non-Local paths (Cloud SSH tunnel) where the
+    /// port is bound by something we don't manage.
+    static bool probePort(int port, int timeout_ms = 100);
+
     /// Stop the running MIME subprocess gracefully.
     void stop();
 

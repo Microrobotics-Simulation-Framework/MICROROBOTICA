@@ -37,8 +37,11 @@
 #include "stubs/local_compute_backend.h"
 #include "experiment/experiment_runner.h"
 #include "experiment/experiment_loader.h"
+#include "experiment/cloud_job_launcher.h"
 #include "mime_adapter/mime_compute_backend.h"
 #include "connection/connection_config.h"
+#include "connection/connection_manager.h"
+#include "connection/ssh_tunnel.h"
 
 #include <spdlog/spdlog.h>
 
@@ -713,6 +716,24 @@ void MainWindow::onSimulationStart()
 
     if (simController_->isRunning()) return;
 
+    // Route on connection mode. Cloud goes through the async SkyPilot
+    // orchestration (submit job → wait UP → open SSH tunnel → handshake);
+    // Local spawns a python subprocess; Manual skips spawning and connects
+    // to whatever endpoint is configured.
+    const connection::ConnectionMode mode = runConfigPanel_
+        ? runConfigPanel_->selectedMode()
+        : connection::ConnectionMode::Local;
+    if (mode == connection::ConnectionMode::Cloud) {
+        startCloudLaunch();
+        return;
+    }
+
+    // Manual mode: skip the local subprocess spawn entirely.
+    if (mode == connection::ConnectionMode::Manual) {
+        finishSimulationStart();
+        return;
+    }
+
     // If an experiment directory is remembered but the previous Stop
     // tore down the MIME runner, re-spawn it now so the user can press
     // Launch again without re-opening the experiment from the menu.
@@ -871,20 +892,33 @@ void MainWindow::finishSimulationStart()
 {
     core::PhysicsConfig config;
 
-    const bool have_experiment = !experimentDir_.empty()
+    const connection::ConnectionMode mode = runConfigPanel_
+        ? runConfigPanel_->selectedMode()
+        : connection::ConnectionMode::Local;
+    const bool have_local_runner = !experimentDir_.empty()
         && experimentRunner_ && experimentRunner_->isRunning();
-    spdlog::info("finishSimulationStart: experimentDir='{}' runner={}  → {}",
-                  experimentDir_,
-                  (experimentRunner_ ? (experimentRunner_->isRunning()
-                                         ? "running" : "stopped")
-                                     : "null"),
-                  have_experiment ? "MimeComputeBackend"
-                                  : "LocalComputeBackend (stub)");
+    const bool have_cloud = (mode == connection::ConnectionMode::Cloud)
+        && !cloudClusterName_.isEmpty()
+        && sshTunnel_ && sshTunnel_->isOpen();
+    const bool have_manual = (mode == connection::ConnectionMode::Manual);
+    const bool have_mime = have_local_runner || have_cloud || have_manual;
 
-    if (have_experiment) {
-        // Connect to the already-running MIME subprocess via ZMQ.
+    spdlog::info("finishSimulationStart: mode={} experimentDir='{}' "
+                  "local_runner={} cloud_tunnel={} → {}",
+                  static_cast<int>(mode), experimentDir_,
+                  have_local_runner, have_cloud,
+                  have_mime ? "MimeComputeBackend"
+                            : "LocalComputeBackend (stub)");
+
+    if (have_mime) {
+        // Connect via ZMQ — the endpoint is resolved by ConnectionManager
+        // based on `cc.mode`. For Cloud the SSH tunnel is already open,
+        // so the resolved endpoint is localhost:5556 (tunnelled).
         connection::ConnectionConfig cc;
-        cc.mode = connection::ConnectionMode::Local;
+        cc.mode = mode;
+        if (mode == connection::ConnectionMode::Cloud) {
+            cc.skypilot_cluster = cloudClusterName_.toStdString();
+        }
         auto backend = std::make_unique<mime::MimeComputeBackend>(cc);
         simController_->setComputeBackend(std::move(backend));
 
@@ -920,6 +954,228 @@ void MainWindow::finishSimulationStart()
 
     paused_ = false;
     statusBar()->showMessage(tr("Simulation started"));
+}
+
+// ── Cloud orchestration ─────────────────────────────────────────────────────
+//
+// Submit `sky launch -c <cluster> -y -d` → poll `sky_resolve.py` until the
+// cluster reaches UP → open an SshTunnel to the resolved IP forwarding
+// 5555/5556 → probe localhost:5555 until accepting → hand off to
+// finishSimulationStart() which behaves exactly as it does for Local.
+
+void MainWindow::startCloudLaunch()
+{
+    cloudClusterName_ = runConfigPanel_
+        ? QString::fromStdString(runConfigPanel_->clusterName())
+        : QString();
+    if (cloudClusterName_.isEmpty()) {
+        QMessageBox::critical(this, tr("Missing cluster name"),
+            tr("Cloud mode needs a SkyPilot cluster name in the Run "
+               "Configuration panel."));
+        return;
+    }
+    cloudStopOnDisconnect_ = runConfigPanel_
+        && runConfigPanel_->stopClusterOnDisconnect();
+
+    // Job config: panel override first, then experiment.yaml's cloud.job_config.
+    std::string jobConfig = runConfigPanel_ ? runConfigPanel_->jobConfig()
+                                             : std::string();
+    if (jobConfig.empty() && !experimentDir_.empty()) {
+        experiment::ExperimentLoader loader;
+        auto cfg = loader.load(experimentDir_);
+        if (cfg && cfg->cloud) {
+            jobConfig = cfg->cloud->job_config;
+        }
+    }
+    if (jobConfig.empty()) {
+        QMessageBox::critical(this, tr("Missing job config"),
+            tr("Cloud mode needs a SkyPilot job YAML — set Job config in "
+               "the panel or add `cloud.job_config:` to experiment.yaml."));
+        return;
+    }
+
+    if (!cloudJobLauncher_) {
+        cloudJobLauncher_ = std::make_unique<experiment::CloudJobLauncher>(this);
+        connect(cloudJobLauncher_.get(),
+                &experiment::CloudJobLauncher::launchSucceeded,
+                this, &MainWindow::onCloudJobLaunched);
+        connect(cloudJobLauncher_.get(),
+                &experiment::CloudJobLauncher::launchFailed,
+                this, [this](const QString& err) {
+            onCloudFailed(tr("submitting SkyPilot job"), err);
+        });
+    }
+
+    if (runConfigPanel_) {
+        runConfigPanel_->setLaunchEnabled(false);
+        runConfigPanel_->setConnectionStatus(tr("Submitting cloud job..."));
+    }
+    if (noticeOverlay_) {
+        noticeOverlay_->addNotice(
+            QStringLiteral("cloud-launch"),
+            viewport::NoticeOverlay::Severity::Info,
+            tr("Submitting SkyPilot job"),
+            tr("Cluster: %1 — `sky launch -c %1 -y -d` is running. The "
+               "viewport stays interactive throughout.")
+                .arg(cloudClusterName_));
+    }
+
+    if (!cloudJobLauncher_->launch(experimentDir_, jobConfig,
+                                     cloudClusterName_.toStdString())) {
+        onCloudFailed(tr("submitting SkyPilot job"),
+                       tr("launch() returned false — see the console"));
+    }
+}
+
+void MainWindow::onCloudJobLaunched(const QString& /*stdout_output*/)
+{
+    spdlog::info("MainWindow: sky launch returned for cluster '{}'",
+                  cloudClusterName_.toStdString());
+    if (noticeOverlay_) {
+        noticeOverlay_->addNotice(
+            QStringLiteral("cloud-launch"),
+            viewport::NoticeOverlay::Severity::Info,
+            tr("Waiting for cluster"),
+            tr("`sky launch` returned; polling `sky_resolve.py` until "
+               "cluster '%1' reports status: UP. This can take several "
+               "minutes the first time.").arg(cloudClusterName_));
+    }
+    pollClusterReady();
+}
+
+void MainWindow::pollClusterReady()
+{
+    auto* timer = new QTimer(this);
+    timer->setInterval(5000);
+    const auto start = std::chrono::steady_clock::now();
+    connect(timer, &QTimer::timeout, this, [this, timer, start]() {
+        connection::ConnectionManager mgr;
+        // Look for sky_resolve.py next to the binary first; fall back to
+        // the source tree (typical when running from `build/debug/...`).
+        QString scriptsDir = QCoreApplication::applicationDirPath() + "/scripts";
+        if (!QFile::exists(scriptsDir + "/sky_resolve.py")) {
+            scriptsDir = QStringLiteral(
+                "/home/nick/MSF/msf/MICROROBOTICA/scripts");
+        }
+        auto result = mgr.resolveCluster(
+            cloudClusterName_.toStdString(), scriptsDir.toStdString());
+        if (result.has_value()
+            && result->value("status", "") == "UP") {
+            timer->stop();
+            timer->deleteLater();
+            const std::string ip = result->value("ip", "");
+            const int port = result->value("ssh_port", 22);
+            openCloudTunnel(QString::fromStdString(ip), port);
+            return;
+        }
+        if (std::chrono::steady_clock::now() - start
+            > std::chrono::minutes(10)) {
+            timer->stop();
+            timer->deleteLater();
+            onCloudFailed(tr("waiting for cluster"),
+                tr("cluster did not reach UP status within 10 minutes"));
+        }
+    });
+    timer->start();
+}
+
+void MainWindow::openCloudTunnel(const QString& ip, int ssh_port)
+{
+    spdlog::info("MainWindow: opening SSH tunnel to {}:{} for cluster '{}'",
+                  ip.toStdString(), ssh_port, cloudClusterName_.toStdString());
+    if (noticeOverlay_) {
+        noticeOverlay_->addNotice(
+            QStringLiteral("cloud-launch"),
+            viewport::NoticeOverlay::Severity::Info,
+            tr("Opening SSH tunnel"),
+            tr("Forwarding ZMQ 5555/5556 from %1 to localhost via SSH...")
+                .arg(ip));
+    }
+
+    if (!sshTunnel_) {
+        sshTunnel_ = std::make_unique<connection::SshTunnel>(this);
+        connect(sshTunnel_.get(), &connection::SshTunnel::tunnelDied,
+                this, [this](int code, const QString& err) {
+            if (noticeOverlay_) {
+                noticeOverlay_->addNotice(
+                    QStringLiteral("cloud-launch"),
+                    viewport::NoticeOverlay::Severity::Error,
+                    tr("SSH tunnel died"),
+                    tr("ssh exited %1: %2 — the MIME backend will time out "
+                       "shortly.").arg(code).arg(err));
+            }
+        });
+    }
+
+    // SkyPilot SSH node pool deploys k3s on the node; we connect to the
+    // host's SSH port and rely on SkyPilot's port-forward machinery
+    // exposing 5555/5556. The user (`nick` here) matches the
+    // ssh_node_pools.yaml entry; a future iteration can pull this from
+    // ConnectionConfig.
+    const std::vector<int> ports = {5555, 5556};
+    if (!sshTunnel_->open(ip.toStdString(), ssh_port, ports, ports, "nick")) {
+        onCloudFailed(tr("opening SSH tunnel"),
+                       tr("SshTunnel::open returned false"));
+        return;
+    }
+
+    auto* timer = new QTimer(this);
+    timer->setInterval(200);
+    const auto start = std::chrono::steady_clock::now();
+    connect(timer, &QTimer::timeout, this, [this, timer, start]() {
+        if (sshTunnel_ && sshTunnel_->isOpen()
+            && experiment::ExperimentRunner::probePort(5555, 80)) {
+            timer->stop();
+            timer->deleteLater();
+            if (noticeOverlay_) {
+                noticeOverlay_->removeNotice(QStringLiteral("cloud-launch"));
+            }
+            finishSimulationStart();
+            return;
+        }
+        if (std::chrono::steady_clock::now() - start
+            > std::chrono::seconds(60)) {
+            timer->stop();
+            timer->deleteLater();
+            onCloudFailed(tr("waiting for tunnel"),
+                tr("ssh -L opened but localhost:5555 never accepted (60s) — "
+                   "is the MIME runner actually listening on the cluster?"));
+        }
+    });
+    timer->start();
+}
+
+void MainWindow::onCloudFailed(const QString& stage, const QString& reason)
+{
+    spdlog::error("MainWindow: cloud launch failed at '{}' — {}",
+                   stage.toStdString(), reason.toStdString());
+    if (noticeOverlay_) {
+        noticeOverlay_->addNotice(
+            QStringLiteral("cloud-launch"),
+            viewport::NoticeOverlay::Severity::Error,
+            tr("Cloud launch failed: %1").arg(stage),
+            reason);
+    }
+    if (runConfigPanel_) {
+        runConfigPanel_->setLaunchEnabled(true);
+        runConfigPanel_->setConnectionStatus(tr("Cloud launch failed"));
+    }
+    // Best-effort cleanup — we may have a half-open tunnel or a half-up
+    // cluster. Always close the tunnel; only `sky down` if the user asked.
+    tearDownCloud(cloudStopOnDisconnect_);
+    QMessageBox::critical(this, tr("Cloud launch failed"),
+        tr("Stage: %1\n\n%2").arg(stage).arg(reason));
+}
+
+void MainWindow::tearDownCloud(bool stopCluster)
+{
+    if (sshTunnel_ && sshTunnel_->isOpen()) {
+        sshTunnel_->close();
+    }
+    if (stopCluster && !cloudClusterName_.isEmpty() && cloudJobLauncher_) {
+        cloudJobLauncher_->cancel(cloudClusterName_.toStdString());
+    }
+    cloudClusterName_.clear();
 }
 
 void MainWindow::onSimulationPause()
@@ -965,6 +1221,15 @@ void MainWindow::onSimulationStop()
     if (experimentRunner_ && experimentRunner_->isRunning()) {
         spdlog::info("onSimulationStop: tearing down ExperimentRunner");
         experimentRunner_->stop();
+    }
+
+    // For Cloud mode, tear down the SSH tunnel and (per the panel toggle)
+    // the SkyPilot cluster.
+    if (!cloudClusterName_.isEmpty()) {
+        spdlog::info(
+            "onSimulationStop: tearing down cloud — stopCluster={}",
+            cloudStopOnDisconnect_);
+        tearDownCloud(cloudStopOnDisconnect_);
     }
 
     statusBar()->showMessage(tr("Simulation stopped"));

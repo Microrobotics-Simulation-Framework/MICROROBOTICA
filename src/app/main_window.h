@@ -35,7 +35,12 @@ class ParameterPanel;
 
 namespace microbotica::experiment {
 class ExperimentRunner;
+class CloudJobLauncher;
 } // namespace microbotica::experiment
+
+namespace microbotica::connection {
+class SshTunnel;
+} // namespace microbotica::connection
 
 namespace microbotica::app {
 
@@ -93,6 +98,16 @@ private:
     void finishWaitingForRunner(bool ok);
     void finishSimulationStart();
 
+    /// Cloud-mode async launch helpers (SkyPilot job submit → wait for
+    /// UP → open SSH tunnel → handshake). Each stage updates a notice in
+    /// the viewport overlay so the user sees where they are in the flow.
+    void startCloudLaunch();
+    void onCloudJobLaunched(const QString& cluster_name);
+    void pollClusterReady();
+    void openCloudTunnel(const QString& ip, int ssh_port);
+    void onCloudFailed(const QString& stage, const QString& reason);
+    void tearDownCloud(bool stopCluster);
+
     /// Read the persisted notice-overlay preferences from QSettings and
     /// apply them to noticeOverlay_. Called on startup and after the
     /// Settings dialog is accepted.
@@ -111,6 +126,12 @@ private:
     // onSimulationStart to build the PhysicsConfig. Empty when running in
     // legacy stub-backend mode.
     std::string experimentDir_;
+
+    // Cloud-mode actors. Lazily constructed on the first Cloud launch.
+    std::unique_ptr<experiment::CloudJobLauncher> cloudJobLauncher_;
+    std::unique_ptr<connection::SshTunnel> sshTunnel_;
+    QString cloudClusterName_;     // populated once a Cloud launch is in flight
+    bool cloudStopOnDisconnect_ = true;
 
     // Central widget
     viewport::ViewportWidget* viewportWidget_ = nullptr;

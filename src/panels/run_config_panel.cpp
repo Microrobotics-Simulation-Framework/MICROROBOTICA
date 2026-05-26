@@ -50,6 +50,49 @@ RunConfigPanel::RunConfigPanel(QWidget* parent)
            "worker / scene-apply pipeline; lower values reduce CPU."));
     form->addRow(tr("Publish rate:"), publishFpsSpin_);
 
+    // Cloud-mode fields — hidden until the user picks Cloud.
+    clusterNameEdit_ = new QLineEdit(container);
+    clusterNameEdit_->setPlaceholderText(tr("ar4-test"));
+    clusterNameEdit_->setToolTip(
+        tr("SkyPilot cluster name. Used to launch via `sky launch --cluster`\n"
+           "and to resolve the cluster IP for the SSH tunnel."));
+    clusterNameLabel_ = new QLabel(tr("Cluster name:"), container);
+    form->addRow(clusterNameLabel_, clusterNameEdit_);
+
+    jobConfigEdit_ = new QLineEdit(container);
+    jobConfigEdit_->setPlaceholderText(tr("jobs/local_ssh.yaml"));
+    jobConfigEdit_->setToolTip(
+        tr("Path to the SkyPilot job YAML, relative to the experiment dir.\n"
+           "If empty, `cloud.job_config` from experiment.yaml is used."));
+    jobConfigLabel_ = new QLabel(tr("Job config:"), container);
+    form->addRow(jobConfigLabel_, jobConfigEdit_);
+
+    stopClusterCheck_ = new QCheckBox(
+        tr("Stop cluster on disconnect (`sky down`)"), container);
+    stopClusterCheck_->setChecked(true);
+    stopClusterCheck_->setToolTip(
+        tr("On Stop, also tear the SkyPilot cluster down. Strongly\n"
+           "recommended for billed cloud providers; you can uncheck this\n"
+           "when iterating against a long-lived dev cluster."));
+    form->addRow(QString(), stopClusterCheck_);
+
+    auto updateCloudFieldVisibility = [this]() {
+        const bool cloud =
+            modeCombo_->currentData().toInt()
+            == static_cast<int>(connection::ConnectionMode::Cloud);
+        clusterNameLabel_->setVisible(cloud);
+        clusterNameEdit_->setVisible(cloud);
+        jobConfigLabel_->setVisible(cloud);
+        jobConfigEdit_->setVisible(cloud);
+        stopClusterCheck_->setVisible(cloud);
+    };
+    updateCloudFieldVisibility();
+    connect(modeCombo_,
+            QOverload<int>::of(&QComboBox::currentIndexChanged),
+            this, [updateCloudFieldVisibility](int) {
+        updateCloudFieldVisibility();
+    });
+
     // Experiment directory
     auto* dirLayout = new QHBoxLayout;
     experimentDirEdit_ = new QLineEdit(container);
@@ -115,6 +158,18 @@ std::string RunConfigPanel::streamFormat() const {
 
 int RunConfigPanel::publishFps() const {
     return publishFpsSpin_->value();
+}
+
+std::string RunConfigPanel::clusterName() const {
+    return clusterNameEdit_->text().trimmed().toStdString();
+}
+
+std::string RunConfigPanel::jobConfig() const {
+    return jobConfigEdit_->text().trimmed().toStdString();
+}
+
+bool RunConfigPanel::stopClusterOnDisconnect() const {
+    return stopClusterCheck_->isChecked();
 }
 
 void RunConfigPanel::setConnectionStatus(const QString& status) {
