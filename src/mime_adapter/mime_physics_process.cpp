@@ -204,6 +204,27 @@ void MimePhysicsProcess::workerLoop() {
                 break;
             }
 
+            // Skip-to-latest: when the runner publishes faster than the
+            // consumer renders (common at high publish rates / complex
+            // scenes), there is no point spending decode CPU on frames
+            // that the UI's drain_latest will throw away. Drain any
+            // messages already in the SUB buffer, keep only the newest,
+            // and count the rest as `framesSkipped`. Bounded so we never
+            // starve other work — `drain_latest` on the UI side picks up
+            // anything we didn't grab here.
+            std::uint64_t skipped_now = 0;
+            for (int i = 0; i < 64; ++i) {
+                zmq::message_t newer;
+                auto more = sub.recv(newer, zmq::recv_flags::dontwait);
+                if (!more) break;
+                msg = std::move(newer);
+                ++skipped_now;
+            }
+            if (skipped_now > 0) {
+                std::lock_guard<std::mutex> lock(stats_mutex_);
+                stats_.framesSkipped += skipped_now;
+            }
+
             const auto* bytes = static_cast<const std::uint8_t*>(msg.data());
             const std::size_t size = msg.size();
             if (size == 0) {

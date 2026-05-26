@@ -87,23 +87,20 @@ std::vector<std::uint8_t> buildExampleFrame(double sim_time,
 
 namespace {
 
-// Build an ar4_helical_drive-shaped schema: 9 actors × (3-float pos +
-// 4-float quat) + 2 scalars = 65 floats per frame. Closely matches the
-// real ar4 wire layout we benchmark against.
-nlohmann::json ar4LikeSchemaJson() {
+// Build a synthetic schema with `actors` actors × (3-float pos + 4-float
+// quat) plus a couple of scalars. Mirrors the ar4 wire layout so the
+// per-frame decode cost scales realistically with actor count.
+nlohmann::json syntheticSchemaJson(int actors) {
     nlohmann::json fields = nlohmann::json::array();
     int offset = 0;
-    const char* actors[] = {
-        "arm_link_0", "arm_link_1", "arm_link_2", "arm_link_3",
-        "arm_link_4", "arm_link_5", "motor_rotor", "magnet", "body"
-    };
-    for (const auto* a : actors) {
+    for (int a = 0; a < actors; ++a) {
+        const std::string name = "actor_" + std::to_string(a);
         fields.push_back({
-            {"node", "poses"}, {"field", std::string(a) + ".pos"},
+            {"node", "poses"}, {"field", name + ".pos"},
             {"shape", {3}}, {"offset", offset}, {"count", 3}});
         offset += 3;
         fields.push_back({
-            {"node", "poses"}, {"field", std::string(a) + ".quat"},
+            {"node", "poses"}, {"field", name + ".quat"},
             {"shape", {4}}, {"offset", offset}, {"count", 4}});
         offset += 4;
     }
@@ -113,7 +110,7 @@ nlohmann::json ar4LikeSchemaJson() {
         {"offset", offset}, {"count", 1}});
     offset += 1;
     fields.push_back({
-        {"node", "scalars"}, {"field", "sim_time_progress"},
+        {"node", "scalars"}, {"field", "sim_progress"},
         {"shape", nlohmann::json::array()},
         {"offset", offset}, {"count", 1}});
     offset += 1;
@@ -125,72 +122,159 @@ nlohmann::json ar4LikeSchemaJson() {
     };
 }
 
-std::vector<std::uint8_t> ar4LikeFrame(const BinaryStreamSchema& schema) {
+std::vector<std::uint8_t> syntheticFrame(const BinaryStreamSchema& schema) {
     std::vector<std::uint8_t> buf;
+    buf.reserve(static_cast<std::size_t>(schema.frame_bytes));
     putF64LE(buf, 1.234567);
     for (int i = 0; i < schema.total_floats; ++i) {
-        // Just a deterministic, non-trivial value pattern.
         putF32LE(buf, 0.125f + 0.0625f * static_cast<float>(i));
     }
     return buf;
 }
 
-} // namespace
+// Bytewise reference decode: replicates the pre-optimisation hot loop —
+// cached plan and reused scratch, but the float payload is reassembled
+// from bytes via shifts instead of a single memcpy. Used to isolate the
+// memcpy contribution from the plan-caching contribution.
+inline float readFloatLE(const std::uint8_t* p) {
+    const std::uint32_t bits =
+        static_cast<std::uint32_t>(p[0])
+        | (static_cast<std::uint32_t>(p[1]) << 8)
+        | (static_cast<std::uint32_t>(p[2]) << 16)
+        | (static_cast<std::uint32_t>(p[3]) << 24);
+    float f;
+    std::memcpy(&f, &bits, sizeof(f));
+    return f;
+}
 
-TEST_CASE("benchmark: decode hot path — ar4-shaped frame, slow vs fast",
-          "[.bench][binary]") {
-    const auto schemaJson = ar4LikeSchemaJson();
-    const auto schema = parseBinarySchema(schemaJson);
-    const auto frame = ar4LikeFrame(schema);
+inline double readDoubleLE(const std::uint8_t* p) {
+    std::uint64_t bits = 0;
+    for (int i = 0; i < 8; ++i) {
+        bits |= static_cast<std::uint64_t>(p[i]) << (8 * i);
+    }
+    double d;
+    std::memcpy(&d, &bits, sizeof(d));
+    return d;
+}
 
+ResultFrame decodeBytewise(const std::uint8_t* data, std::size_t size,
+                            const BinaryStreamSchema& schema,
+                            const std::vector<DecodePlanEntry>& plan,
+                            std::vector<float>& scratch) {
+    ResultFrame frame;
+    frame.simTime = readDoubleLE(data);
+    const std::uint8_t* body = data + 8;
+    const std::size_t total = static_cast<std::size_t>(schema.total_floats);
+    scratch.resize(total);
+    for (std::size_t i = 0; i < total; ++i) {
+        scratch[i] = readFloatLE(body + i * 4);
+    }
+    (void)size;
+    for (const auto& entry : plan) {
+        const float* v = scratch.data() + entry.offset;
+        switch (entry.kind) {
+            case DecodePlanEntry::Kind::Position:
+                frame.positions[entry.name] = Vec3f{v[0], v[1], v[2]};
+                break;
+            case DecodePlanEntry::Kind::Orientation:
+                frame.orientations[entry.name] = Quatf{v[0], v[1], v[2], v[3]};
+                break;
+            case DecodePlanEntry::Kind::Scalar:
+                frame.scalars[entry.name] = v[0];
+                break;
+            case DecodePlanEntry::Kind::Skip:
+                break;
+        }
+    }
+    return frame;
+}
+
+struct BenchResult {
+    double slowNs = 0.0;       // recompile plan + heap-alloc scratch each call
+    double fastNs = 0.0;       // cached plan + reused scratch + memcpy
+    double bytewiseNs = 0.0;   // cached plan + reused scratch, no memcpy
+    int totalFloats = 0;
+    int frameBytes = 0;
+    int iterations = 0;
+};
+
+BenchResult runBenchAt(int actorCount, int iterations) {
+    const auto schema = parseBinarySchema(syntheticSchemaJson(actorCount));
+    const auto frame = syntheticFrame(schema);
     const auto plan = compileDecodePlan(schema);
+
     std::vector<float> scratch;
     scratch.reserve(static_cast<std::size_t>(schema.total_floats));
 
     constexpr int kWarmup = 2000;
-    constexpr int kIter   = 200000;
-
-    // Warmup — pages, TLB, branch predictor.
     for (int i = 0; i < kWarmup; ++i) {
         auto f = decodeBinaryFrame(frame.data(), frame.size(),
                                    schema, plan, scratch);
         (void)f;
     }
 
-    // Fast path: cached plan + reused scratch.
-    auto t0 = std::chrono::steady_clock::now();
     double simSum = 0.0;
-    for (int i = 0; i < kIter; ++i) {
+
+    auto t0 = std::chrono::steady_clock::now();
+    for (int i = 0; i < iterations; ++i) {
         auto f = decodeBinaryFrame(frame.data(), frame.size(),
                                    schema, plan, scratch);
-        simSum += f.simTime; // keep the optimiser honest
+        simSum += f.simTime;
     }
     auto t1 = std::chrono::steady_clock::now();
     const double fastNs =
-        std::chrono::duration<double, std::nano>(t1 - t0).count() / kIter;
+        std::chrono::duration<double, std::nano>(t1 - t0).count() / iterations;
 
-    // Slow path: recompiles the plan and allocates a fresh scratch buffer
-    // on every call — representative of what the old code did each frame.
     t0 = std::chrono::steady_clock::now();
-    for (int i = 0; i < kIter; ++i) {
+    for (int i = 0; i < iterations; ++i) {
         auto f = decodeBinaryFrame(frame.data(), frame.size(), schema);
         simSum += f.simTime;
     }
     t1 = std::chrono::steady_clock::now();
     const double slowNs =
-        std::chrono::duration<double, std::nano>(t1 - t0).count() / kIter;
+        std::chrono::duration<double, std::nano>(t1 - t0).count() / iterations;
 
-    INFO("ar4-shaped frame: total_floats=" << schema.total_floats
-         << "  bytes=" << frame.size());
-    INFO("slow path (recompile plan + alloc each call): "
-         << slowNs << " ns / frame");
-    INFO("fast path (cached plan + reused scratch):     "
-         << fastNs << " ns / frame");
-    INFO("speedup: " << (slowNs / fastNs) << "x  ("
-         << (slowNs - fastNs) << " ns saved / frame)");
-    WARN("BENCH slow=" << slowNs << "ns  fast=" << fastNs
-         << "ns  speedup=" << (slowNs / fastNs) << "x"
-         << "  (sum=" << simSum << ")"); // anchor sum so it isn't DCE'd
+    t0 = std::chrono::steady_clock::now();
+    for (int i = 0; i < iterations; ++i) {
+        auto f = decodeBytewise(frame.data(), frame.size(),
+                                 schema, plan, scratch);
+        simSum += f.simTime;
+    }
+    t1 = std::chrono::steady_clock::now();
+    const double bytewiseNs =
+        std::chrono::duration<double, std::nano>(t1 - t0).count() / iterations;
+
+    (void)simSum; // keeps the optimiser honest across the three loops.
+    return BenchResult{slowNs, fastNs, bytewiseNs,
+                       schema.total_floats,
+                       schema.frame_bytes,
+                       iterations};
+}
+
+} // namespace
+
+TEST_CASE("benchmark: decode hot path — scaling with actor count",
+          "[.bench][binary]") {
+    struct Row { int actors; int iters; };
+    const std::vector<Row> sweeps = {
+        {9,    200000},
+        {50,   100000},
+        {200,   50000},
+        {500,   20000},
+        {1000,  10000},
+    };
+
+    for (const auto& row : sweeps) {
+        const auto r = runBenchAt(row.actors, row.iters);
+        WARN("BENCH actors=" << row.actors
+             << " floats=" << r.totalFloats
+             << " bytes=" << r.frameBytes
+             << "  slow=" << r.slowNs << "ns"
+             << "  fast=" << r.fastNs << "ns"
+             << "  bytewise=" << r.bytewiseNs << "ns"
+             << "  | speedup=" << (r.slowNs / r.fastNs) << "x"
+             << "  | memcpy-vs-bytewise=" << (r.bytewiseNs / r.fastNs) << "x");
+    }
 }
 
 // ── Schema parsing ───────────────────────────────────────────────────────────

@@ -213,6 +213,23 @@ core::ResultFrame decodeBinaryFrame(const std::uint8_t* data,
 
     payloadToFloats(data + 8, size - 8, schema, scratch);
 
+    // Pre-size the maps so the per-entry inserts below don't rehash mid-way
+    // through the loop — the rehash cost is dominant on complex scenes
+    // (hundreds of actors). One short walk over the plan is far cheaper
+    // than even a single rehash of a full map.
+    std::size_t nPos = 0, nOri = 0, nSca = 0;
+    for (const auto& entry : plan) {
+        switch (entry.kind) {
+            case DecodePlanEntry::Kind::Position:    ++nPos; break;
+            case DecodePlanEntry::Kind::Orientation: ++nOri; break;
+            case DecodePlanEntry::Kind::Scalar:      ++nSca; break;
+            case DecodePlanEntry::Kind::Skip:        break;
+        }
+    }
+    frame.positions.reserve(nPos);
+    frame.orientations.reserve(nOri);
+    frame.scalars.reserve(nSca);
+
     // Hot loop: precompiled plan + tight float lookups — no string ops.
     for (const auto& entry : plan) {
         const float* v = scratch.data() + entry.offset;

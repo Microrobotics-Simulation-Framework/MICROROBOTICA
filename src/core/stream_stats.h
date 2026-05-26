@@ -15,12 +15,15 @@ struct StreamStats {
     std::string format = "json";        ///< "json" | "binary"
     std::string compression = "none";   ///< binary only: "none" | "zstd" | ...
     std::uint64_t framesReceived = 0;   ///< ResultFrames decoded off the wire
+    std::uint64_t framesSkipped = 0;    ///< intermediate frames dropped by skip-to-latest
     std::uint64_t bytesReceived = 0;    ///< total ZMQ payload bytes, frames only
     std::uint64_t paramsMessages = 0;   ///< one-time {"type":"params"} notices
     std::uint64_t decodeErrors = 0;     ///< messages dropped on decode failure
     std::uint32_t lastFrameBytes = 0;   ///< on-wire size of the most recent frame
     double decodeAvgUs = 0.0;           ///< mean decode time per frame (us)
     double decodeMaxUs = 0.0;           ///< worst-case decode time (us)
+    double applyAvgUs = 0.0;            ///< mean scene-apply time per frame (us)
+    double applyMaxUs = 0.0;            ///< worst-case scene-apply time (us)
     double receivedFps = 0.0;           ///< EWMA of the on-wire frame rate
 };
 

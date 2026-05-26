@@ -97,19 +97,24 @@ void TimelinePanel::onTimerTick()
         lastFpsTime_ = now;
 
         // Stream benchmark readout (fit-up §8): wire format, on-wire frame
-        // size, mean decode cost, and UI-side drop count.
+        // size, mean decode + apply cost, and the worker/UI drop counts.
         const auto stats = simCtrl_.streamStats();
         if (stats.framesReceived > 0) {
             qint64 dropped = static_cast<qint64>(stats.framesReceived)
                            - simCtrl_.appliedFrameCount();
             if (dropped < 0) dropped = 0;
-            QString text = QString("%1  %2 B/f  %3 us")
+            QString text = QString("%1  %2 B/f  dec %3 us  app %4 us")
                 .arg(QString::fromStdString(
                          stats.compression == "none" || stats.format == "json"
                              ? stats.format
                              : stats.format + "/" + stats.compression))
                 .arg(stats.lastFrameBytes)
-                .arg(stats.decodeAvgUs, 0, 'f', 1);
+                .arg(stats.decodeAvgUs, 0, 'f', 1)
+                .arg(stats.applyAvgUs, 0, 'f', 1);
+            if (stats.framesSkipped > 0) {
+                text += QString("  %1 skip")
+                    .arg(static_cast<qulonglong>(stats.framesSkipped));
+            }
             if (dropped > 0) {
                 text += QString("  %1 drop").arg(dropped);
             }

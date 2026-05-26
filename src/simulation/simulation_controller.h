@@ -129,6 +129,13 @@ private:
     std::atomic<double> currentTime_{0.0};
     std::string errorMessage_;
     int frameCount_ = 0;
+
+    // Scene-apply timing — updated each requestNextFrame on the UI thread,
+    // and merged into the StreamStats snapshot so the same dashboard /
+    // benchmark CSV records both worker decode cost and UI apply cost.
+    std::uint64_t applyCount_ = 0;
+    double applyAvgUs_ = 0.0;
+    double applyMaxUs_ = 0.0;
 };
 
 } // namespace microbotica::simulation
