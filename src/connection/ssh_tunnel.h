@@ -60,12 +60,21 @@ public:
     /// @param local_ports  Local ports to forward (e.g., {5555, 5556})
     /// @param remote_ports  Corresponding remote ports
     /// @param user  SSH user (default "root" for SkyPilot instances)
+    /// @param forward_target  Host the SSH server should connect to when
+    ///                        forwarding each port (the right side of the
+    ///                        `-L local:<target>:remote` syntax). "localhost"
+    ///                        works for direct VM endpoints; for SkyPilot
+    ///                        Kubernetes/SSH node pools the LoadBalancer is
+    ///                        bound to the node's external interface (not
+    ///                        the host's localhost), so pass the same host
+    ///                        IP here. Empty defaults to "localhost".
     /// @return true if the process started successfully
     bool open(const std::string& host,
               int ssh_port,
               const std::vector<int>& local_ports,
               const std::vector<int>& remote_ports,
-              const std::string& user = "root");
+              const std::string& user = "root",
+              const std::string& forward_target = "localhost");
 
     /// Close the tunnel process gracefully.
     void close();

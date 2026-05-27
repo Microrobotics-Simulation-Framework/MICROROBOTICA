@@ -17,7 +17,8 @@ bool SshTunnel::open(const std::string& host,
                       int ssh_port,
                       const std::vector<int>& local_ports,
                       const std::vector<int>& remote_ports,
-                      const std::string& user)
+                      const std::string& user,
+                      const std::string& forward_target)
 {
     if (process_ && process_->state() != QProcess::NotRunning) {
         spdlog::warn("SshTunnel: Tunnel already open — close it first");
@@ -29,7 +30,10 @@ bool SshTunnel::open(const std::string& host,
         return false;
     }
 
-    // Build SSH command: ssh -N -L <local>:localhost:<remote> ... -p <port> user@host
+    const QString target = QString::fromStdString(
+        forward_target.empty() ? std::string("localhost") : forward_target);
+
+    // Build SSH command: ssh -N -L <local>:<target>:<remote> ... -p <port> user@host
     QStringList args;
     args << "-N"; // No remote command — tunnel only
     args << "-o" << "StrictHostKeyChecking=no";
@@ -38,8 +42,9 @@ bool SshTunnel::open(const std::string& host,
     args << "-o" << "ServerAliveCountMax=3";
 
     for (size_t i = 0; i < local_ports.size(); ++i) {
-        args << "-L" << QString("%1:localhost:%2")
+        args << "-L" << QString("%1:%2:%3")
                            .arg(local_ports[i])
+                           .arg(target)
                            .arg(remote_ports[i]);
     }
 

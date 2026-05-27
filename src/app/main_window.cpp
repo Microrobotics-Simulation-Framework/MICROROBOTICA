@@ -1107,13 +1107,14 @@ void MainWindow::openCloudTunnel(const QString& ip, int ssh_port)
         });
     }
 
-    // SkyPilot SSH node pool deploys k3s on the node; we connect to the
-    // host's SSH port and rely on SkyPilot's port-forward machinery
-    // exposing 5555/5556. The user (`nick` here) matches the
-    // ssh_node_pools.yaml entry; a future iteration can pull this from
-    // ConnectionConfig.
+    // SkyPilot SSH node pool deploys k3s; the task's `ports:` are exposed
+    // via a LoadBalancer service whose ingress IP is the node's external
+    // interface. That means the forwarding target must be the same host
+    // (not the SSH-server's localhost — nothing listens there). The user
+    // (`nick` here) matches the ssh_node_pools.yaml entry.
     const std::vector<int> ports = {5555, 5556};
-    if (!sshTunnel_->open(ip.toStdString(), ssh_port, ports, ports, "nick")) {
+    if (!sshTunnel_->open(ip.toStdString(), ssh_port, ports, ports,
+                           "nick", ip.toStdString())) {
         onCloudFailed(tr("opening SSH tunnel"),
                        tr("SshTunnel::open returned false"));
         return;
