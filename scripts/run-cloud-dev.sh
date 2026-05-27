@@ -45,5 +45,17 @@ docker run -it --rm \
             apt-get install -y --no-install-recommends \
                 netcat-openbsd socat 2>&1 | tail -2
         fi
+
+        # The container runs as root; ssh-tunnel.sh (the kubeconfig auth
+        # exec plugin) shells out to plain `ssh 192.168.2.7` which looks
+        # up the *passwd-entry* home for the running uid — /root — not
+        # $HOME. Without /root/.ssh/{config,known_hosts,id_ed25519_mime}
+        # ssh falls back to ssh-askpass (absent) and the tunnel dies
+        # with "Host key verification failed". Symlink the bind-mounted
+        # ~/.ssh into /root so the default lookups succeed.
+        if [ ! -e /root/.ssh ]; then
+            ln -s /home/nick/.ssh /root/.ssh
+        fi
+
         exec bash
     '
