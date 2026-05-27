@@ -50,9 +50,13 @@ docker run -it --rm \
             || ! command -v autossh >/dev/null \
             || ! command -v rsync >/dev/null; then
             echo ">>> installing sky prereqs (nc, socat, jq, autossh, rsync)..."
-            apt-get update -qq >/dev/null 2>&1
-            apt-get install -y --no-install-recommends \
-                netcat-openbsd socat jq autossh rsync 2>&1 | tail -2
+            echo ">>> apt-get update..."
+            DEBIAN_FRONTEND=noninteractive apt-get update
+            echo ">>> apt-get install..."
+            DEBIAN_FRONTEND=noninteractive apt-get install -y \
+                --no-install-recommends \
+                netcat-openbsd socat jq autossh rsync
+            echo ">>> apt install done."
         fi
 
         # The container runs as root; ssh-tunnel.sh (the kubeconfig auth
