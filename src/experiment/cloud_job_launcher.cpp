@@ -1,5 +1,6 @@
 #include "experiment/cloud_job_launcher.h"
 #include <spdlog/spdlog.h>
+#include <filesystem>
 
 namespace microbotica::experiment {
 
@@ -57,13 +58,29 @@ QStringList CloudJobLauncher::buildLaunchArgs(
     // managed jobs would tear themselves down on completion. `-d`
     // (detach-run) returns once the task is dispatched, leaving the
     // cluster up.
-    const std::string job_path = experiment_dir + "/" + job_config;
+
+    // Canonicalize the workdir. When MICROROBOTICA runs inside the
+    // cloud-dev container, the sky API daemon is on the host (with the
+    // host's ~/.sky bind-mounted in), so it resolves --workdir against
+    // the host filesystem. `run-cloud-dev.sh` symlinks /workspace/*
+    // into /home/nick/MSF/msf/* (host-symmetric paths bind-mounted
+    // through), so canonical() turns a container-local path the user
+    // picked in QFileDialog into something sky on the host can stat.
+    std::string resolved = experiment_dir;
+    try {
+        resolved = std::filesystem::canonical(experiment_dir).string();
+    } catch (const std::filesystem::filesystem_error& e) {
+        spdlog::warn("CloudJobLauncher: canonical('{}') failed ({}), "
+                     "using path as-is", experiment_dir, e.what());
+    }
+
+    const std::string job_path = resolved + "/" + job_config;
     QStringList args;
     args << QStringLiteral("launch")
          << QStringLiteral("-y")
          << QStringLiteral("-d")
          << QStringLiteral("-c") << QString::fromStdString(cluster_name)
-         << QStringLiteral("--workdir") << QString::fromStdString(experiment_dir)
+         << QStringLiteral("--workdir") << QString::fromStdString(resolved)
          << QString::fromStdString(job_path);
     return args;
 }

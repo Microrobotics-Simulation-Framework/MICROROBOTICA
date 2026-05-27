@@ -43,17 +43,30 @@ docker run -it --rm \
     -e HOME=/home/nick \
     -e PATH="$MSF/.venv/bin:/opt/usd/bin:/opt/venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin" \
     -v /tmp/.X11-unix:/tmp/.X11-unix \
-    -v "$MSF/MADDENING":/workspace/maddening \
-    -v "$MSF/MIME":/workspace/mime \
-    -v "$MSF/MICROROBOTICA":/workspace/microbotica \
     -v "$MSF/.venv":"$MSF/.venv" \
-    -v "$MSF/MIME":"$MSF/MIME":ro \
-    -v "$MSF/MADDENING":"$MSF/MADDENING":ro \
+    -v "$MSF/MIME":"$MSF/MIME" \
+    -v "$MSF/MADDENING":"$MSF/MADDENING" \
+    -v "$MSF/MICROROBOTICA":"$MSF/MICROROBOTICA" \
     -v "$HOME/.sky":/home/nick/.sky \
     -v "$HOME/.kube":/home/nick/.kube:ro \
     -v "$HOME/.ssh":/home/nick/.ssh:ro \
     "$IMAGE" \
     bash -c '
+        # The sky API server is on the *host* (the daemon that owns
+        # ~/.sky), so when MICROROBOTICA inside the container submits
+        # `sky launch --workdir <path>`, the host resolves <path>
+        # against the host filesystem. Mount the host paths
+        # symmetrically (above) so a container-side path under
+        # /home/nick/MSF/msf is identical to the host. Then symlink the
+        # historical /workspace/<x> entrypoints so existing recent-file
+        # caches / muscle memory still work — std::filesystem::canonical()
+        # in CloudJobLauncher resolves them to the host-real path before
+        # handing the workdir to sky.
+        mkdir -p /workspace
+        ln -sfn /home/nick/MSF/msf/MIME          /workspace/mime
+        ln -sfn /home/nick/MSF/msf/MADDENING     /workspace/maddening
+        ln -sfn /home/nick/MSF/msf/MICROROBOTICA /workspace/microbotica
+
         # The container runs as root; ssh-tunnel.sh (the kubeconfig auth
         # exec plugin) shells out to plain ssh 192.168.2.7 which looks
         # up the passwd-entry home for the running uid — /root — not

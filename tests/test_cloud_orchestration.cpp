@@ -11,6 +11,7 @@
 #include <atomic>
 #include <chrono>
 #include <cstring>
+#include <filesystem>
 #include <thread>
 
 #include "experiment/cloud_job_launcher.h"
@@ -56,6 +57,36 @@ TEST_CASE("CloudJobLauncher::buildLaunchArgs forms the expected sky launch invoc
             QLatin1String(
                 "/home/nick/MSF/msf/MIME/experiments/ar4_helical_drive/"
                 "jobs/local_ssh.yaml"));
+}
+
+TEST_CASE("CloudJobLauncher::buildLaunchArgs canonicalizes workdir through symlinks",
+          "[unit][cloud]") {
+    // When MICROROBOTICA runs in the cloud-dev container, the user may open
+    // an experiment via a /workspace/<x> symlink while the sky API server
+    // (on the host) resolves --workdir against host-real paths. The
+    // canonical() step inside buildLaunchArgs must follow the symlink so
+    // sky gets a path the host can stat.
+    namespace fs = std::filesystem;
+    const auto tmp = fs::temp_directory_path() /
+        ("microbotica-cloud-test-" + std::to_string(::getpid()));
+    const auto real_dir = tmp / "real";
+    const auto link_dir = tmp / "link";
+    fs::create_directories(real_dir);
+    fs::create_directory_symlink(real_dir, link_dir);
+
+    const QStringList args = CloudJobLauncher::buildLaunchArgs(
+        link_dir.string(),     // user-facing path (symlink)
+        "jobs/x.yaml",
+        "test-cluster");
+
+    const int wIdx = args.indexOf(QLatin1String("--workdir"));
+    REQUIRE(wIdx >= 0);
+    REQUIRE(args.value(wIdx + 1) ==
+            QString::fromStdString(real_dir.string()));  // resolved through link
+    REQUIRE(args.last() ==
+            QString::fromStdString(real_dir.string() + "/jobs/x.yaml"));
+
+    fs::remove_all(tmp);
 }
 
 TEST_CASE("CloudJobLauncher: idle state has no process",
