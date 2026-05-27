@@ -43,14 +43,16 @@ docker run -it --rm \
         #   nc + socat — Kubernetes portforward networking mode
         #   jq         — ssh-tunnel.sh exec credential plugin parses JSON
         #   autossh    — auto-reconnects the k3s control-plane SSH tunnel
+        #   rsync      — sky uses it to upload workdir + file_mounts
         if ! command -v nc >/dev/null \
             || ! command -v socat >/dev/null \
             || ! command -v jq >/dev/null \
-            || ! command -v autossh >/dev/null; then
-            echo ">>> installing nc + socat + jq + autossh in the container..."
+            || ! command -v autossh >/dev/null \
+            || ! command -v rsync >/dev/null; then
+            echo ">>> installing sky prereqs (nc, socat, jq, autossh, rsync)..."
             apt-get update -qq >/dev/null 2>&1
             apt-get install -y --no-install-recommends \
-                netcat-openbsd socat jq autossh 2>&1 | tail -2
+                netcat-openbsd socat jq autossh rsync 2>&1 | tail -2
         fi
 
         # The container runs as root; ssh-tunnel.sh (the kubeconfig auth
