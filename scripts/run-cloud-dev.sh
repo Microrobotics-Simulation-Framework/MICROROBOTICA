@@ -18,6 +18,7 @@ docker rm -f "$NAME" 2>/dev/null || true
 
 docker run -it --rm \
     --name "$NAME" \
+    --user 0:0 \
     --network host \
     --gpus all \
     -e DISPLAY="$DISPLAY" \
@@ -34,7 +35,7 @@ docker run -it --rm \
     -v "$HOME/.kube":/home/nick/.kube:ro \
     -v "$HOME/.ssh":/home/nick/.ssh:ro \
     ghcr.io/microrobotics-simulation-framework/microrobotica:base \
-    bash -lc '
+    bash -c '
         # SkyPilot 0.12 requires nc + socat on PATH to talk to its k3s
         # control plane via the portforward networking mode. The :base
         # image ships neither; apt-get update first or install fails
@@ -77,5 +78,8 @@ docker run -it --rm \
             # *.pub files can stay world-readable, but 600 is fine.
         fi
 
-        exec bash
+        # Keep the final shell as -i (interactive) but NOT -l, so the
+        # base image profile scripts (which can drop privileges) don'\''t
+        # re-fire and toss us back to ubuntu.
+        exec bash -i
     '
