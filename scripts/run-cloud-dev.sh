@@ -39,22 +39,36 @@ docker run -it --rm \
         # control plane via the portforward networking mode. The :base
         # image ships neither; apt-get update first or install fails
         # to find the package.
-        if ! command -v nc >/dev/null || ! command -v socat >/dev/null; then
-            echo ">>> installing nc + socat in the container..."
+        # SkyPilot 0.12 prereqs that the :base image doesn't ship:
+        #   nc + socat — Kubernetes portforward networking mode
+        #   jq         — ssh-tunnel.sh exec credential plugin parses JSON
+        #   autossh    — auto-reconnects the k3s control-plane SSH tunnel
+        if ! command -v nc >/dev/null \
+            || ! command -v socat >/dev/null \
+            || ! command -v jq >/dev/null \
+            || ! command -v autossh >/dev/null; then
+            echo ">>> installing nc + socat + jq + autossh in the container..."
             apt-get update -qq >/dev/null 2>&1
             apt-get install -y --no-install-recommends \
-                netcat-openbsd socat 2>&1 | tail -2
+                netcat-openbsd socat jq autossh 2>&1 | tail -2
         fi
 
         # The container runs as root; ssh-tunnel.sh (the kubeconfig auth
         # exec plugin) shells out to plain `ssh 192.168.2.7` which looks
         # up the *passwd-entry* home for the running uid — /root — not
-        # $HOME. Without /root/.ssh/{config,known_hosts,id_ed25519_mime}
-        # ssh falls back to ssh-askpass (absent) and the tunnel dies
-        # with "Host key verification failed". Symlink the bind-mounted
-        # ~/.ssh into /root so the default lookups succeed.
-        if [ ! -e /root/.ssh ]; then
-            ln -s /home/nick/.ssh /root/.ssh
+        # $HOME. AND ssh refuses any config / key file not owned by the
+        # running user (or root). The bind-mounted ~/.ssh is owned by
+        # the host user (uid 1000), so a symlink trips ssh's strict
+        # ownership check. Copy the files into a root-owned /root/.ssh
+        # at container entry. Done once per container; no persistent
+        # state since /root is inside the container's rw layer.
+        if [ ! -d /root/.ssh ]; then
+            mkdir -p /root/.ssh
+            cp -r /home/nick/.ssh/. /root/.ssh/
+            chown -R root:root /root/.ssh
+            chmod 700 /root/.ssh
+            find /root/.ssh -type f -exec chmod 600 {} \;
+            # *.pub files can stay world-readable, but 600 is fine.
         fi
 
         exec bash
