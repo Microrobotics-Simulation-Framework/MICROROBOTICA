@@ -27,7 +27,7 @@ docker run -it --rm \
     -v "$MSF/MADDENING":/workspace/maddening \
     -v "$MSF/MIME":/workspace/mime \
     -v "$MSF/MICROROBOTICA":/workspace/microbotica \
-    -v "$MSF/.venv":"$MSF/.venv":ro \
+    -v "$MSF/.venv":"$MSF/.venv" \
     -v "$MSF/MIME":"$MSF/MIME":ro \
     -v "$MSF/MADDENING":"$MSF/MADDENING":ro \
     -v "$HOME/.sky":/home/nick/.sky \
