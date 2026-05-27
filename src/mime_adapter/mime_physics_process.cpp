@@ -473,4 +473,31 @@ std::string MimePhysicsProcess::sendCommand(const std::string& command) {
 #endif
 }
 
+bool MimePhysicsProcess::probeRunner(const std::string& req_endpoint,
+                                      int timeout_ms) {
+#ifdef MICROBOTICA_HAS_ZMQ
+    zmq::context_t ctx(1);
+    zmq::socket_t req(ctx, zmq::socket_type::req);
+    req.set(zmq::sockopt::linger, 0);
+    req.set(zmq::sockopt::rcvtimeo, timeout_ms);
+    req.set(zmq::sockopt::sndtimeo, timeout_ms);
+    try {
+        req.connect(req_endpoint);
+        const std::string body = R"({"command":"stream_info"})";
+        zmq::message_t msg(body.size());
+        std::memcpy(msg.data(), body.data(), body.size());
+        auto sent = req.send(msg, zmq::send_flags::none);
+        if (!sent) return false;
+        zmq::message_t reply;
+        return static_cast<bool>(req.recv(reply, zmq::recv_flags::none));
+    } catch (const zmq::error_t&) {
+        return false;
+    }
+#else
+    (void)req_endpoint;
+    (void)timeout_ms;
+    return false;
+#endif
+}
+
 } // namespace microbotica::mime

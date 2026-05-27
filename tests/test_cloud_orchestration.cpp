@@ -16,6 +16,7 @@
 
 #include "experiment/cloud_job_launcher.h"
 #include "experiment/experiment_runner.h"
+#include "mime_adapter/mime_physics_process.h"
 
 #ifdef MICROBOTICA_HAS_ZMQ
 #include <zmq.hpp>
@@ -23,6 +24,7 @@
 
 using microbotica::experiment::CloudJobLauncher;
 using microbotica::experiment::ExperimentRunner;
+using microbotica::mime::MimePhysicsProcess;
 
 // ── CloudJobLauncher::buildLaunchArgs ───────────────────────────────────────
 
@@ -130,6 +132,53 @@ TEST_CASE("ExperimentRunner::probePort accepts when something is listening",
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
     REQUIRE(ExperimentRunner::probePort(port, 500));
+
+    running.store(false);
+    listener.join();
+}
+
+// ── MimePhysicsProcess::probeRunner ─────────────────────────────────────────
+//
+// This is the ZMQ-level readiness probe the Cloud-mode flow uses *after*
+// the SSH tunnel is up — sky launch -d returns once the job is dispatched,
+// not when the runner has bound. The TCP-only check was a false positive
+// because ssh -L accepts locally regardless of the upstream state.
+
+TEST_CASE("MimePhysicsProcess::probeRunner returns false when nothing answers",
+          "[unit][cloud]") {
+    // 59999 deliberately closed — confirms the helper does not deadlock or
+    // return spuriously when the upstream is absent.
+    REQUIRE_FALSE(
+        MimePhysicsProcess::probeRunner("tcp://127.0.0.1:59999", 200));
+}
+
+TEST_CASE("MimePhysicsProcess::probeRunner returns true on any REP reply",
+          "[integration][cloud]") {
+    const int port = 16002;
+    std::atomic<bool> running{true};
+    std::thread listener([&]() {
+        zmq::context_t ctx(1);
+        zmq::socket_t rep(ctx, zmq::socket_type::rep);
+        rep.set(zmq::sockopt::linger, 0);
+        rep.set(zmq::sockopt::rcvtimeo, 500);
+        rep.bind("tcp://127.0.0.1:" + std::to_string(port));
+        while (running.load()) {
+            zmq::message_t msg;
+            auto r = rep.recv(msg, zmq::recv_flags::none);
+            if (r) {
+                // Any non-empty reply counts as "runner up" — the probe
+                // does not parse the body, just verifies a round-trip.
+                const std::string body = R"({"stream_info":"stub"})";
+                zmq::message_t out(body.size());
+                std::memcpy(out.data(), body.data(), body.size());
+                (void)rep.send(out, zmq::send_flags::none);
+            }
+        }
+    });
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
+    REQUIRE(MimePhysicsProcess::probeRunner(
+        "tcp://127.0.0.1:" + std::to_string(port), 1000));
 
     running.store(false);
     listener.join();

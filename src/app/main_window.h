@@ -105,6 +105,7 @@ private:
     void onCloudJobLaunched(const QString& cluster_name);
     void pollClusterReady();
     void openCloudTunnel(const QString& ip, int ssh_port);
+    void waitForRunnerReady();
     void onCloudFailed(const QString& stage, const QString& reason);
     void tearDownCloud(bool stopCluster);
 

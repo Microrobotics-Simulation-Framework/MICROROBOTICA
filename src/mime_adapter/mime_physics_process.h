@@ -94,6 +94,16 @@ public:
     /// Negotiated 5556 wire format (MIME v0.2 fit-up §8).
     enum class StreamFormat { Json, Binary };
 
+    /// One-shot ZMQ REQ/REP probe: open a fresh socket, send `stream_info`,
+    /// wait up to `timeout_ms` for any reply. Returns true on reply.
+    ///
+    /// Use this to detect when a MIME runner has actually bound its REP
+    /// socket — a plain TCP probe (or an SSH `-L` forwarder accepting
+    /// locally) only confirms the network path, not that the runner is up.
+    /// Intended for Cloud-mode readiness loops where the pod may be in a
+    /// cold-start window (JAX install, JIT compile) for several minutes.
+    static bool probeRunner(const std::string& req_endpoint, int timeout_ms);
+
 private:
     void workerLoop();
     std::string sendCommand(const std::string& command);

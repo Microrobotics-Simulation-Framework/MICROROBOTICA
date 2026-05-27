@@ -39,6 +39,7 @@
 #include "experiment/experiment_loader.h"
 #include "experiment/cloud_job_launcher.h"
 #include "mime_adapter/mime_compute_backend.h"
+#include "mime_adapter/mime_physics_process.h"
 #include "connection/connection_config.h"
 #include "connection/connection_manager.h"
 #include "connection/ssh_tunnel.h"
@@ -1120,30 +1121,85 @@ void MainWindow::openCloudTunnel(const QString& ip, int ssh_port)
         return;
     }
 
-    auto* timer = new QTimer(this);
-    timer->setInterval(200);
-    const auto start = std::chrono::steady_clock::now();
-    connect(timer, &QTimer::timeout, this, [this, timer, start]() {
+    auto* tcp_timer = new QTimer(this);
+    tcp_timer->setInterval(200);
+    const auto tcp_start = std::chrono::steady_clock::now();
+    connect(tcp_timer, &QTimer::timeout, this, [this, tcp_timer, tcp_start]() {
         if (sshTunnel_ && sshTunnel_->isOpen()
             && experiment::ExperimentRunner::probePort(5555, 80)) {
-            timer->stop();
-            timer->deleteLater();
+            tcp_timer->stop();
+            tcp_timer->deleteLater();
+            waitForRunnerReady();  // ZMQ-level probe (long window).
+            return;
+        }
+        if (std::chrono::steady_clock::now() - tcp_start
+            > std::chrono::seconds(60)) {
+            tcp_timer->stop();
+            tcp_timer->deleteLater();
+            onCloudFailed(tr("waiting for tunnel"),
+                tr("ssh -L opened but localhost:5555 never accepted (60s) — "
+                   "is the MIME runner actually listening on the cluster?"));
+        }
+    });
+    tcp_timer->start();
+}
+
+// SSH `-L` accepts on the local socket whether the remote is bound or not,
+// so the prior probePort(5555) gate only confirms the tunnel itself is up.
+// To know the MIME runner has actually bound its REP socket — past the
+// SkyPilot pod's setup (apt + JAX install) and JIT compile — we need an
+// application-layer handshake. probeRunner() opens a fresh REQ socket on
+// 5556 and sends `stream_info`; only a reply counts. The cold-start window
+// for a fresh pod can be 10+ minutes; we cap at 20 to be safe.
+void MainWindow::waitForRunnerReady()
+{
+    if (noticeOverlay_) {
+        noticeOverlay_->addNotice(
+            QStringLiteral("cloud-launch"),
+            viewport::NoticeOverlay::Severity::Info,
+            tr("Waiting for MIME runner"),
+            tr("Tunnel up. The pod is in setup (apt + JAX install + JIT). "
+               "This is normal — first launch can take 5–10 minutes."));
+    }
+
+    auto* zmq_timer = new QTimer(this);
+    zmq_timer->setInterval(2000);  // probe every 2s, 1s timeout per probe.
+    const auto zmq_start = std::chrono::steady_clock::now();
+    connect(zmq_timer, &QTimer::timeout, this, [this, zmq_timer, zmq_start]() {
+        if (mime::MimePhysicsProcess::probeRunner("tcp://localhost:5556",
+                                                    1000)) {
+            zmq_timer->stop();
+            zmq_timer->deleteLater();
             if (noticeOverlay_) {
                 noticeOverlay_->removeNotice(QStringLiteral("cloud-launch"));
             }
             finishSimulationStart();
             return;
         }
-        if (std::chrono::steady_clock::now() - start
-            > std::chrono::seconds(60)) {
-            timer->stop();
-            timer->deleteLater();
-            onCloudFailed(tr("waiting for tunnel"),
-                tr("ssh -L opened but localhost:5555 never accepted (60s) — "
-                   "is the MIME runner actually listening on the cluster?"));
+        const auto elapsed = std::chrono::steady_clock::now() - zmq_start;
+        if (elapsed > std::chrono::minutes(20)) {
+            zmq_timer->stop();
+            zmq_timer->deleteLater();
+            onCloudFailed(tr("waiting for MIME runner"),
+                tr("Runner did not bind ZMQ on the cluster within 20 min. "
+                   "Check `sky logs %1` from a host shell.")
+                    .arg(cloudClusterName_));
+            return;
+        }
+        // Every ~30s, refresh the notice with elapsed time so the user
+        // knows the wait is intentional.
+        const auto secs = std::chrono::duration_cast<std::chrono::seconds>(
+                              elapsed).count();
+        if (secs > 0 && secs % 30 < 2 && noticeOverlay_) {
+            noticeOverlay_->addNotice(
+                QStringLiteral("cloud-launch"),
+                viewport::NoticeOverlay::Severity::Info,
+                tr("Waiting for MIME runner (%1s)").arg(secs),
+                tr("Pod cold-starts (apt + JAX install + JIT) usually take "
+                   "5–10 min on a fresh cluster."));
         }
     });
-    timer->start();
+    zmq_timer->start();
 }
 
 void MainWindow::onCloudFailed(const QString& stage, const QString& reason)
