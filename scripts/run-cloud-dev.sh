@@ -28,6 +28,8 @@ docker run -it --rm \
     -v "$MSF/MIME":/workspace/mime \
     -v "$MSF/MICROROBOTICA":/workspace/microbotica \
     -v "$MSF/.venv":"$MSF/.venv":ro \
+    -v "$MSF/MIME":"$MSF/MIME":ro \
+    -v "$MSF/MADDENING":"$MSF/MADDENING":ro \
     -v "$HOME/.sky":/home/nick/.sky \
     -v "$HOME/.kube":/home/nick/.kube:ro \
     -v "$HOME/.ssh":/home/nick/.ssh:ro \
