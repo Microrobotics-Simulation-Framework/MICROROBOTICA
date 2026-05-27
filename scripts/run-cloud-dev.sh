@@ -34,4 +34,16 @@ docker run -it --rm \
     -v "$HOME/.kube":/home/nick/.kube:ro \
     -v "$HOME/.ssh":/home/nick/.ssh:ro \
     ghcr.io/microrobotics-simulation-framework/microrobotica:base \
-    bash
+    bash -lc '
+        # SkyPilot 0.12 requires nc + socat on PATH to talk to its k3s
+        # control plane via the portforward networking mode. The :base
+        # image ships neither; apt-get update first or install fails
+        # to find the package.
+        if ! command -v nc >/dev/null || ! command -v socat >/dev/null; then
+            echo ">>> installing nc + socat in the container..."
+            apt-get update -qq >/dev/null 2>&1
+            apt-get install -y --no-install-recommends \
+                netcat-openbsd socat 2>&1 | tail -2
+        fi
+        exec bash
+    '
