@@ -1166,7 +1166,9 @@ void MainWindow::waitForRunnerReady()
     zmq_timer->setInterval(2000);  // probe every 2s, 1s timeout per probe.
     const auto zmq_start = std::chrono::steady_clock::now();
     connect(zmq_timer, &QTimer::timeout, this, [this, zmq_timer, zmq_start]() {
-        if (mime::MimePhysicsProcess::probeRunner("tcp://localhost:5556",
+        // 5555 = REQ/REP control port (where `stream_info` round-trips).
+        // 5556 is PUB/SUB — a REQ socket gets no reply there.
+        if (mime::MimePhysicsProcess::probeRunner("tcp://localhost:5555",
                                                     1000)) {
             zmq_timer->stop();
             zmq_timer->deleteLater();
