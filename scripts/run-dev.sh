@@ -28,6 +28,7 @@ docker run -it --rm \
     --network host \
     --gpus all \
     -e DISPLAY="$DISPLAY" \
+    -e JAX_PLATFORMS=cpu \
     -v /tmp/.X11-unix:/tmp/.X11-unix \
     -v "$MSF/MADDENING":/workspace/maddening \
     -v "$MSF/MIME":/workspace/mime \

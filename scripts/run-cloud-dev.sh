@@ -15,6 +15,8 @@
 #   - Resource caps: --memory=12g --cpus=6 --pids-limit=1024. A runaway
 #     subprocess tree inside the container cannot starve the host.
 
+xhost +local:docker
+
 set -e
 
 MSF=/home/nick/MSF/msf
@@ -42,6 +44,7 @@ docker run -it --rm \
     -e DISPLAY="$DISPLAY" \
     -e HOME=/home/nick \
     -e PATH="$MSF/.venv/bin:/opt/usd/bin:/opt/venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin" \
+    -e JAX_PLATFORMS=cpu \
     -v /tmp/.X11-unix:/tmp/.X11-unix \
     -v "$MSF/.venv":"$MSF/.venv" \
     -v "$MSF/MIME":"$MSF/MIME" \
