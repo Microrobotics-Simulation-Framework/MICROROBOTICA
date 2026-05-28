@@ -820,7 +820,7 @@ void MainWindow::startWaitingForRunner()
     }
 
     auto* timer = new QTimer(this);
-    timer->setInterval(150);
+    timer->setInterval(400);
     const auto start = std::chrono::steady_clock::now();
     connect(timer, &QTimer::timeout, this, [this, timer, start]() {
         if (!experimentRunner_ || !experimentRunner_->isRunning()) {
@@ -833,21 +833,35 @@ void MainWindow::startWaitingForRunner()
                    "Check the console for a Python traceback."));
             return;
         }
-        if (experimentRunner_->probeReady(5555, 80)) {
+        // Application-level readiness — TCP accept on 5555 fires the
+        // moment ZMQ binds, but the runner's main loop is still doing
+        // first-step JIT for several seconds after that and any command
+        // queued during that window gets a reply only after JIT finishes
+        // (by which time MimePhysicsProcess::sendCommand's REQ socket
+        // has timed out with LINGER=0, so the reply is dropped on the
+        // floor). Probe via a fresh stream_info round-trip — the runner
+        // only answers when its loop has actually iterated past JIT.
+        if (mime::MimePhysicsProcess::probeRunner("tcp://localhost:5555",
+                                                    300)) {
             timer->stop();
             timer->deleteLater();
             finishWaitingForRunner(true);
             return;
         }
         const auto elapsed = std::chrono::steady_clock::now() - start;
-        if (elapsed > std::chrono::seconds(30)) {
+        // 60 s covers: graph build + JIT (slower under container CPU
+        // caps), ZMQ bind, and the first-step JIT inside the main loop.
+        // The standalone runner on host hits all three in ~6 s; the
+        // cloud-dev container with --cpus=6 doubles that.
+        if (elapsed > std::chrono::seconds(60)) {
             timer->stop();
             timer->deleteLater();
-            spdlog::error("startWaitingForRunner: MIME runner not ready in 30s");
+            spdlog::error("startWaitingForRunner: MIME runner not ready in 60s");
             finishWaitingForRunner(false);
             QMessageBox::critical(this, tr("Experiment startup timeout"),
-                tr("The MIME runner subprocess did not finish initialising "
-                   "within 30 s. Check the console for a Python traceback."));
+                tr("The MIME runner subprocess did not become responsive "
+                   "within 60 s (stream_info round-trip). "
+                   "Check the console for a Python traceback."));
         }
     });
     timer->start();
