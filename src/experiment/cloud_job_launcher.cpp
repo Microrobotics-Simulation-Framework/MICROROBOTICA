@@ -85,16 +85,44 @@ QStringList CloudJobLauncher::buildLaunchArgs(
     return args;
 }
 
-void CloudJobLauncher::cancel(const std::string& cluster_name) {
-    // For interactive `sky launch -c <name>` clusters, the cleanup is
-    // `sky down -y <name>`. Run it detached because tearing down a SkyPilot
-    // cluster can take 30+ seconds and we don't want to block the UI Stop
-    // path on it.
-    QStringList args;
-    args << "down" << "-y" << QString::fromStdString(cluster_name);
-    QProcess::startDetached("sky", args);
-    spdlog::info("CloudJobLauncher: requested `sky down -y {}` (detached)",
-                 cluster_name);
+void CloudJobLauncher::cancel(const std::string& cluster_name,
+                                bool downCluster) {
+    // Two-step graceful teardown so MimeConsolePanel actually receives
+    // the runner's PERFORMANCE SUMMARY before the pod disappears:
+    //
+    //   1. `sky cancel -a -y <cluster>` — graceful SIGTERM to the
+    //      running job(s).  mime.runner's signal handler sets
+    //      running=False, the main loop exits, and the cleanup branch
+    //      prints "=== PERFORMANCE SUMMARY ===" + sim/wall ratio +
+    //      steps/s before the Python process exits.  sky logs --follow
+    //      reads those lines from sky's job log and forwards them into
+    //      our panel.
+    //
+    //   2. `sleep 8` — give sky logs time to drain the buffered tail
+    //      (stdout buffering on the pod-side runner is line-buffered
+    //      under `python -u`, but the sky-side log forwarder batches).
+    //
+    //   3. `sky down -y <cluster>` — if `downCluster` is set, tear the
+    //      cluster down for good.  Skipping this leaves the cluster up
+    //      so the user can re-Launch into it (this is the eventual
+    //      multi-experiment-on-warm-cluster path).
+    //
+    // The previous implementation went straight to `sky down`, which
+    // kills the pod before mime.runner has a chance to flush its
+    // summary, exactly what the user just hit.
+
+    const QString clusterQ = QString::fromStdString(cluster_name);
+    QString cmd;
+    if (downCluster) {
+        cmd = QStringLiteral(
+            "sky cancel -a -y %1 ; sleep 8 ; sky down -y %1").arg(clusterQ);
+    } else {
+        cmd = QStringLiteral("sky cancel -a -y %1").arg(clusterQ);
+    }
+    QStringList args; args << QStringLiteral("-c") << cmd;
+    QProcess::startDetached(QStringLiteral("bash"), args);
+    spdlog::info("CloudJobLauncher: requested `{}` (detached)",
+                 cmd.toStdString());
 }
 
 bool CloudJobLauncher::isLaunching() const {

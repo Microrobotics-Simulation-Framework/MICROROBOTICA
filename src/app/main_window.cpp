@@ -1401,8 +1401,14 @@ void MainWindow::tearDownCloud(bool stopCluster)
     if (sshTunnel_ && sshTunnel_->isOpen()) {
         sshTunnel_->close();
     }
-    if (stopCluster && !cloudClusterName_.isEmpty() && cloudJobLauncher_) {
-        cloudJobLauncher_->cancel(cloudClusterName_.toStdString());
+    if (!cloudClusterName_.isEmpty() && cloudJobLauncher_) {
+        // Always at least `sky cancel` (graceful — gives mime.runner
+        // a chance to flush its PERFORMANCE SUMMARY).  If stopCluster
+        // is set, the cancel is chained with `sky down` after an 8s
+        // drain delay so sky logs can forward the runner's tail into
+        // MimeConsolePanel before the pod disappears.
+        cloudJobLauncher_->cancel(cloudClusterName_.toStdString(),
+                                    stopCluster);
     }
     cloudClusterName_.clear();
 }
