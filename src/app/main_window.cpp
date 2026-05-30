@@ -728,6 +728,29 @@ void MainWindow::onSimulationStart()
 
     if (simController_->isRunning()) return;
 
+    // Guard against re-entry while a Cloud-mode launch is mid-flight.
+    // simController_->isRunning() stays false from the moment Launch is
+    // clicked until finishSimulationStart() finally runs — a window of
+    // several minutes that spans `sky launch` dispatch + pollClusterReady
+    // + SSH tunnel open + waitForRunnerReady.  The previous early-returns
+    // only catch the running/paused states; without this guard, the
+    // toolbar Play button (or another Launch click) during the in-flight
+    // window re-entered startCloudLaunch and tried to spawn a *second*
+    // SkyPilot cluster, exactly what the user just hit.
+    //
+    // tearDownCloud clears cloudClusterName_ so a subsequent Launch
+    // after Stop works correctly; that's the only signal we need.
+    if (!cloudClusterName_.isEmpty() && cloudJobLauncher_) {
+        spdlog::info("onSimulationStart: cloud launch already in flight "
+                      "for cluster '{}'; ignoring duplicate request",
+                      cloudClusterName_.toStdString());
+        statusBar()->showMessage(
+            tr("Cloud launch already in flight for '%1' — wait for it "
+               "to complete, or click Stop to cancel.")
+                .arg(cloudClusterName_));
+        return;
+    }
+
     // Route on connection mode. Cloud goes through the async SkyPilot
     // orchestration (submit job → wait UP → open SSH tunnel → handshake);
     // Local spawns a python subprocess; Manual skips spawning and connects
@@ -857,7 +880,7 @@ void MainWindow::startWaitingForRunner()
         // floor). Probe via a fresh stream_info round-trip — the runner
         // only answers when its loop has actually iterated past JIT.
         if (mime::MimePhysicsProcess::probeRunner("tcp://localhost:5555",
-                                                    200)) {
+                                                    300)) {
             timer->stop();
             timer->deleteLater();
             finishWaitingForRunner(true);
@@ -1275,18 +1298,23 @@ void MainWindow::waitForRunnerReady()
     }
 
     auto* zmq_timer = new QTimer(this);
-    // Probe every 5s with a 300ms blocking timeout per probe.  Previously
+    // Probe every 5s with a 1500ms blocking timeout per probe.  Previously
     // 2s / 1s — 50% UI-thread occupancy while waiting, which visibly
     // hitched the OpenGL viewport for 5-10 minutes during the pod's
-    // pip-install-JAX phase.  5s / 300ms drops that to ~6%, and detecting
-    // readiness ~5s later is invisible against the multi-minute wait.
+    // pip-install-JAX phase.  5s / 1500ms drops that to ~30%.  300ms was
+    // too tight for SSH-tunnelled ZMQ round-trips and caused the probe
+    // to time out before the runner could reply, so waitForRunnerReady
+    // never completed and finishSimulationStart never ran — exactly
+    // what the user just hit ("no rendering even though sky logs
+    // showed steps publishing").  Detecting readiness ~5s later than
+    // optimal is invisible against the multi-minute pod-setup wait.
     zmq_timer->setInterval(5000);
     const auto zmq_start = std::chrono::steady_clock::now();
     connect(zmq_timer, &QTimer::timeout, this, [this, zmq_timer, zmq_start]() {
         // 5555 = REQ/REP control port (where `stream_info` round-trips).
         // 5556 is PUB/SUB — a REQ socket gets no reply there.
         if (mime::MimePhysicsProcess::probeRunner("tcp://localhost:5555",
-                                                    300)) {
+                                                    1500)) {
             zmq_timer->stop();
             zmq_timer->deleteLater();
             if (noticeOverlay_) {
