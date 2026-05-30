@@ -1126,18 +1126,27 @@ void MainWindow::onCloudJobLaunched(const QString& stdout_output)
             .arg(jobId > 0 ? QStringLiteral(" %1").arg(jobId)
                             : QString())).toUtf8();
         mimeConsole_->appendStdout(header);
-        connect(cloudLogFollower_, &QProcess::readyReadStandardOutput,
-                this, [this]() {
-            if (cloudLogFollower_ && mimeConsole_) {
+        // Capture the QProcess pointer *directly* in the lambdas.  The
+        // `cloudLogFollower_` member is set to nullptr at Stop time when
+        // we detach the follower to drain the pod's final output (see
+        // tearDownCloud).  If the lambdas referenced `cloudLogFollower_`
+        // they would see nullptr after Stop and drop every byte —
+        // exactly the PERFORMANCE SUMMARY the user can never read.
+        // Capturing `follower` keeps the connection wired straight to
+        // the live process even after the member is cleared.
+        QProcess* follower = cloudLogFollower_;
+        connect(follower, &QProcess::readyReadStandardOutput,
+                this, [this, follower]() {
+            if (mimeConsole_) {
                 mimeConsole_->appendStdout(
-                    cloudLogFollower_->readAllStandardOutput());
+                    follower->readAllStandardOutput());
             }
         });
-        connect(cloudLogFollower_, &QProcess::readyReadStandardError,
-                this, [this]() {
-            if (cloudLogFollower_ && mimeConsole_) {
+        connect(follower, &QProcess::readyReadStandardError,
+                this, [this, follower]() {
+            if (mimeConsole_) {
                 mimeConsole_->appendStderr(
-                    cloudLogFollower_->readAllStandardError());
+                    follower->readAllStandardError());
             }
         });
     }
