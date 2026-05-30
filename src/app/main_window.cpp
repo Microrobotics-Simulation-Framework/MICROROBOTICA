@@ -1346,15 +1346,29 @@ void MainWindow::onCloudFailed(const QString& stage, const QString& reason)
 void MainWindow::tearDownCloud(bool stopCluster)
 {
     if (cloudLogFollower_) {
-        // SIGTERM first so `sky logs` has a chance to flush its
-        // remaining buffered output into the panel before exiting.
-        cloudLogFollower_->terminate();
-        if (!cloudLogFollower_->waitForFinished(1500)) {
-            cloudLogFollower_->kill();
-            cloudLogFollower_->waitForFinished(500);
-        }
-        cloudLogFollower_->deleteLater();
-        cloudLogFollower_ = nullptr;
+        // Detach rather than terminate.  The pod's runner prints its
+        // PERFORMANCE SUMMARY (sim/wall ratio, ms/step, etc.) from its
+        // SIGTERM handler, which only fires *after* sky cancel/down
+        // propagates to the pod.  If we SIGTERM the log follower up
+        // front, those final lines never reach MimeConsolePanel —
+        // exactly what the user just hit.  Let `sky logs --follow`
+        // drain to natural exit (it stops when the job completes),
+        // with a 30s wallclock cap as a force-cleanup fallback so a
+        // hung sky doesn't leak the process forever.
+        QProcess* follower = cloudLogFollower_;
+        cloudLogFollower_ = nullptr;  // future tearDownCloud is a no-op
+        QObject::connect(
+            follower,
+            QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
+            follower, &QObject::deleteLater);
+        QTimer::singleShot(30'000, follower, [follower]() {
+            if (follower->state() == QProcess::Running) {
+                spdlog::info("MainWindow: cloud log follower hadn't exited "
+                              "30s after Stop — force-terminating");
+                follower->terminate();
+                if (!follower->waitForFinished(2000)) follower->kill();
+            }
+        });
     }
     if (sshTunnel_ && sshTunnel_->isOpen()) {
         sshTunnel_->close();

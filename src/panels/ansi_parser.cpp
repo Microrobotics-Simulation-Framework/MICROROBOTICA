@@ -15,13 +15,26 @@ static const char* kAnsiColors[] = {
 };
 
 QString AnsiParser::toHtml(const std::string& text) {
+    // Decode the input as UTF-8 up front. Walking the byte sequence with
+    // QChar(char) treats every byte as Latin-1, which breaks multi-byte
+    // UTF-8 sequences (e.g. `█` U+2588 = E2 96 88 became `â��`). ANSI
+    // escape sequences are pure ASCII so they survive the UTF-8 decode
+    // intact, and the QChar-vs-char comparisons below still work for
+    // ASCII control / punctuation tests.
+    const QString input = QString::fromUtf8(
+        text.data(), static_cast<int>(text.size()));
+
     QString result;
-    result.reserve(static_cast<int>(text.size()) * 2);
+    result.reserve(input.size() * 2);
 
     // Start with the current formatting state (persisted from prior calls)
     result += openSpan();
 
-    for (char ch : text) {
+    for (QChar qch : input) {
+        const char ch = qch.unicode() < 128
+            ? static_cast<char>(qch.unicode())
+            : '\0';  // non-ASCII never matches escape/control branches
+
         if (in_escape_) {
             escape_buf_ += ch;
             if ((ch >= 'A' && ch <= 'Z') || (ch >= 'a' && ch <= 'z')) {
@@ -65,7 +78,10 @@ QString AnsiParser::toHtml(const std::string& text) {
         } else if (ch == '&') {
             result += "&amp;";
         } else {
-            result += QChar(ch);
+            // Non-ASCII characters land here intact as their Unicode
+            // codepoint — block-drawing chars, em-dashes, JAX's coloured
+            // unicode markers, etc.
+            result += qch;
         }
     }
 
