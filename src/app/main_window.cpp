@@ -281,9 +281,20 @@ void MainWindow::createDockWidgets()
     mimeConsole_ = new panels::MimeConsolePanel(this);
     addDockWidget(Qt::BottomDockWidgetArea, mimeConsole_);
 
-    // scripts_dir for sky_resolve.py — relative to application binary or source
-    std::string scripts_dir = ".";  // Will be resolved at runtime
-    skypilotPanel_ = new panels::SkyPilotMonitorPanel(scripts_dir, this);
+    // scripts_dir for sky_resolve.py — resolve next to the application
+    // binary first (the installed/AppImage layout), fall back to the
+    // source tree (typical when running from `build/debug/...`). The
+    // previous "." placeholder meant the panel's QProcess looked for
+    // `./sky_resolve.py` in whatever cwd MICROROBOTICA was launched
+    // from, which was almost never the right place — the panel never
+    // populated.  Mirror what pollClusterReady does at probe time.
+    QString scriptsDirQ = QCoreApplication::applicationDirPath() + "/scripts";
+    if (!QFile::exists(scriptsDirQ + "/sky_resolve.py")) {
+        scriptsDirQ = QStringLiteral(
+            "/home/nick/MSF/msf/MICROROBOTICA/scripts");
+    }
+    skypilotPanel_ = new panels::SkyPilotMonitorPanel(
+        scriptsDirQ.toStdString(), this);
     addDockWidget(Qt::BottomDockWidgetArea, skypilotPanel_);
 
     // Phase G panels
