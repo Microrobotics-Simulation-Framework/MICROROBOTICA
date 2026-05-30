@@ -1080,13 +1080,14 @@ void MainWindow::onCloudJobLaunched(const QString& stdout_output)
     }
     cloudLogFollower_ = new QProcess(this);
     QStringList logArgs;
-    logArgs << QStringLiteral("logs") << QStringLiteral("-f")
+    // `--follow` (not `-f`) — sky 0.12.x only accepts the long form.
+    logArgs << QStringLiteral("logs") << QStringLiteral("--follow")
             << cloudClusterName_;
     if (jobId > 0) logArgs << QString::number(jobId);
     if (mimeConsole_) {
         // Tag the source so the user can tell remote logs apart from
         // Local-mode runner output if both have appeared in the panel.
-        const QByteArray header = (QStringLiteral("[sky logs -f %1%2]\n")
+        const QByteArray header = (QStringLiteral("[sky logs --follow %1%2]\n")
             .arg(cloudClusterName_)
             .arg(jobId > 0 ? QStringLiteral(" %1").arg(jobId)
                             : QString())).toUtf8();
@@ -1108,13 +1109,13 @@ void MainWindow::onCloudJobLaunched(const QString& stdout_output)
     }
     cloudLogFollower_->start(QStringLiteral("sky"), logArgs);
     if (!cloudLogFollower_->waitForStarted(2000)) {
-        spdlog::warn("MainWindow: `sky logs -f {}` failed to start "
+        spdlog::warn("MainWindow: `sky logs --follow {}` failed to start "
                       "({}) — remote runner output won't reach the "
                       "MimeConsolePanel for this session",
                       cloudClusterName_.toStdString(),
                       cloudLogFollower_->errorString().toStdString());
     } else {
-        spdlog::info("MainWindow: streaming `sky logs -f {} {}` into "
+        spdlog::info("MainWindow: streaming `sky logs --follow {} {}` into "
                       "MimeConsolePanel",
                       cloudClusterName_.toStdString(),
                       jobId > 0 ? std::to_string(jobId) : std::string("(latest)"));
