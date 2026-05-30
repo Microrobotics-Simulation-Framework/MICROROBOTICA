@@ -5,6 +5,8 @@
 #include <QByteArray>
 #include <memory>
 
+class QProcess;
+
 #include "core/stability.h"
 #include "core/audit_logger.h"
 #include "core/physics_config.h"
@@ -133,6 +135,11 @@ private:
     std::unique_ptr<connection::SshTunnel> sshTunnel_;
     QString cloudClusterName_;     // populated once a Cloud launch is in flight
     bool cloudStopOnDisconnect_ = true;
+
+    /// Persistent `sky logs -f` follower that mirrors the pod's stdout/stderr
+    /// into the MimeConsolePanel during a Cloud-mode session. Lives from the
+    /// moment `sky launch` returns a job ID until `tearDownCloud` runs.
+    QProcess* cloudLogFollower_ = nullptr;
 
     // Central widget
     viewport::ViewportWidget* viewportWidget_ = nullptr;

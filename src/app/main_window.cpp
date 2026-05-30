@@ -820,7 +820,11 @@ void MainWindow::startWaitingForRunner()
     }
 
     auto* timer = new QTimer(this);
-    timer->setInterval(400);
+    // 800ms (was 400ms) — drops UI-thread occupancy during the ~12s
+    // local-mode wait from 75% to ~25%, eliminating the viewport
+    // stutter that was visible while the runner did first-step JIT.
+    // Detection lag worst-case +800ms is invisible against the wait.
+    timer->setInterval(800);
     const auto start = std::chrono::steady_clock::now();
     connect(timer, &QTimer::timeout, this, [this, timer, start]() {
         if (!experimentRunner_ || !experimentRunner_->isRunning()) {
@@ -842,7 +846,7 @@ void MainWindow::startWaitingForRunner()
         // floor). Probe via a fresh stream_info round-trip — the runner
         // only answers when its loop has actually iterated past JIT.
         if (mime::MimePhysicsProcess::probeRunner("tcp://localhost:5555",
-                                                    300)) {
+                                                    200)) {
             timer->stop();
             timer->deleteLater();
             finishWaitingForRunner(true);
@@ -1042,10 +1046,85 @@ void MainWindow::startCloudLaunch()
     }
 }
 
-void MainWindow::onCloudJobLaunched(const QString& /*stdout_output*/)
+void MainWindow::onCloudJobLaunched(const QString& stdout_output)
 {
     spdlog::info("MainWindow: sky launch returned for cluster '{}'",
                   cloudClusterName_.toStdString());
+
+    // Parse the job ID from sky's stdout ("Job submitted, ID: N").
+    // If absent (older sky versions, terse output), fall back to
+    // `sky logs -f <cluster>` which follows the cluster's latest job.
+    int jobId = -1;
+    for (const QString& line : stdout_output.split('\n')) {
+        const QString trimmed = line.trimmed();
+        if (trimmed.startsWith(QStringLiteral("Job submitted, ID:"))) {
+            bool ok = false;
+            const int id = trimmed.section(':', 1, 1).trimmed().toInt(&ok);
+            if (ok) {
+                jobId = id;
+                break;
+            }
+        }
+    }
+
+    // Start the persistent `sky logs -f` follower piped into the
+    // MimeConsolePanel.  In Cloud mode the runner is in the SkyPilot pod,
+    // so its stdout/stderr live on sky's side — the Local-mode QProcess
+    // hookup in onSimulationStart never fires.  This is the equivalent
+    // for the remote runner.
+    if (cloudLogFollower_) {
+        cloudLogFollower_->kill();
+        cloudLogFollower_->waitForFinished(1000);
+        cloudLogFollower_->deleteLater();
+        cloudLogFollower_ = nullptr;
+    }
+    cloudLogFollower_ = new QProcess(this);
+    QStringList logArgs;
+    logArgs << QStringLiteral("logs") << QStringLiteral("-f")
+            << cloudClusterName_;
+    if (jobId > 0) logArgs << QString::number(jobId);
+    if (mimeConsole_) {
+        // Tag the source so the user can tell remote logs apart from
+        // Local-mode runner output if both have appeared in the panel.
+        const QByteArray header = (QStringLiteral("[sky logs -f %1%2]\n")
+            .arg(cloudClusterName_)
+            .arg(jobId > 0 ? QStringLiteral(" %1").arg(jobId)
+                            : QString())).toUtf8();
+        mimeConsole_->appendStdout(header);
+        connect(cloudLogFollower_, &QProcess::readyReadStandardOutput,
+                this, [this]() {
+            if (cloudLogFollower_ && mimeConsole_) {
+                mimeConsole_->appendStdout(
+                    cloudLogFollower_->readAllStandardOutput());
+            }
+        });
+        connect(cloudLogFollower_, &QProcess::readyReadStandardError,
+                this, [this]() {
+            if (cloudLogFollower_ && mimeConsole_) {
+                mimeConsole_->appendStderr(
+                    cloudLogFollower_->readAllStandardError());
+            }
+        });
+    }
+    cloudLogFollower_->start(QStringLiteral("sky"), logArgs);
+    if (!cloudLogFollower_->waitForStarted(2000)) {
+        spdlog::warn("MainWindow: `sky logs -f {}` failed to start "
+                      "({}) — remote runner output won't reach the "
+                      "MimeConsolePanel for this session",
+                      cloudClusterName_.toStdString(),
+                      cloudLogFollower_->errorString().toStdString());
+    } else {
+        spdlog::info("MainWindow: streaming `sky logs -f {} {}` into "
+                      "MimeConsolePanel",
+                      cloudClusterName_.toStdString(),
+                      jobId > 0 ? std::to_string(jobId) : std::string("(latest)"));
+    }
+
+    // The SkyPilotMonitorPanel polls every 30s by default. Kick a
+    // refresh now so the new cluster shows up immediately instead of
+    // up to 30s late.
+    if (skypilotPanel_) skypilotPanel_->refresh();
+
     if (noticeOverlay_) {
         noticeOverlay_->addNotice(
             QStringLiteral("cloud-launch"),
@@ -1053,7 +1132,9 @@ void MainWindow::onCloudJobLaunched(const QString& /*stdout_output*/)
             tr("Waiting for cluster"),
             tr("`sky launch` returned; polling `sky_resolve.py` until "
                "cluster '%1' reports status: UP. This can take several "
-               "minutes the first time.").arg(cloudClusterName_));
+               "minutes the first time. The MIME runner's stdout is "
+               "streaming into the MIME Console panel below.")
+                .arg(cloudClusterName_));
     }
     pollClusterReady();
 }
@@ -1136,7 +1217,12 @@ void MainWindow::openCloudTunnel(const QString& ip, int ssh_port)
     }
 
     auto* tcp_timer = new QTimer(this);
-    tcp_timer->setInterval(200);
+    // 500ms (was 200ms) — the SSH tunnel + TCP accept on localhost:5555
+    // typically completes in ~1-2s after `ssh -L` starts, so 200ms was
+    // burning UI thread time on probes that would equally well land on
+    // the next tick.  500ms = ~16% UI occupancy on the 80ms probe vs
+    // 40% before.
+    tcp_timer->setInterval(500);
     const auto tcp_start = std::chrono::steady_clock::now();
     connect(tcp_timer, &QTimer::timeout, this, [this, tcp_timer, tcp_start]() {
         if (sshTunnel_ && sshTunnel_->isOpen()
@@ -1177,13 +1263,18 @@ void MainWindow::waitForRunnerReady()
     }
 
     auto* zmq_timer = new QTimer(this);
-    zmq_timer->setInterval(2000);  // probe every 2s, 1s timeout per probe.
+    // Probe every 5s with a 300ms blocking timeout per probe.  Previously
+    // 2s / 1s — 50% UI-thread occupancy while waiting, which visibly
+    // hitched the OpenGL viewport for 5-10 minutes during the pod's
+    // pip-install-JAX phase.  5s / 300ms drops that to ~6%, and detecting
+    // readiness ~5s later is invisible against the multi-minute wait.
+    zmq_timer->setInterval(5000);
     const auto zmq_start = std::chrono::steady_clock::now();
     connect(zmq_timer, &QTimer::timeout, this, [this, zmq_timer, zmq_start]() {
         // 5555 = REQ/REP control port (where `stream_info` round-trips).
         // 5556 is PUB/SUB — a REQ socket gets no reply there.
         if (mime::MimePhysicsProcess::probeRunner("tcp://localhost:5555",
-                                                    1000)) {
+                                                    300)) {
             zmq_timer->stop();
             zmq_timer->deleteLater();
             if (noticeOverlay_) {
@@ -1242,6 +1333,17 @@ void MainWindow::onCloudFailed(const QString& stage, const QString& reason)
 
 void MainWindow::tearDownCloud(bool stopCluster)
 {
+    if (cloudLogFollower_) {
+        // SIGTERM first so `sky logs` has a chance to flush its
+        // remaining buffered output into the panel before exiting.
+        cloudLogFollower_->terminate();
+        if (!cloudLogFollower_->waitForFinished(1500)) {
+            cloudLogFollower_->kill();
+            cloudLogFollower_->waitForFinished(500);
+        }
+        cloudLogFollower_->deleteLater();
+        cloudLogFollower_ = nullptr;
+    }
     if (sshTunnel_ && sshTunnel_->isOpen()) {
         sshTunnel_->close();
     }
