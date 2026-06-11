@@ -122,7 +122,7 @@ clean:
 # up the latest tip without requiring a local tracking branch.  Tags
 # don't need the `origin/` prefix.
 MADDENING_VERSIONS := v0.1:v0.1.0 v0.2:v0.2.0 v0.2.1:v0.2.1 v0.3.0:v0.3.0 latest:origin/main
-MIME_VERSIONS      := latest:origin/main
+MIME_VERSIONS      := v0.1:v0.1.0 v0.2:v0.2.0 latest:origin/main
 MICROROBOTICA_VERSIONS := latest:origin/main
 
 # Build a single (project, version_label, git_ref) tuple via a temp
