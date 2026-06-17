@@ -68,8 +68,6 @@ private:
     bool useCustomTimeCode_ = false;
     double customTime_ = 0.0;
     int convergencePumpsLeft_ = 0;
-    /// Diagnostic — paintGL call count during playback (useCustomTimeCode_).
-    long long paintGlCounter_ = 0;
 
 #ifdef MICROBOTICA_HAS_USD
     UsdStageRefPtr stage_;
