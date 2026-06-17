@@ -101,6 +101,14 @@ private:
     /// Diagnostic — number of tick callbacks fired since enterPlaybackMode.
     /// Used to gate spdlog noise (log first N + every Nth + at loop).
     long long playbackTickCounter_ = 0;
+    /// Diagnostic — independent 100ms heartbeat that fires regardless of
+    /// playbackTimer_'s scheduling.  If the heartbeat ALSO pauses during
+    /// a "freeze", the whole Qt event loop is stalled (something is
+    /// running synchronously on the main thread); if the heartbeat keeps
+    /// firing while playbackTimer_ pauses, playbackTimer_ specifically
+    /// is being throttled (less likely but worth knowing).
+    QTimer* heartbeatTimer_ = nullptr;
+    std::chrono::steady_clock::time_point lastHeartbeat_{};
 
     void updateFrameLabel();
 };
