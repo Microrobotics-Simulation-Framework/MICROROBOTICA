@@ -162,16 +162,24 @@ void TimelinePanel::enterPlaybackMode(double startTime, double endTime, double f
     playbackEnd_ = endTime;
     currentFrame_ = static_cast<int>(startTime);
 
-    // Clamp fps to 60 max — QTimer has ~15ms resolution on Windows,
-    // so higher fps would drift noticeably.
-    playbackFps_ = std::min(fps, 60.0);
-    if (fps > 60.0) {
-        spdlog::warn("TimelinePanel: Clamping playback fps from {} to 60 "
-                     "(QTimer resolution limit)", fps);
-    }
-
-    int interval = static_cast<int>(1000.0 / playbackFps_);
+    // Preserve the file's authored TimeCodesPerSecond as the wall-clock
+    // authority — recordings with high fps (e.g. dt=1e-4, sample_every=100
+    // → 100 fps from the schwarz/ar4 recorders) used to be silently
+    // clamped to 60 fps and played back ~1.67× slower than the recorded
+    // duration, which on short clips reads as "freezes after the loop
+    // start completes."  See plans/BUG_recorder_playback_fps_coupled_to_dt.md.
+    //
+    // The display tick is capped at 60 Hz for OS-stable QTimer scheduling,
+    // but onPlaybackTimerTick advances the timecode by however many frames
+    // fit in the wall-clock delta since the last tick — so a 100 fps clip
+    // ticks at 60 Hz visually but advances ~1.67 frames per tick and
+    // completes in its intended wall-clock duration, with the loop firing
+    // at the right moment.  Tested with 24, 30, 60, 100 fps recordings.
+    playbackFps_ = fps;
+    const double display_fps = std::min(fps, 60.0);
+    int interval = static_cast<int>(1000.0 / display_fps);
     playbackTimer_->setInterval(std::max(interval, 1));
+    lastPlaybackTick_ = {};   // restart wall-clock accumulator
 
     // Configure slider.
     // QSlider uses integer steps — one position per frame.
@@ -205,6 +213,7 @@ void TimelinePanel::enterSimulationMode()
 void TimelinePanel::playbackPlay()
 {
     if (!playbackMode_) return;
+    lastPlaybackTick_ = {};   // first tick after Play uses default 1-frame step
     playbackTimer_->start();
 }
 
@@ -219,6 +228,7 @@ void TimelinePanel::playbackStop()
     if (!playbackMode_) return;
     playbackTimer_->stop();
     currentFrame_ = static_cast<int>(playbackStart_);
+    lastPlaybackTick_ = {};
     playbackSlider_->setValue(currentFrame_);
     Q_EMIT timeCodeChanged(static_cast<double>(currentFrame_));
     updateFrameLabel();
@@ -226,9 +236,35 @@ void TimelinePanel::playbackStop()
 
 void TimelinePanel::onPlaybackTimerTick()
 {
-    currentFrame_++;
+    // Advance by however many frames fit in the wall-clock delta since
+    // the last tick.  This preserves the recording's authored duration
+    // even when playbackFps_ exceeds the display tick rate (the clamp on
+    // the QTimer interval is for OS scheduling stability, not for the
+    // timeline's pace).  First tick after Play (lastPlaybackTick_ == {})
+    // falls back to a single-frame step so a paused-and-resumed playback
+    // doesn't jump.
+    const auto now = std::chrono::steady_clock::now();
+    int frames_advance = 1;
+    if (lastPlaybackTick_.time_since_epoch().count() != 0) {
+        const double dt_s = std::chrono::duration<double>(
+            now - lastPlaybackTick_).count();
+        frames_advance = std::max(
+            1, static_cast<int>(std::round(dt_s * playbackFps_)));
+    }
+    lastPlaybackTick_ = now;
+
+    currentFrame_ += frames_advance;
     if (currentFrame_ > static_cast<int>(playbackEnd_)) {
-        currentFrame_ = static_cast<int>(playbackStart_); // Loop
+        // Loop: wrap with carry so overshoot doesn't lose alignment on
+        // fast playback (e.g. a 100 fps clip ticking at 60 Hz that
+        // crosses the end mid-tick).
+        const int range = static_cast<int>(playbackEnd_ - playbackStart_) + 1;
+        if (range > 0) {
+            const int offset = currentFrame_ - static_cast<int>(playbackStart_);
+            currentFrame_ = static_cast<int>(playbackStart_) + (offset % range);
+        } else {
+            currentFrame_ = static_cast<int>(playbackStart_);
+        }
     }
     playbackSlider_->setValue(currentFrame_);
     Q_EMIT timeCodeChanged(static_cast<double>(currentFrame_));

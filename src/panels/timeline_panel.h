@@ -5,6 +5,8 @@
 #include <QSlider>
 #include <QTimer>
 
+#include <chrono>
+
 #include "core/stability.h"
 
 namespace microbotica::simulation {
@@ -84,9 +86,18 @@ private:
     QTimer* playbackTimer_ = nullptr;
     double playbackStart_ = 0.0;
     double playbackEnd_ = 0.0;
+    /// Recording's authored TimeCodesPerSecond — the wall-clock authority
+    /// for playback timing.  Preserved verbatim from the USD stage; never
+    /// clamped to the timer tick rate (the per-tick frame advancement is
+    /// computed from wall-clock delta, so high-fps clips play at their
+    /// intended duration with frames skipped if the timer can't keep up).
     double playbackFps_ = 24.0;
     int currentFrame_ = 0;
     bool wasPlayingBeforeScrub_ = false;
+    /// Wall-clock timestamp of the last playback tick; used to derive how
+    /// many frames to advance per tick so the clip's authored duration is
+    /// preserved regardless of timer resolution.
+    std::chrono::steady_clock::time_point lastPlaybackTick_{};
 
     void updateFrameLabel();
 };
