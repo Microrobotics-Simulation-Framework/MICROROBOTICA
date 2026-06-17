@@ -180,6 +180,14 @@ void TimelinePanel::enterPlaybackMode(double startTime, double endTime, double f
     int interval = static_cast<int>(1000.0 / display_fps);
     playbackTimer_->setInterval(std::max(interval, 1));
     lastPlaybackTick_ = {};   // restart wall-clock accumulator
+    playbackTickCounter_ = 0;
+
+    spdlog::info("TimelinePanel::enterPlaybackMode: start={} end={} fps={} "
+                  "(authored TimeCodesPerSecond preserved) display_fps={} "
+                  "interval={}ms range={} frames",
+                  playbackStart_, playbackEnd_, playbackFps_,
+                  display_fps, std::max(interval, 1),
+                  static_cast<int>(playbackEnd_ - playbackStart_) + 1);
 
     // Configure slider.
     // QSlider uses integer steps — one position per frame.
@@ -245,15 +253,19 @@ void TimelinePanel::onPlaybackTimerTick()
     // doesn't jump.
     const auto now = std::chrono::steady_clock::now();
     int frames_advance = 1;
+    double dt_s_dbg = 0.0;
     if (lastPlaybackTick_.time_since_epoch().count() != 0) {
         const double dt_s = std::chrono::duration<double>(
             now - lastPlaybackTick_).count();
+        dt_s_dbg = dt_s;
         frames_advance = std::max(
             1, static_cast<int>(std::round(dt_s * playbackFps_)));
     }
     lastPlaybackTick_ = now;
 
+    const int prev_frame_dbg = currentFrame_;
     currentFrame_ += frames_advance;
+    bool looped = false;
     if (currentFrame_ > static_cast<int>(playbackEnd_)) {
         // Loop: wrap with carry so overshoot doesn't lose alignment on
         // fast playback (e.g. a 100 fps clip ticking at 60 Hz that
@@ -265,10 +277,33 @@ void TimelinePanel::onPlaybackTimerTick()
         } else {
             currentFrame_ = static_cast<int>(playbackStart_);
         }
+        looped = true;
     }
     playbackSlider_->setValue(currentFrame_);
     Q_EMIT timeCodeChanged(static_cast<double>(currentFrame_));
     updateFrameLabel();
+
+    // Diagnostic logging — first 5 ticks, every 10th after, and every
+    // loop boundary.  Watch for: dt_s != ~1/display_fps (timer slower
+    // than expected), frames_advance == 1 when playbackFps_ > 60
+    // (means our wall-time math isn't firing), timer_active going
+    // false unexpectedly.
+    ++playbackTickCounter_;
+    const bool log_this = (playbackTickCounter_ <= 5)
+                          || (playbackTickCounter_ % 10 == 0)
+                          || looped;
+    if (log_this) {
+        spdlog::info("TimelinePanel::onPlaybackTimerTick #{}: "
+                      "dt_s={:.4f} frames_advance={} {}→{} "
+                      "(playbackEnd={} playbackFps={}) looped={} "
+                      "timer_active={} interval={}ms",
+                      playbackTickCounter_, dt_s_dbg, frames_advance,
+                      prev_frame_dbg, currentFrame_,
+                      static_cast<int>(playbackEnd_), playbackFps_,
+                      looped,
+                      playbackTimer_->isActive(),
+                      playbackTimer_->interval());
+    }
 }
 
 void TimelinePanel::onSliderPressed()

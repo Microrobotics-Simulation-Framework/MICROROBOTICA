@@ -98,6 +98,9 @@ private:
     /// many frames to advance per tick so the clip's authored duration is
     /// preserved regardless of timer resolution.
     std::chrono::steady_clock::time_point lastPlaybackTick_{};
+    /// Diagnostic — number of tick callbacks fired since enterPlaybackMode.
+    /// Used to gate spdlog noise (log first N + every Nth + at loop).
+    long long playbackTickCounter_ = 0;
 
     void updateFrameLabel();
 };

@@ -457,6 +457,13 @@ void MainWindow::onFileOpen()
         double fps = sceneMgr_->timeCodesPerSecond();
         int totalFrames = static_cast<int>(end - start) + 1;
 
+        spdlog::info("MainWindow: animation detected — "
+                      "startTimeCode={} endTimeCode={} timeCodesPerSecond={} "
+                      "totalFrames={} (these come straight from the USD "
+                      "stage; mismatched value here means the recording "
+                      "file's metadata is wrong, not the playback code)",
+                      start, end, fps, totalFrames);
+
         timelinePanel_->enterPlaybackMode(start, end, fps);
 
         // Connect timeline time code changes to viewport
