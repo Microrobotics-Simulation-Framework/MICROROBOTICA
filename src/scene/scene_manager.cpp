@@ -5,6 +5,7 @@
 
 #ifdef MICROBOTICA_HAS_USD
 #include <pxr/usd/usd/primRange.h>
+#include <pxr/usd/sdf/schema.h>   // SdfFieldKeys (FramesPerSecond)
 #endif
 
 namespace microbotica::scene {
@@ -65,6 +66,35 @@ bool SceneManager::loadScene(const std::string& filePath)
     sessionLayer->InsertSubLayerPath(baseLayer_->GetIdentifier());
     sessionLayer->InsertSubLayerPath(overrideLayer_->GetIdentifier(), 0);
     sessionLayer->InsertSubLayerPath(resultsLayer_->GetIdentifier(), 0);
+
+    // Mirror the base layer's time-code metadata onto the session layer
+    // so the *root* of the composed stage carries the same start/end/fps
+    // the recording authored.  USD time-code metadata is sticky to the
+    // root layer (it does NOT inherit from sublayers like prim/attribute
+    // data does).  Without this, an anonymous session layer falls back
+    // to USD's defaults — TimeCodesPerSecond=24, StartTimeCode=0,
+    // EndTimeCode=0 — and Hydra evaluates time-sampled attributes
+    // through that lens.  Net effect: a recording authored at fps>24
+    // appears to "freeze at frame (24/fps_authored) × N" because past
+    // that, Hydra is being asked to evaluate attributes outside the
+    // stage's reported duration and returns the last cached state.
+    // Verified against three test clips:
+    //   150f @ 100 fps stops at  36 = 24 × 1.5 s
+    //   300f @  30 fps stops at 240 = 24 ×  10 s
+    //   600f @  30 fps stops at 480 = 24 ×  20 s
+    //   300f @  60 fps stops at 120 = 24 ×   5 s
+    if (hasAnimation_) {
+        sessionLayer->SetStartTimeCode(startTimeCode_);
+        sessionLayer->SetEndTimeCode(endTimeCode_);
+        sessionLayer->SetTimeCodesPerSecond(timeCodesPerSecond_);
+        // FramesPerSecond is a separate metadatum used by some viewers
+        // for playback rate; mirror it from the source too.  Falls back
+        // to TimeCodesPerSecond if the source didn't author it.
+        const double fps = stage_->HasAuthoredMetadata(
+                                SdfFieldKeys->FramesPerSecond)
+            ? stage_->GetFramesPerSecond() : timeCodesPerSecond_;
+        sessionLayer->SetFramesPerSecond(fps);
+    }
 
     // Replace the stage's root layer with our session layer
     stage_ = UsdStage::Open(sessionLayer);
