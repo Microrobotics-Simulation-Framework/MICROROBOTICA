@@ -9,6 +9,7 @@
 #include <QSurfaceFormat>
 #include <QTimer>
 #include <spdlog/spdlog.h>
+#include <chrono>
 #include "core/profiler.h"
 
 #ifdef MICROBOTICA_HAS_USD
@@ -320,18 +321,43 @@ void LocalViewport::paintGL()
         HgiTokens->OpenGL,
         VtValue(static_cast<uint32_t>(defaultFramebufferObject())));
 
+    const auto t_render_start = std::chrono::steady_clock::now();
     {
         MBCA_PROFILE_SCOPE("hydra_render");
         engine_->Render(stage_->GetPseudoRoot(), params);
     }
+    const auto t_render_end = std::chrono::steady_clock::now();
+    const bool converged = engine_->IsConverged();
 
     // Storm normally converges in a single Render(); the exception is warm-up
     // right after a stage loads (shader compiles, texture loads). Pump a
     // bounded number of repaints to get through that — bounded so a backend
     // that never reports convergence cannot spin the render loop forever.
-    if (!engine_->IsConverged() && convergencePumpsLeft_ > 0) {
+    if (!converged && convergencePumpsLeft_ > 0) {
         --convergencePumpsLeft_;
         update();
+    }
+
+    // Diagnostic — every paintGL call during playback (gated by
+    // useCustomTimeCode_ to keep the noise off the live-sim path).
+    // Logs the rendered time-code, render duration, convergence
+    // state, and remaining pump budget.  Watch for: render_ms
+    // climbing as the session goes on (Storm getting bogged), pumps
+    // budget hitting zero (we'd be stuck rendering one frame), or
+    // paintGL ceasing to be called (Qt not delivering paint events).
+    if (useCustomTimeCode_) {
+        ++paintGlCounter_;
+        const bool log_this = (paintGlCounter_ <= 5)
+                              || (paintGlCounter_ % 10 == 0)
+                              || !converged;
+        if (log_this) {
+            const double render_ms = std::chrono::duration<double, std::milli>(
+                t_render_end - t_render_start).count();
+            spdlog::info("LocalViewport::paintGL #{}: customTime={} "
+                          "render_ms={:.2f} converged={} pumps_left={}",
+                          paintGlCounter_, customTime_, render_ms,
+                          converged, convergencePumpsLeft_);
+        }
     }
 
 #else
