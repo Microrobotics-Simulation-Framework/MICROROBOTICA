@@ -182,34 +182,6 @@ void TimelinePanel::enterPlaybackMode(double startTime, double endTime, double f
     lastPlaybackTick_ = {};   // restart wall-clock accumulator
     playbackTickCounter_ = 0;
 
-    // Heartbeat timer — fires every 100ms independent of playbackTimer_.
-    // Used to distinguish "playbackTimer_ is throttled" (heartbeat keeps
-    // firing) from "whole Qt event loop stalled" (heartbeat also pauses).
-    // Set on enterPlaybackMode, torn down on enterSimulationMode.
-    if (!heartbeatTimer_) {
-        heartbeatTimer_ = new QTimer(this);
-        heartbeatTimer_->setInterval(100);
-        lastHeartbeat_ = std::chrono::steady_clock::now();
-        connect(heartbeatTimer_, &QTimer::timeout, this, [this]() {
-            const auto now = std::chrono::steady_clock::now();
-            const double dt_s = std::chrono::duration<double>(
-                now - lastHeartbeat_).count();
-            lastHeartbeat_ = now;
-            // Only log if we missed at least one tick (i.e. dt > 200ms);
-            // expected dt is 100ms.
-            if (dt_s > 0.2) {
-                spdlog::warn("TimelinePanel::heartbeat: gap of {:.3f}s — "
-                              "Qt event loop stalled "
-                              "(playback_timer_active={} playback_tick={})",
-                              dt_s,
-                              playbackTimer_->isActive(),
-                              playbackTickCounter_);
-            }
-        });
-    }
-    lastHeartbeat_ = std::chrono::steady_clock::now();
-    heartbeatTimer_->start();
-
     spdlog::info("TimelinePanel::enterPlaybackMode: start={} end={} fps={} "
                   "(authored TimeCodesPerSecond preserved) display_fps={} "
                   "interval={}ms range={} frames",
@@ -239,7 +211,6 @@ void TimelinePanel::enterSimulationMode()
 {
     playbackMode_ = false;
     playbackTimer_->stop();
-    if (heartbeatTimer_) heartbeatTimer_->stop();
     playbackSlider_->setVisible(false);
     frameLabel_->setVisible(false);
     fpsLabel_->setVisible(true);
@@ -293,7 +264,6 @@ void TimelinePanel::onPlaybackTimerTick()
     lastPlaybackTick_ = now;
 
     const int prev_frame_dbg = currentFrame_;
-    const auto t_inside_start = std::chrono::steady_clock::now();
     currentFrame_ += frames_advance;
     bool looped = false;
     if (currentFrame_ > static_cast<int>(playbackEnd_)) {
@@ -309,53 +279,30 @@ void TimelinePanel::onPlaybackTimerTick()
         }
         looped = true;
     }
-    const auto t_setslider_start = std::chrono::steady_clock::now();
     playbackSlider_->setValue(currentFrame_);
-    const auto t_setslider_end = std::chrono::steady_clock::now();
-
     Q_EMIT timeCodeChanged(static_cast<double>(currentFrame_));
-    const auto t_emit_end = std::chrono::steady_clock::now();
-
     updateFrameLabel();
-    const auto t_label_end = std::chrono::steady_clock::now();
 
-    const double ms_setslider = std::chrono::duration<double, std::milli>(
-        t_setslider_end - t_setslider_start).count();
-    const double ms_emit = std::chrono::duration<double, std::milli>(
-        t_emit_end - t_setslider_end).count();
-    const double ms_label = std::chrono::duration<double, std::milli>(
-        t_label_end - t_emit_end).count();
-    const double ms_total = std::chrono::duration<double, std::milli>(
-        t_label_end - t_inside_start).count();
-
-    // Diagnostic logging — first 5 ticks, every 10th after, every loop
-    // boundary, AND every tick where the inside-tick work or the
-    // arrival-delay is suspicious (>20ms inside-tick work, or dt_s
-    // suggesting the timer fired late).
+    // Diagnostic logging — first 5 ticks, every 10th after, and every
+    // loop boundary.  Watch for: dt_s != ~1/display_fps (timer slower
+    // than expected), frames_advance == 1 when playbackFps_ > 60
+    // (means our wall-time math isn't firing), timer_active going
+    // false unexpectedly.
     ++playbackTickCounter_;
-    const bool slow_tick = (ms_total > 20.0)
-                            || (ms_emit > 15.0)
-                            || (dt_s_dbg > 0.030);
     const bool log_this = (playbackTickCounter_ <= 5)
                           || (playbackTickCounter_ % 10 == 0)
-                          || looped
-                          || slow_tick;
+                          || looped;
     if (log_this) {
         spdlog::info("TimelinePanel::onPlaybackTimerTick #{}: "
                       "dt_s={:.4f} frames_advance={} {}→{} "
                       "(playbackEnd={} playbackFps={}) looped={} "
-                      "timer_active={} interval={}ms | "
-                      "inside_ms: total={:.2f} slider={:.2f} "
-                      "emit(setTimeCode)={:.2f} label={:.2f} "
-                      "{}",
+                      "timer_active={} interval={}ms",
                       playbackTickCounter_, dt_s_dbg, frames_advance,
                       prev_frame_dbg, currentFrame_,
                       static_cast<int>(playbackEnd_), playbackFps_,
                       looped,
                       playbackTimer_->isActive(),
-                      playbackTimer_->interval(),
-                      ms_total, ms_setslider, ms_emit, ms_label,
-                      slow_tick ? "[SLOW]" : "");
+                      playbackTimer_->interval());
     }
 }
 
