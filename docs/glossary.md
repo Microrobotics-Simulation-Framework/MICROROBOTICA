@@ -21,7 +21,10 @@ Node
 Edge
    A typed, unit-aware connection between two nodes that carries a named
    field (e.g. `magnetic_force`, `orientation`). Edges encode the
-   data-dependency graph the {term}`Graph step` walks.
+   data-dependency graph the {term}`Graph step` walks. An edge may also
+   run from a node to itself: it then reads the node's value from the
+   previous step, or, with the node in a coupling group, is iterated with
+   the group.
 
 Graph step
    One full traversal of a MADDENING node graph that advances simulation time
@@ -123,7 +126,18 @@ ZMQ
 WebRTC
    The browser-native real-time streaming protocol. MADDENING uses it
    to push rendered viewport frames from a remote GPU VM to a local
-   browser or to the MICROROBOTICA IDE.
+   browser or to the MICROROBOTICA IDE (`SelkiesSession`, with the
+   browser client `api/static/webrtc_client.html`). What is tested: a
+   GStreamer WebRTC peer that signals as the browser client does gets
+   the answer, completes ICE, and decodes the frames pushed, on CPU in
+   a network-less container (`tests/cloud/test_webrtc_loopback.py`, CI
+   job `test-streaming`); the cloud container's entry point, run as the
+   container runs it, streams the simulation built and run over its REST
+   API to that peer (`tests/cloud/test_entrypoint_streams.py`). Not
+   tested: a provider's network, a GPU encoder (the encoder is
+   `x264enc`), a real browser, and NAT traversal: on a cloud host the
+   media travels over UDP, which a provider may not expose, and
+   `StreamConfig.ice_servers` is where a STUN or TURN server is set.
 
 pybind11
    Header-only C++ ↔ Python binding generator. MICROROBOTICA ships
@@ -143,7 +157,9 @@ ASME V&V 40
 Multi-rate
    A scheduling mode where different nodes advance at different `dt`s,
    reconciled by a GCD-based scheduler. Used for stiff subsystems that need a
-   smaller step than the rest of the graph.
+   smaller step than the rest of the graph. Between the base steps a slower
+   node fires on, its readers see what it holds: its held state, and the
+   flux (`compute_boundary_fluxes`) of that held state.
 
 Surrogate
    A neural network (MLP / DeepONet / FNO) trained to mimic a slow physics
@@ -391,6 +407,7 @@ SaMD
 
 SBOM
    *Software Bill of Materials* — a machine-readable inventory of every
-   dependency in a build. MADDENING emits one (CycloneDX format) so
-   downstream {term}`SOUP` analysis has a complete component list.
+   dependency in a build. MADDENING commits one per covered install
+   (CycloneDX format, `docs/validation/sbom/`) so downstream {term}`SOUP`
+   analysis has a complete component list.
 ```
