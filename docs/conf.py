@@ -81,6 +81,9 @@ extensions = [
     "sphinx_sitemap",
     "sphinx_tippy",
     "mermaid_tips",
+    # `{codeterm}`: a glossary-term reference rendered in code style
+    # (docs/_ext/codeterm.py).
+    "codeterm",
 ]
 
 # ── sphinx-tippy ─────────────────────────────────────────────────────

@@ -162,6 +162,31 @@ This is an **important** notice — must-know information before proceeding.
 
 ---
 
+## Glossary terms
+
+A term from the shared [glossary](../glossary.md) links with a role, and
+hovering the link shows the definition. Use `{term}` in prose: a
+{term}`coupling group` iterates its members until they agree, and a
+shard's {term}`ghost cells <Halo>` are copied in from its neighbours.
+
+A term spelled the way the code spells it keeps its code styling with
+`{codeterm}`: each leaf of a graph's parameters has a {codeterm}`ParamSpec`,
+and {codeterm}`StabilityLevel.STABLE <STABLE>` is the strongest promise a
+surface makes. The tooltip is the same as for `{term}`.
+
+```markdown
+Use `{term}` in prose: a {term}`coupling group` iterates its members.
+A shard's {term}`ghost cells <Halo>` come from its neighbours.
+Each leaf of a graph's parameters has a {codeterm}`ParamSpec`.
+{codeterm}`StabilityLevel.STABLE <STABLE>` shows other text for the term.
+```
+
+Both roles take the `text <Term>` form, and both match the term without
+regard to case. A name that is not in the glossary warns at build time
+("term not in glossary").
+
+---
+
 ## Cross-project references
 
 Use `intersphinx` to link across sub-sites:
