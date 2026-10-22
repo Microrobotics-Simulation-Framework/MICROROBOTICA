@@ -5,7 +5,7 @@
 **MICROBOTICA** (MICROROBOTics Iterative simulation for Clinical Adoption) is a C++17/Qt 6.6 open-source research simulator for microrobot-assisted drug delivery in cerebrospinal fluid and other confined biological geometries. It occupies Layer 3 of a four-layer open-source stack:
 
 ```
-Layer 1 — MADDENING  (Python, JAX, LGPL-3.0)
+Layer 1 — MADDENING  (Python, JAX, Apache-2.0)
     JAX-based differentiable multiphysics graph framework.
     Near-complete. JOSS/arXiv target.
     Has its own DOCUMENTATION_ARCHITECTURE.md.
@@ -257,14 +257,14 @@ MICROBOTICA's position at Layer 3 — the topmost open-source layer and the most
 
 #### AGPL Licence and the Commercial Model
 
-MICROBOTICA is licensed under AGPL-3.0-or-later. The AGPL differs from MADDENING's LGPL-3.0 in one significant respect: it extends the source disclosure obligation to network interaction. A commercial product that deploys MICROBOTICA as a network service must provide the complete source to users who interact with it over the network.
+MICROBOTICA is licensed under AGPL-3.0-or-later. MADDENING is licensed under Apache-2.0 (from 0.4.2; LGPL-3.0 before), a permissive licence; the AGPL is a strong copyleft licence, and it extends the source disclosure obligation to network interaction. A commercial product that deploys MICROBOTICA as a network service must provide the complete source to users who interact with it over the network.
 
 This does **not** prevent commercial use. It does impose a stronger copyleft requirement that commercial entities must evaluate:
 
 - **Commercial use is permitted**: The AGPL explicitly permits commercial use.
 - **Strong copyleft**: Unlike the LGPL, the AGPL's "network use" clause means that if a commercial product serves MICROBOTICA's functionality over a network, the AGPL-licensed source must be made available to network users.
 - **Dual-licensing option**: The developer retains the option to offer commercial licences that waive the AGPL network disclosure requirement, enabling proprietary SaaS deployments without source disclosure.
-- **Upstream compatibility**: MADDENING and MIME (LGPL-3.0) can be incorporated into AGPL-3.0 code. The AGPL is a "stronger" licence compatible with the LGPL for combination purposes.
+- **Upstream compatibility**: MADDENING (Apache-2.0) and MIME (LGPL-3.0) can be incorporated into AGPL-3.0 code. Apache-2.0 code can be combined into GPL-3.0-family code, and the AGPL is a "stronger" licence compatible with the LGPL for combination purposes.
 
 Commercial entities should assess AGPL compatibility with their deployment model. For on-premises deployment (no network interaction), the AGPL source disclosure obligation may not be triggered. For cloud/SaaS deployment, it will be.
 
@@ -2051,7 +2051,7 @@ Commercial Product (CE-marked SaMD)
     ├── MICROBOTICA (Layer 3, AGPL-3.0, SOUP)
     │   ├── Qt, OpenUSD, pybind11, ZeroMQ (SOUP of SOUP)
     │   └── MIME (Layer 2, LGPL-3.0, SOUP of SOUP)
-    │       └── MADDENING (Layer 1, LGPL-3.0, SOUP of SOUP of SOUP)
+    │       └── MADDENING (Layer 1, Apache-2.0, SOUP of SOUP of SOUP)
     │           └── JAX, NumPy (SOUP³)
     └── Manufacturer's own code (clinical interpretation, UI customization,
         safety controls, regulatory compliance layer)
