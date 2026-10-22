@@ -9,7 +9,7 @@ MICROBOTICA is Layer 3 in a four-layer open-source stack for medical
 microrobotics simulation:
 
 ```
-Layer 1 — MADDENING   (Python/JAX, LGPL-3.0)    Physics framework
+Layer 1 — MADDENING   (Python/JAX, Apache-2.0)  Physics framework
 Layer 2 — MIME         (Python, LGPL-3.0)         Microrobotics engine
 Layer 3 — MICROBOTICA  (C++17/Qt 6, AGPL-3.0)    Simulator UI  ← this project
 Layer 4 — Commercial   (future)                   CE-marked SaMD
