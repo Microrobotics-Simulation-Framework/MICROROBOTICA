@@ -14,6 +14,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   run scripts pass the host's render nodes (never an NVIDIA GPU's) instead of `--gpus all` (`scripts/render-args.sh`;
   `MICROROBOTICA_RENDER=llvmpipe` forces software). `MICROROBOTICA_MSAA` overrides the 4x multisampling.
 
+### Removed
+
+- **MIME 0.2's experiment form**: the in-repository `experiments/` (A0 as a MIME 0.3 saved folder is the reference
+  experiment now), `ExperimentLoader` (MBCA-COMP-060) and `experiment.yaml`/`experiment.json`, the `physics/params.py`
+  runpy that filled the parameter panel, `scripts/yaml_to_json.py`, and the spawn of the 0.2 runner
+  (`python -m mime.runner`) with its `stream_info` readiness polling. **File → Open Saved Experiment** opens a MIME 0.3
+  saved folder (`experiment.mime.yaml`, `scene/scene.usda`); running it live comes with the `mime.live/1` client.
+- **Bare-string commands**: `launch` and `stop` were sent as bare strings, never JSON, so the 0.2 runner refused them
+  and a Manual-mode session never stopped. Every command is a JSON object now (`{"command": "start"}`,
+  `{"command": "stop"}`); a reply that is not a JSON object accepting it is a refusal.
+- **Cloud (SkyPilot) mode, set aside**: taken out of the Run Configuration panel and the main window. MIME 0.3's remote
+  answer is `mime serve` behind an SSH tunnel (Manual endpoint); pixel streaming may return with MADDENING 0.5.0.
+  `CloudJobLauncher`, `SshTunnel`, the SkyPilot monitor panel and their tests stay in the tree, unwired.
+
 ### Added
 
 - **StormRenderer** (MBCA-COMP-032): the viewport's Storm render path (engine, camera, lights) without Qt, shared

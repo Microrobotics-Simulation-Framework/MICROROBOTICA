@@ -12,83 +12,62 @@ simulation work itself runs in two Python libraries:
   as the `mime` package and provides rigid-body, magnetic-response,
   {term}`Stokeslet` BEM, {term}`IB-LBM`, FVM-IBM, robot-arm, and actuation nodes.
 
-The IDE spawns MIME's runner as a subprocess and exchanges state over
-{term}`ZMQ`; you don't import either library from C++ directly.
+MICROROBOTICA draws MIME's experiments and their runs; you write and run
+experiments in Python with MIME, and never import either library from C++.
 
 ## Install both libraries
 
 ```bash
-# CPU only
 pip install mime-engine
-
-# GPU (CUDA 12)
-pip install "mime-engine" "jax[cuda12]"
 ```
 
 `mime-engine` declares `maddening` as a dependency, so installing one
-gets you both.
+gets you both. MIME 0.3 runs on the CPU by default.
 
-## Open an experiment from the IDE
+## Open a saved experiment
 
-The IDE locates MIME's runner via the `PYTHONPATH` of its embedded
-interpreter. After `pip install mime-engine` is complete:
+A MIME 0.3 experiment is written in Python and saved as a folder
+(`Experiment.save(folder)`, or `mime pull`): `experiment.mime.yaml`, its
+lock `mime.lock`, and its stage `scene/scene.usda`, which MIME writes from
+the experiment's declarations.
 
 1. Launch `microrobotica`.
-2. **File → Open Experiment** → pick any `experiment.yaml` from a
-   MIME experiment directory (e.g.
-   `MIME/experiments/dejongh_confined/experiment.yaml`).
-3. The IDE spawns the runner, waits for its ZMQ endpoint, and starts
-   streaming results into the viewport.
-4. **Simulation → Start** — drag parameter sliders live; the IDE
-   forwards them to the runner without rebuilding the graph.
-5. The timeline scrubber walks the USDC recording produced by the
-   runner.
+2. **File → Open Saved Experiment** → pick the folder. The viewport draws
+   its stage with Hydra Storm.
 
-## Writing your own MIME experiment
+MIME 0.2's experiment folders (`experiment.yaml`, `physics/params.py`, a
+hand-made `world.usda`) and its runner (`python -m mime.runner`) are
+retired: MICROROBOTICA no longer opens or runs them.
 
-A MIME experiment is a directory with three files: `experiment.yaml`,
-`physics/setup.py`, and `scene/world.usda`. The runner imports
-`physics.setup.build_graph(params)` and feeds the returned
-`GraphManager` to the IDE.
+## Play a run's recording
 
-```python
-# physics/setup.py
-from maddening import GraphManager
-from mime.nodes.environment.external_magnetic_field import ExternalMagneticFieldNode
-from mime.nodes.robot.permanent_magnet_response import PermanentMagnetResponseNode
-from mime.nodes.robot.rigid_body import RigidBodyNode
+A run folder that `run_to(..., stage_every=...)` or
+`mime run <folder> --duration T --out <run> --stage-every S` wrote holds
+`recording.usdc`, time samples over the run folder's own copy of the
+stage. **File → Open USD Scene** → `recording.usdc` plays it on the
+timeline: scrub, play, pause and loop.
 
+Running a saved experiment live, through MIME 0.3's `mime serve`, comes
+with MICROROBOTICA's client for its `mime.live/1` protocol.
 
-def build_graph(params: dict) -> GraphManager:
-    dt = params["DT_PHYS"]
+## The viewport needs no NVIDIA GPU
 
-    gm = GraphManager()
-    gm.add_node(ExternalMagneticFieldNode(name="field", timestep=dt))
-    gm.add_node(PermanentMagnetResponseNode(name="magnet", timestep=dt))
-    gm.add_node(RigidBodyNode(name="body", timestep=dt, **params["body"]))
-
-    gm.add_edge("field", "magnet", "field_vector",   "field_vector")
-    gm.add_edge("magnet", "body",  "magnetic_torque", "magnetic_torque")
-
-    gm.compile()
-    return gm
-```
-
-See [`MIME/experiments/`](https://github.com/Microrobotics-Simulation-Framework/MIME/tree/main/experiments)
-for fully worked examples — both the
-[`dejongh_confined`](https://github.com/Microrobotics-Simulation-Framework/MIME/tree/main/experiments/dejongh_confined)
-benchmark and the
-[`ar4_helical_drive`](https://github.com/Microrobotics-Simulation-Framework/MIME/tree/main/experiments/ar4_helical_drive)
-closed-loop demo.
+Storm draws with OpenGL 4.5 in the Compatibility profile, which Mesa
+provides on the Intel GPU (`docker run --device /dev/dri`) and on its
+software rasteriser, llvmpipe (`LIBGL_ALWAYS_SOFTWARE=1`).
+`scripts/run-dev.sh` passes the host's render nodes and never an NVIDIA
+GPU's; `MICROROBOTICA_RENDER=llvmpipe` forces the software rasteriser.
 
 ## Running MIME on its own
 
-You don't have to go through the IDE — MIME is a regular Python
-library. Build a `GraphManager`, call `compile()`, and drive it from
-Python:
+You don't have to go through the IDE: MIME is a regular Python library.
+Build an experiment, run it, and save it or its run folder for
+MICROROBOTICA:
 
 ```python
-final, history = gm.run_scan_with_history(n_steps=10_000)
+built = experiment.build()
+written = built.run_to("my_run", s(2), stage_every=ms(16.5))  # my_run/recording.usdc
+experiment.save("my_experiment")
 ```
 
 Full library reference: <https://microrobotica.org/mime/>.

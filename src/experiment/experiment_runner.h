@@ -5,7 +5,6 @@
 #include <QProcess>
 #include "core/component_meta.h"
 #include "core/stability.h"
-#include "experiment/experiment_config.h"
 
 namespace microbotica::experiment {
 

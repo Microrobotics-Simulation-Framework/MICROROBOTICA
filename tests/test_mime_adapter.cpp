@@ -178,7 +178,7 @@ TEST_CASE("MimePhysicsProcess: receives frames from mock ZMQ publisher", "[integ
     const std::string req_ep = "tcp://127.0.0.1:15555";
     const std::string pub_ep = "tcp://127.0.0.1:15556";
 
-    // Start mock REP server (responds to "launch" with "ok")
+    // Start mock REP server (accepts every command with a JSON reply)
     std::atomic<bool> rep_running{true};
     std::thread rep_thread([&]() {
         zmq::context_t ctx(1);
@@ -191,9 +191,9 @@ TEST_CASE("MimePhysicsProcess: receives frames from mock ZMQ publisher", "[integ
             zmq::message_t msg;
             auto result = rep.recv(msg, zmq::recv_flags::none);
             if (!result) continue;
-            std::string cmd(static_cast<char*>(msg.data()), msg.size());
-            zmq::message_t reply(2);
-            std::memcpy(reply.data(), "ok", 2);
+            const std::string accept = R"({"protocol":"mime.live/1","ok":true})";
+            zmq::message_t reply(accept.size());
+            std::memcpy(reply.data(), accept.data(), accept.size());
             rep.send(reply, zmq::send_flags::none);
         }
     });
@@ -288,3 +288,94 @@ TEST_CASE("ConnectionManager: probe succeeds against mock REP", "[integration][c
     server.join();
 }
 #endif // MICROBOTICA_HAS_ZMQ
+
+// ── Commands are JSON objects (no bare strings) ──────────────────────────────
+
+TEST_CASE("MimePhysicsProcess: a reply refuses unless it is a JSON object that accepts",
+          "[unit][mime-adapter]") {
+    REQUIRE_FALSE(MimePhysicsProcess::isRefusal(R"({"protocol":"mime.live/1","ok":true,"command":"start"})"));
+    REQUIRE_FALSE(MimePhysicsProcess::isRefusal(R"({"status":"ok"})"));
+    REQUIRE(MimePhysicsProcess::isRefusal(R"({"protocol":"mime.live/1","ok":false,"errors":[]})"));
+    REQUIRE(MimePhysicsProcess::isRefusal(R"({"status":"error","message":"unknown"})"));
+    REQUIRE(MimePhysicsProcess::isRefusal("error:zmq_not_available"));
+    REQUIRE(MimePhysicsProcess::isRefusal("[]"));
+}
+
+#ifdef MICROBOTICA_HAS_ZMQ
+#include <atomic>
+#include <cstring>
+#include <mutex>
+#include <vector>
+#include <nlohmann/json.hpp>
+#include <zmq.hpp>
+
+TEST_CASE("MimePhysicsProcess: start and stop go out as JSON objects, never bare strings",
+          "[integration][mime-adapter]") {
+    const std::string req_ep = "tcp://127.0.0.1:15575";
+    const std::string pub_ep = "tcp://127.0.0.1:15576";
+    std::atomic<bool> serving{true};
+    std::mutex seenMutex;
+    std::vector<std::string> seen;
+
+    // A REP server that records every request and accepts it.
+    std::thread rep_thread([&]() {
+        zmq::context_t ctx(1);
+        zmq::socket_t rep(ctx, zmq::socket_type::rep);
+        rep.set(zmq::sockopt::linger, 0);
+        rep.set(zmq::sockopt::rcvtimeo, 100);
+        rep.bind(req_ep);
+        while (serving.load()) {
+            zmq::message_t msg;
+            if (!rep.recv(msg, zmq::recv_flags::none)) continue;
+            {
+                std::lock_guard<std::mutex> lock(seenMutex);
+                seen.emplace_back(static_cast<char*>(msg.data()), msg.size());
+            }
+            const std::string reply = R"({"protocol":"mime.live/1","ok":true})";
+            zmq::message_t out(reply.size());
+            std::memcpy(out.data(), reply.data(), reply.size());
+            rep.send(out, zmq::send_flags::none);
+        }
+    });
+    // A PUB server with a frame every 50 ms, so the receiver never waits long.
+    std::thread pub_thread([&]() {
+        zmq::context_t ctx(1);
+        zmq::socket_t pub(ctx, zmq::socket_type::pub);
+        pub.set(zmq::sockopt::linger, 0);
+        pub.bind(pub_ep);
+        const std::string frame = R"({"simTime":0.0,"positions":{},"scalars":{}})";
+        while (serving.load()) {
+            zmq::message_t out(frame.size());
+            std::memcpy(out.data(), frame.data(), frame.size());
+            pub.send(out, zmq::send_flags::none);
+            std::this_thread::sleep_for(std::chrono::milliseconds(50));
+        }
+    });
+
+    {
+        MimePhysicsProcess proc(req_ep, pub_ep);
+        proc.launch(PhysicsConfig{});
+        REQUIRE(proc.status() == ProcessStatus::Running);
+        std::this_thread::sleep_for(std::chrono::milliseconds(200));
+        proc.stop();
+        REQUIRE(proc.status() == ProcessStatus::Stopped);
+    }
+    serving.store(false);
+    rep_thread.join();
+    pub_thread.join();
+
+    std::lock_guard<std::mutex> lock(seenMutex);
+    REQUIRE_FALSE(seen.empty());
+    bool sawStart = false, sawStop = false;
+    for (const auto& request : seen) {
+        INFO("request: " << request);
+        const auto j = nlohmann::json::parse(request);  // throws on a bare string
+        REQUIRE(j.is_object());
+        REQUIRE(j.contains("command"));
+        sawStart = sawStart || j["command"] == "start";
+        sawStop = sawStop || j["command"] == "stop";
+    }
+    REQUIRE(sawStart);
+    REQUIRE(sawStop);
+}
+#endif

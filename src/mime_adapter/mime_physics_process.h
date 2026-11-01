@@ -32,12 +32,11 @@ namespace microbotica::mime {
 /// fallback if the handshake is unavailable (older runner).
 ///
 /// IPC Protocol:
-///   REQ/REP (tcp://host:5555):
-///     "launch"                → {"status":"ok"} | "error:..."
-///     "stop"                  → {"status":"ok"}
+///   REQ/REP (tcp://host:5555), every request a JSON object:
+///     {"command":"start"}     → {"ok":true,...} | {"ok":false,"errors":[...]}
+///     {"command":"stop"}      → {"ok":true,...}
 ///     {"command":"params",...}→ {"status":"ok"}
 ///     {"command":"stream_info"} → {"status":"ok","format":...,"schema":...}
-///     "ping"                  → "pong"
 ///   PUB/SUB (tcp://host:5556):
 ///     topic "" → ResultFrame (JSON text, or binary frame per the schema);
 ///                plus a one-time {"type":"params",...} JSON notice at startup
@@ -103,6 +102,11 @@ public:
     /// Intended for Cloud-mode readiness loops where the pod may be in a
     /// cold-start window (JAX install, JIT compile) for several minutes.
     static bool probeRunner(const std::string& req_endpoint, int timeout_ms);
+
+    /// True when a command's reply refuses it: `"ok": false` (mime.live/1),
+    /// `"status": "error"` (the 0.2 runner), or a reply that is not a JSON
+    /// object.
+    static bool isRefusal(const std::string& reply);
 
 private:
     void workerLoop();

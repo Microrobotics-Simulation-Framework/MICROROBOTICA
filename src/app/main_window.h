@@ -5,8 +5,6 @@
 #include <QByteArray>
 #include <memory>
 
-class QProcess;
-
 #include "core/stability.h"
 #include "core/audit_logger.h"
 #include "core/physics_config.h"
@@ -28,21 +26,11 @@ class TimelinePanel;
 class ConsoleWidget;
 class MimeConsolePanel;
 class RunConfigPanel;
-class SkyPilotMonitorPanel;
 class ProjectBrowserPanel;
 class GraphInspectorPanel;
 class ScriptEditorPanel;
 class ParameterPanel;
 } // namespace microbotica::panels
-
-namespace microbotica::experiment {
-class ExperimentRunner;
-class CloudJobLauncher;
-} // namespace microbotica::experiment
-
-namespace microbotica::connection {
-class SshTunnel;
-} // namespace microbotica::connection
 
 namespace microbotica::app {
 
@@ -89,27 +77,18 @@ private:
     void saveLayout();
     void restoreLayout();
 
-    /// Initialise an experiment from its root directory: load the scene,
-    /// spawn the MIME runner, and mirror state into RunConfigPanel.
-    /// Returns true if the experiment is ready to be launched.
+    /// Open a MIME 0.3 saved experiment folder: load its stage
+    /// (scene/scene.usda), remember it for Launch, and mirror it into the
+    /// panels. Returns false (with a message) for any other folder.
     bool initExperiment(const QString& dir);
 
-    /// Async launch helpers — split out of onSimulationStart so the UI
-    /// thread stays responsive while the MIME runner's REP port comes up.
-    void startWaitingForRunner();
-    void finishWaitingForRunner(bool ok);
-    void finishSimulationStart();
+    /// Open a USD file as the scene: leave playback of the previous one,
+    /// load it in the three-layer stack, switch the viewport to Storm, and
+    /// enter playback mode when it is a time-sampled recording.
+    bool openStage(const QString& filePath);
 
-    /// Cloud-mode async launch helpers (SkyPilot job submit → wait for
-    /// UP → open SSH tunnel → handshake). Each stage updates a notice in
-    /// the viewport overlay so the user sees where they are in the flow.
-    void startCloudLaunch();
-    void onCloudJobLaunched(const QString& cluster_name);
-    void pollClusterReady();
-    void openCloudTunnel(const QString& ip, int ssh_port);
-    void waitForRunnerReady();
-    void onCloudFailed(const QString& stage, const QString& reason);
-    void tearDownCloud(bool stopCluster);
+    /// Pick the compute backend for the selected mode and launch physics.
+    void finishSimulationStart();
 
     /// Read the persisted notice-overlay preferences from QSettings and
     /// apply them to noticeOverlay_. Called on startup and after the
@@ -123,23 +102,9 @@ private:
     std::unique_ptr<simulation::SimulationController> simController_;
     std::unique_ptr<scripting::ScriptingEngine> scriptEngine_;
 
-    // MIME runner subprocess (created on demand by onFileOpenExperiment)
-    std::unique_ptr<experiment::ExperimentRunner> experimentRunner_;
-    // Path to the actor map for the currently loaded experiment, used by
-    // onSimulationStart to build the PhysicsConfig. Empty when running in
-    // legacy stub-backend mode.
+    // The MIME 0.3 saved experiment opened (File → Open Saved Experiment);
+    // empty when none is.
     std::string experimentDir_;
-
-    // Cloud-mode actors. Lazily constructed on the first Cloud launch.
-    std::unique_ptr<experiment::CloudJobLauncher> cloudJobLauncher_;
-    std::unique_ptr<connection::SshTunnel> sshTunnel_;
-    QString cloudClusterName_;     // populated once a Cloud launch is in flight
-    bool cloudStopOnDisconnect_ = true;
-
-    /// Persistent `sky logs -f` follower that mirrors the pod's stdout/stderr
-    /// into the MimeConsolePanel during a Cloud-mode session. Lives from the
-    /// moment `sky launch` returns a job ID until `tearDownCloud` runs.
-    QProcess* cloudLogFollower_ = nullptr;
 
     // Central widget
     viewport::ViewportWidget* viewportWidget_ = nullptr;
@@ -158,7 +123,6 @@ private:
     panels::ConsoleWidget* consoleWidget_ = nullptr;
     panels::MimeConsolePanel* mimeConsole_ = nullptr;
     panels::RunConfigPanel* runConfigPanel_ = nullptr;
-    panels::SkyPilotMonitorPanel* skypilotPanel_ = nullptr;
     panels::ProjectBrowserPanel* projectBrowser_ = nullptr;
     panels::GraphInspectorPanel* graphInspector_ = nullptr;
     panels::ScriptEditorPanel* scriptEditor_ = nullptr;

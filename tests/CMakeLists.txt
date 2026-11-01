@@ -9,7 +9,6 @@ add_executable(microbotica_tests
     test_binary_decoder.cpp
     test_cloud_orchestration.cpp
     test_mime_stub.cpp
-    test_experiment_loader.cpp
     test_ansi_parser.cpp
     ${CMAKE_SOURCE_DIR}/src/stubs/stub_physics_process.cpp
     ${CMAKE_SOURCE_DIR}/src/connection/connection_manager.cpp
@@ -17,7 +16,6 @@ add_executable(microbotica_tests
     ${CMAKE_SOURCE_DIR}/src/mime_adapter/mime_physics_process.cpp
     ${CMAKE_SOURCE_DIR}/src/mime_adapter/binary_frame_decoder.cpp
     ${CMAKE_SOURCE_DIR}/src/mime_adapter/mime_stub_physics_process.cpp
-    ${CMAKE_SOURCE_DIR}/src/experiment/experiment_loader.cpp
     ${CMAKE_SOURCE_DIR}/src/experiment/experiment_runner.cpp
     ${CMAKE_SOURCE_DIR}/src/experiment/cloud_job_launcher.cpp
     ${CMAKE_SOURCE_DIR}/src/experiment/connection_dialog.cpp

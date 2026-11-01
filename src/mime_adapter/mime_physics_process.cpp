@@ -36,11 +36,13 @@ void MimePhysicsProcess::launch(const core::PhysicsConfig& config) {
     status_.store(core::ProcessStatus::Launching);
 
 #ifdef MICROBOTICA_HAS_ZMQ
-    // Send launch command to MIME backend
+    // Start the session. Every command is a JSON object: the bare strings
+    // "launch" and "stop" the 0.2 client sent were never JSON, so the 0.2
+    // runner refused them and a Manual-mode session never stopped.
     try {
-        std::string reply = sendCommand("launch");
-        if (reply.substr(0, 5) == "error") {
-            spdlog::error("MimePhysicsProcess: MIME backend rejected launch: {}", reply);
+        std::string reply = sendCommand(nlohmann::json{{"command", "start"}}.dump());
+        if (isRefusal(reply)) {
+            spdlog::error("MimePhysicsProcess: MIME backend refused start: {}", reply);
             status_.store(core::ProcessStatus::Error);
             return;
         }
@@ -108,7 +110,7 @@ void MimePhysicsProcess::setPaused(bool paused) {
 void MimePhysicsProcess::stop() {
 #ifdef MICROBOTICA_HAS_ZMQ
     try {
-        sendCommand("stop");
+        sendCommand(nlohmann::json{{"command", "stop"}}.dump());
     } catch (const std::exception& e) {
         spdlog::debug("MimePhysicsProcess: Stop command failed (backend may already be down): {}",
                        e.what());
@@ -333,6 +335,21 @@ void MimePhysicsProcess::workerLoop() {
         running_.store(false);
     }
 #endif
+}
+
+bool MimePhysicsProcess::isRefusal(const std::string& reply) {
+    try {
+        const auto j = nlohmann::json::parse(reply);
+        if (!j.is_object()) {
+            return true;
+        }
+        if (j.contains("ok") && j["ok"].is_boolean()) {
+            return !j["ok"].get<bool>();
+        }
+        return j.value("status", std::string()) == "error";
+    } catch (const nlohmann::json::parse_error&) {
+        return true;  // a reply that is not JSON is not an acceptance
+    }
 }
 
 std::optional<core::ResultFrame> MimePhysicsProcess::decodeJsonMessage(
