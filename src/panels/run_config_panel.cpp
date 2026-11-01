@@ -34,7 +34,9 @@ RunConfigPanel::RunConfigPanel(QWidget* parent)
     // sends frames (mime serve's defaults; through an SSH tunnel for a remote
     // one: ssh -L 5555:localhost:5555 -L 5556:localhost:5556 <host>).
     commandsEdit_ = new QLineEdit(QStringLiteral("tcp://127.0.0.1:5555"), container);
-    commandsEdit_->setToolTip(tr("The session's commands endpoint (mime serve --commands)."));
+    commandsEdit_->setToolTip(tr("The session's commands endpoint (mime serve --commands).\n"
+                                 "A session you start by hand needs mime serve --outlive-launcher\n"
+                                 "to keep running after the shell that started it."));
     commandsLabel_ = new QLabel(tr("Commands:"), container);
     form->addRow(commandsLabel_, commandsEdit_);
     framesEdit_ = new QLineEdit(QStringLiteral("tcp://127.0.0.1:5556"), container);

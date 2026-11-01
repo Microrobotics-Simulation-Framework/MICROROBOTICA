@@ -74,7 +74,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `set`; the experiment's settings read-only from its lock; "Rebuild from the saved folder".
 - **Graph inspector on MIME 0.3's topology**: nodes coloured by their entry's kind, tooltips with entries, settings,
   units and when each edge reads.
-- **Command line**: `microbotica [folder or USD file] [--launch] [--quit-after <seconds>]`.
+- **Command line**: `microbotica [folder or USD file] [--launch] [--quit-after <seconds>] [--screenshot <png>]`.
+- **The run panel's status follows the frames** of a live session (each header carries its step), not only command
+  replies.
 - **MIME's coded errors in the console** (MimeConsolePanel, MBCA-COMP-042): MIME 0.3's errors, read from the MIME
   process's stderr or a live-protocol reply's `errors`, are shown in their shape: each reason's class (coloured by
   who can act on it), code, what happened, why, what to do, where, and its documentation page as a link

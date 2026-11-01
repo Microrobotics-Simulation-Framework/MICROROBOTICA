@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstdint>
 #include <string>
 #include <vector>
 #include <unordered_map>
@@ -40,6 +41,8 @@ struct MeshData {
 /// PhysicsProcess -> ResultsApplicator -> USD.
 struct ResultFrame {
     double simTime = 0.0;
+    /// Base steps taken at this frame, where the source says (a mime.live/1 frame's header); 0 otherwise.
+    std::uint64_t step = 0;
     std::unordered_map<std::string, Vec3f> positions;
     std::unordered_map<std::string, Quatf> orientations;
     std::unordered_map<std::string, double> scalars;
@@ -56,6 +59,7 @@ struct ResultFrame {
 inline void to_json(nlohmann::json& j, const ResultFrame& f) {
     j = nlohmann::json{
         {"simTime", f.simTime},
+        {"step", f.step},
         {"positions", f.positions},
         {"orientations", f.orientations},
         {"scalars", f.scalars},
@@ -67,6 +71,9 @@ inline void to_json(nlohmann::json& j, const ResultFrame& f) {
 
 inline void from_json(const nlohmann::json& j, ResultFrame& f) {
     j.at("simTime").get_to(f.simTime);
+    if (j.contains("step")) {
+        j.at("step").get_to(f.step);
+    }
     j.at("positions").get_to(f.positions);
     j.at("scalars").get_to(f.scalars);
     if (j.contains("orientations")) {

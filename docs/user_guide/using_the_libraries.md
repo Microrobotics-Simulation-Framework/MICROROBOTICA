@@ -84,9 +84,14 @@ set `MICROROBOTICA_MIME`.
 - The **Graph Inspector** shows the built graph (`topology()`), and the
   **MIME Output** panel shows `mime serve`'s output and any refusal in
   MIME's shape.
-- A remote session: run `mime serve` there, open an SSH tunnel
-  (`ssh -L 5555:localhost:5555 -L 5556:localhost:5556 <host>`), open the
-  same saved experiment here, and connect with mode **Manual endpoint**.
+- A remote session: run `mime serve <folder> --outlive-launcher` there,
+  open an SSH tunnel (`ssh -L 5555:localhost:5555 -L 5556:localhost:5556
+  <host>`), open the same saved experiment here (MICROROBOTICA checks it
+  is the same by its input hash), and connect with mode **Manual
+  endpoint**. `mime serve` exits when the process that launched it is
+  gone; `--outlive-launcher` keeps a session you start by hand running
+  after the shell that started it. Sessions MICROROBOTICA launches itself
+  (Local) need no flag: they stop with the viewer.
 
 The AR4's meshes are Annin Robotics' design and are never shipped: the arm
 draws as simple shapes until `mime visuals fetch ar4_mk5` puts them in

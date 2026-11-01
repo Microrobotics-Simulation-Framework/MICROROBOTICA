@@ -1393,6 +1393,15 @@ void MainWindow::onFrameReady(const core::ResultFrame& frame)
 
     const double t = frame.simTime;
     simTimeLabel_->setText(QString("Sim: %1 s").arg(t, 0, 'f', 3));
+
+    // A live session's status, from its frames (each header carries the
+    // step and time): replies come only when a command is sent.
+    if (liveSessionActive() && runConfigPanel_) {
+        runConfigPanel_->setConnectionStatus(tr("Live: %1, step %2, %3 s%4")
+            .arg(paused_ ? tr("paused") : tr("running")).arg(frame.step)
+            .arg(t, 0, 'f', 3)
+            .arg(recordAction_ && recordAction_->isChecked() ? tr(", recording") : QString()));
+    }
 }
 
 void MainWindow::onBackendCrashed(const QString& reason)

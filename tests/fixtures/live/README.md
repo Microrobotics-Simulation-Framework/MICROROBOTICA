@@ -1,8 +1,8 @@
 # mime.live/1 messages captured from MIME 0.3
 
 Captured on 2026-11-01 from a real `mime serve` of A0, MIME's reference experiment, saved with its controller in the
-callback mode (`scripts/make_a0_fixtures.sh`, `a0_callback_saved`), at MIME's `v0.3-phase7n` `578cb0b` (PR #86's
-fix round: the client note's "Changes since the first note"; first captured at `3136fb1`). Local paths are
+callback mode (`scripts/make_a0_fixtures.sh`, `a0_callback_saved`), at MIME's `v0.3-phase7n` `578cb0b`, whose tree
+MIME's `v0.3` holds unchanged since PR #86 merged (`21e98f5`); first captured at `3136fb1`. Local paths are
 replaced by `/data/...`. The tests in `tests/test_live_protocol.cpp` read them.
 
 | File | What it is |

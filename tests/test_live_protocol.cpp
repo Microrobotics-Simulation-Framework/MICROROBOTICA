@@ -256,6 +256,7 @@ TEST_CASE("Binding frames: poses land on their prims, converted to the stage's u
     CHECK(inMetres.physicsConfig().actorToPrimPath.size() == 31);
     const auto r = inMetres.toResultFrame(frame);
     CHECK(r.simTime == Catch::Approx(0.02));
+    CHECK(r.step == 40);  // the frame header's step, for the run panel's status
     CHECK(r.positions.at("/World/umr").z == pose[2]);
     CHECK(r.orientations.at("/World/umr").w == pose[3]);
     CHECK(r.orientations.at("/World/umr").z == pose[6]);

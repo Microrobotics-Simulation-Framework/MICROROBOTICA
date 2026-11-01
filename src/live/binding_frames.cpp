@@ -47,6 +47,7 @@ core::Quatf BindingFrames::turnFromZ(double x, double y, double z) {
 core::ResultFrame BindingFrames::toResultFrame(const LiveFrame& frame) const {
     core::ResultFrame out;
     out.simTime = frame.time;
+    out.step = frame.step;
     const double perUnit = units_.metersPerUnit;
 
     auto rowOf = [&frame](const std::string& path, std::size_t row, std::size_t width) -> const double* {

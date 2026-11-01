@@ -277,7 +277,13 @@ the session. The frames socket's handshake is awaited before `hello`, so a
 900 bytes in about 22 s, none dropped, decode about 35 µs, scene apply about
 380 µs a frame.
 
-**Status**: Implemented against MIME PR #86's head (`3136fb1`).
+**Status**: Implemented against MIME PR #86 and its fix round; checked against
+MIME's `v0.3` after #86 merged (`21e98f5`).
+
+**Server lifetime**: `mime serve` exits when the process that launched it is
+gone, so a session MICROROBOTICA launches (Local) never outlives a crashed
+viewer. A session started by hand for a Manual endpoint (a remote one, over
+SSH) needs `--outlive-launcher` to survive the shell that started it.
 
 **Files**: `src/live/`, `src/app/main_window.cpp`, `src/panels/live_inputs_panel.cpp`,
 `tests/test_live_protocol.cpp`, `tests/test_live_client.cpp`, `tests/test_live_mime_serve.cpp`,
