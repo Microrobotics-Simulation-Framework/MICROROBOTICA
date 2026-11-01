@@ -46,6 +46,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Run folders as the main entry** (File → Open Run Folder, or a run folder on the command line): a MIME 0.3 run
+  folder opens with its recording playing (or its experiment's stage), its experiment (Launch runs it again, live), its
+  topology in the graph inspector, its recorded series in the plots panel and MIME's claims about it. A
+  `recording.usdc` opened from File → Open USD Scene opens as its run folder's. MIME's visuals overlay is added when
+  `mime visuals view` names one (the AR4's meshes, when the user fetched them; simple shapes otherwise).
+- **Plots panel**: observation outputs and flags over time in their units, live (every scalar a session's frames
+  carry) or from a run folder's `outputs.npz` (what the run recorded per step); flags shaded where raised; a cursor
+  following playback. Drawn with Qt Charts when the build has it. `src/runs/` reads `outputs.npz` (stored or deflated
+  members) and the run's manifest (RunFolder, MBCA-COMP-070; MBCA-VER-017).
+- **Claims panel**: what MIME says of a run, as it says it: the validity lines it was watched against (A0: its Reynolds
+  number is above Stokes flow's bound), each flag with its meaning and whether it was raised, and the profile with what
+  it has pending; during a live session, each flag at the time it was first raised.
+- **Replay this session** (Simulation menu): a live session's run folder replayed from its command log
+  (`mime run <experiment> --commands commands.jsonl`) into a new run folder, which then opens.
+- **Playback speed**: 0.1x to 4x on the timeline.
 - **Live sessions of MIME 0.3 experiments** (`mime.live/1`, MIME's `mime serve`): Launch on an opened saved experiment
   spawns `mime serve` (Settings → MIME command, or `MICROROBOTICA_MIME`) and connects once its ready file appears;
   Manual endpoint connects to a session already serving (a remote one through an SSH tunnel). `hello` gives the stage

@@ -10,7 +10,11 @@
 #include <QDateTime>
 #include <QProcessEnvironment>
 #include <QTemporaryDir>
+#include <QProcess>
 #include <fstream>
+#include <map>
+#include <set>
+#include <unordered_map>
 #include <QMessageBox>
 #include <QSettings>
 #include <QCloseEvent>
@@ -29,6 +33,9 @@
 #include "panels/graph_inspector_panel.h"
 #include "panels/script_editor_panel.h"
 #include "panels/live_inputs_panel.h"
+#include "panels/plots_panel.h"
+#include "panels/claims_panel.h"
+#include "runs/run_folder.h"
 #include <nlohmann/json.hpp>
 #include "viewport/camera_toolbar.h"
 #include "viewport/camera_controller.h"
@@ -128,6 +135,9 @@ void MainWindow::closeEvent(QCloseEvent* event) {
 bool MainWindow::openPath(const QString& path)
 {
     const QFileInfo info(path);
+    if (info.isDir() && runs::RunFolder::looksLikeRunFolder(info.absoluteFilePath().toStdString())) {
+        return openRunFolder(info.absoluteFilePath());
+    }
     if (info.isDir()) {
         return initExperiment(info.absoluteFilePath());
     }
@@ -208,6 +218,18 @@ void MainWindow::createMenuBar()
     connect(openExpAction, &QAction::triggered,
             this, &MainWindow::onFileOpenExperiment);
 
+    auto* openRunAction = fileMenu->addAction(tr("Open &Run Folder..."));
+    openRunAction->setShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_R));
+    openRunAction->setToolTip(tr("Open a MIME 0.3 run folder: its recording, its experiment, its outputs and "
+                                 "MIME's claims about it."));
+    connect(openRunAction, &QAction::triggered, this, &MainWindow::onOpenRunFolder);
+
+    openLastRunAction_ = fileMenu->addAction(tr("Open &Last Session's Run Folder"));
+    openLastRunAction_->setEnabled(false);
+    connect(openLastRunAction_, &QAction::triggered, this, [this]() {
+        if (!lastRunFolder_.isEmpty()) openRunFolder(lastRunFolder_);
+    });
+
     auto* closeAction = fileMenu->addAction(tr("&Close Scene"));
     closeAction->setShortcut(QKeySequence::Close);
     connect(closeAction, &QAction::triggered, this, &MainWindow::onFileClose);
@@ -245,6 +267,12 @@ void MainWindow::createMenuBar()
     recordAction_->setEnabled(false);
     connect(recordAction_, &QAction::toggled, this, &MainWindow::onRecordToggled);
 
+    replayAction_ = simMenu->addAction(tr("Re&play This Session"));
+    replayAction_->setToolTip(tr("Replay the open run folder's live session from its command log "
+                                 "(mime run --commands) into a new run folder."));
+    replayAction_->setEnabled(false);
+    connect(replayAction_, &QAction::triggered, this, &MainWindow::onReplayRequested);
+
     // View menu
     auto* viewMenu = menuBar()->addMenu(tr("&View"));
 
@@ -264,6 +292,8 @@ void MainWindow::createMenuBar()
     viewMenu->addAction(graphInspector_->toggleViewAction());
     viewMenu->addAction(scriptEditor_->toggleViewAction());
     viewMenu->addAction(liveInputsPanel_->toggleViewAction());
+    viewMenu->addAction(plotsPanel_->toggleViewAction());
+    viewMenu->addAction(claimsPanel_->toggleViewAction());
 
     // Help menu
     auto* helpMenu = menuBar()->addMenu(tr("&Help"));
@@ -325,11 +355,23 @@ void MainWindow::createDockWidgets()
     liveInputsPanel_ = new panels::LiveInputsPanel(this);
     addDockWidget(Qt::RightDockWidgetArea, liveInputsPanel_);
 
+    plotsPanel_ = new panels::PlotsPanel(this);
+    addDockWidget(Qt::BottomDockWidgetArea, plotsPanel_);
+    claimsPanel_ = new panels::ClaimsPanel(this);
+    addDockWidget(Qt::RightDockWidgetArea, claimsPanel_);
+
+    // The plots beside the timeline, not behind it: playback's cursor moves
+    // through them while the timeline plays. Split before the timeline joins
+    // a tab group (a dock split from a tabbed one becomes another tab).
+    splitDockWidget(timelinePanel_, plotsPanel_, Qt::Horizontal);
+    resizeDocks({timelinePanel_, plotsPanel_}, {1, 2}, Qt::Horizontal);
+
     // Tab bottom panels together
     tabifyDockWidget(timelinePanel_, consoleWidget_);
     tabifyDockWidget(consoleWidget_, mimeConsole_);
     tabifyDockWidget(mimeConsole_, graphInspector_);
     tabifyDockWidget(graphInspector_, scriptEditor_);
+    tabifyDockWidget(liveInputsPanel_, claimsPanel_);
     timelinePanel_->raise(); // Show timeline tab by default
 }
 
@@ -370,6 +412,8 @@ void MainWindow::wireSignals()
         pendingSet_ = values;
         simController_->sendParameters(values);
     });
+    connect(timelinePanel_, &panels::TimelinePanel::playbackSecondsChanged,
+            plotsPanel_, &panels::PlotsPanel::setCursor);
     connect(liveInputsPanel_, &panels::LiveInputsPanel::rebuildRequested, this, [this]() {
         // A physical setting changed in the saved folder: a new session.
         if (experimentDir_.empty()) return;
@@ -452,6 +496,14 @@ void MainWindow::onFileOpen()
         tr("USD Files (*.usd *.usda *.usdc *.usdz);;All Files (*)"));
 
     if (filePath.isEmpty()) return;
+
+    // A recording in a run folder is its run's: open the folder with it, so
+    // its experiment, outputs and claims come along.
+    const std::string run = runs::RunFolder::runFolderOf(filePath.toStdString());
+    if (!run.empty() && QFileInfo(filePath).fileName() == QStringLiteral("recording.usdc")) {
+        openRunFolder(QString::fromStdString(run));
+        return;
+    }
 
     if (!openStage(filePath)) {
         QMessageBox::warning(this, tr("Open Failed"),
@@ -543,6 +595,10 @@ bool MainWindow::initExperiment(const QString& dirStr)
         return true;
     }
     spdlog::info("initExperiment: saved experiment {}", dirStr.toStdString());
+    runFolder_.clear();
+    if (replayAction_) replayAction_->setEnabled(false);
+    if (plotsPanel_) plotsPanel_->clear();
+    if (claimsPanel_) claimsPanel_->clear();
     if (simController_->isRunning()) {
         simController_->stop();
     }
@@ -853,10 +909,45 @@ void MainWindow::connectLiveSession(const QString& commands, const QString& fram
     }
     liveClient_ = client;
 
+    // Plots and claims: every scalar a frame carries (observation outputs,
+    // flags), sample by sample, from the frames thread.
+    std::vector<panels::PlotsPanel::FieldInfo> fields;
+    std::vector<std::string> flagPaths;
+    for (const auto& f : hello.schema.fields) {
+        if (f.count() != 1) continue;
+        const bool flag = f.field.find("fired") != std::string::npos || f.field.rfind("beyond", 0) == 0;
+        fields.push_back({f.path, f.unit, flag});
+        if (flag) flagPaths.push_back(f.path);
+    }
+    plotsPanel_->beginLive(fields);
+    claimsPanel_->beginLive(hello.experiment, flagPaths);
+    runFolder_.clear();
+    replayAction_->setEnabled(false);
+
     auto backend = std::make_unique<live::LiveComputeBackend>(
-        client, liveFrames_, [this](live::LivePhysicsProcess& process) {
+        client, liveFrames_, [this, flagPaths](live::LivePhysicsProcess& process) {
             process.setReplyObserver([this](const live::Reply& reply) {
                 QMetaObject::invokeMethod(this, [this, reply]() { onLiveReply(reply); }, Qt::QueuedConnection);
+            });
+            auto reported = std::make_shared<std::set<std::string>>();
+            process.setFrameObserver([this, flagPaths, reported](const live::LiveFrame& frame) {
+                std::unordered_map<std::string, double> scalars;
+                for (const auto& [path, values] : frame.values) {
+                    if (values.size() == 1) scalars.emplace(path, values.front());
+                }
+                plotsPanel_->pushSample(frame.time, scalars);
+                std::map<std::string, double> raised;
+                for (const auto& path : flagPaths) {
+                    const auto it = scalars.find(path);
+                    if (it != scalars.end() && it->second > 0.5 && reported->insert(path).second) {
+                        raised[path] = it->second;
+                    }
+                }
+                if (!raised.empty()) {
+                    const double t = frame.time;
+                    QMetaObject::invokeMethod(claimsPanel_, [this, t, raised]() { claimsPanel_->liveFlags(t, raised); },
+                                              Qt::QueuedConnection);
+                }
             });
         });
     simController_->setComputeBackend(std::move(backend));
@@ -1013,7 +1104,8 @@ void MainWindow::endLiveSession(const QString& why)
     runConfigPanel_->setConnectionStatus(tr("Idle"));
     QString message = why;
     if (!lastRunFolder_.isEmpty()) {
-        message += tr(" Its run folder: %1").arg(lastRunFolder_);
+        openLastRunAction_->setEnabled(true);
+        message += tr(" Its run folder: %1 (File → Open Last Session's Run Folder)").arg(lastRunFolder_);
         mimeConsole_->appendStdout(("[session] run folder: " + lastRunFolder_ + QLatin1Char('\n')).toUtf8());
     }
     statusBar()->showMessage(message);
@@ -1026,6 +1118,158 @@ void MainWindow::onServeProcessEnded()
     // no reply can come, so do not wait for one.
     liveClient_->close();
     endLiveSession(tr("mime serve ended (see MIME Output)."));
+}
+
+// ---------------------------------------------------------------------------
+// Run folders
+// ---------------------------------------------------------------------------
+
+void MainWindow::onOpenRunFolder()
+{
+    const QString dir = QFileDialog::getExistingDirectory(this, tr("Open Run Folder"), runsDir(),
+        QFileDialog::ShowDirsOnly | QFileDialog::DontResolveSymlinks);
+    if (!dir.isEmpty()) openRunFolder(dir);
+}
+
+bool MainWindow::openRunFolder(const QString& folder)
+{
+    if (liveSessionActive()) {
+        QMessageBox::information(this, tr("Run folder"), tr("Stop the live session before opening a run folder."));
+        return false;
+    }
+    std::unique_ptr<runs::RunFolder> run;
+    try {
+        run = std::make_unique<runs::RunFolder>(folder.toStdString());
+    } catch (const std::exception& e) {
+        QMessageBox::warning(this, tr("Not a run folder"), QString::fromUtf8(e.what()));
+        return false;
+    }
+
+    // What to draw: its recording (played), or its experiment's stage.
+    const QString recording = QString::fromStdString(run->recording());
+    const QString stage = QString::fromStdString(run->stage());
+    const QString open = !recording.isEmpty() ? recording : stage;
+    if (open.isEmpty() || !openStage(open)) {
+        QMessageBox::warning(this, tr("Run folder"),
+            tr("The run folder has no recording or stage that opens:\n%1").arg(folder));
+        return false;
+    }
+    runFolder_ = folder;
+    // Its experiment is the run's: Launch runs it again, live.
+    experimentDir_ = run->experimentFolder();
+    if (runConfigPanel_) runConfigPanel_->setExperimentDir(experimentDir_);
+    if (projectBrowser_) projectBrowser_->setExperimentDir(folder.toStdString());
+
+    // The graph it ran, its settings, its outputs and MIME's claims.
+    if (graphInspector_ && !run->topology().empty()) {
+        std::ifstream in(run->topology());
+        try {
+            graphInspector_->loadFromJson(nlohmann::json::parse(in));
+        } catch (const std::exception& e) {
+            spdlog::warn("openRunFolder: topology.json not read: {}", e.what());
+        }
+    }
+    if (liveInputsPanel_) {
+        liveInputsPanel_->clearAll();
+        std::ifstream lock(run->experimentFolder() + "/mime.lock");
+        if (lock) {
+            try {
+                const auto j = nlohmann::json::parse(lock);
+                if (j.contains("resolved") && j["resolved"].contains("entries")) {
+                    liveInputsPanel_->showSettings(j["resolved"]["entries"]);
+                }
+            } catch (const std::exception&) {}
+        }
+    }
+    try {
+        plotsPanel_->showRun(run->recordedSeries(), run->duration());
+    } catch (const std::exception& e) {
+        plotsPanel_->showRun({}, run->duration());
+        mimeConsole_->appendStderr((QStringLiteral("[run] outputs.npz not read: ") + e.what() + '\n').toUtf8());
+    }
+    claimsPanel_->showRun(*run);
+    replayAction_->setEnabled(!run->commandsLog().empty() && !run->experimentFolder().empty());
+
+    statusBar()->showMessage(tr("Run folder: %1 (%2 s%3)")
+        .arg(QFileInfo(folder).fileName()).arg(run->duration())
+        .arg(recording.isEmpty() ? tr(", no recording: its stage is shown") : QString()));
+    if (!recording.isEmpty()) {
+        requestVisualsView(folder, open);
+    }
+    return true;
+}
+
+void MainWindow::requestVisualsView(const QString& runFolder, const QString& opened)
+{
+    if (visualsProcess_) {
+        visualsProcess_->kill();
+        visualsProcess_->deleteLater();
+        visualsProcess_ = nullptr;
+    }
+    visualsProcess_ = new QProcess(this);
+    QProcess* process = visualsProcess_;
+    connect(process, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished), this,
+            [this, process, runFolder, opened](int code, QProcess::ExitStatus) {
+        process->deleteLater();
+        if (visualsProcess_ == process) visualsProcess_ = nullptr;
+        if (code != 0 || runFolder_ != runFolder) return;  // MIME absent, or another folder opened since
+        // Its notes, then the layer to open: the recording itself when nothing
+        // is fetched, or a layer in MIME's cache that draws the meshes over it.
+        const QStringList lines = QString::fromUtf8(process->readAllStandardOutput()).trimmed().split('\n');
+        if (lines.isEmpty()) return;
+        const QString layer = lines.last().trimmed();
+        for (int i = 0; i + 1 < lines.size(); ++i) {
+            mimeConsole_->appendStdout(("[visuals] " + lines[i] + '\n').toUtf8());
+        }
+        if (QFileInfo::exists(layer) && QFileInfo(layer).canonicalFilePath() != QFileInfo(opened).canonicalFilePath()) {
+            spdlog::info("openRunFolder: drawing MIME's visuals: {}", layer.toStdString());
+            openStage(layer);
+        }
+    });
+    process->start(mimeCommand(), {QStringLiteral("visuals"), QStringLiteral("view"), runFolder});
+}
+
+void MainWindow::onReplayRequested()
+{
+    if (runFolder_.isEmpty() || (replayProcess_ && replayProcess_->state() != QProcess::NotRunning)) return;
+    runs::RunFolder run(runFolder_.toStdString());
+    const QString experiment = QString::fromStdString(run.experimentFolder());
+    const QString log = QString::fromStdString(run.commandsLog());
+    if (experiment.isEmpty() || log.isEmpty()) return;
+    const QString stamp = QDateTime::currentDateTimeUtc().toString(QStringLiteral("yyyyMMddTHHmmssZ"));
+    const QString out = QDir(runsDir()).filePath(
+        QStringLiteral("%1-replay-%2").arg(QString::fromStdString(run.experiment()), stamp));
+    QDir().mkpath(runsDir());
+
+    replayProcess_ = new QProcess(this);
+    QProcess* process = replayProcess_;
+    QProcessEnvironment env = QProcessEnvironment::systemEnvironment();
+    if (!env.contains(QStringLiteral("JAX_PLATFORMS"))) env.insert(QStringLiteral("JAX_PLATFORMS"), QStringLiteral("cpu"));
+    process->setProcessEnvironment(env);
+    connect(process, &QProcess::readyReadStandardOutput, this,
+            [this, process]() { mimeConsole_->appendStdout(process->readAllStandardOutput()); });
+    connect(process, &QProcess::readyReadStandardError, this,
+            [this, process]() { mimeConsole_->appendStderr(process->readAllStandardError()); });
+    connect(process, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished), this,
+            [this, process, out](int code, QProcess::ExitStatus) {
+        mimeConsole_->flush();
+        process->deleteLater();
+        replayProcess_ = nullptr;
+        replayAction_->setEnabled(!runFolder_.isEmpty());
+        if (code == 0 && runs::RunFolder::looksLikeRunFolder(out.toStdString())) {
+            statusBar()->showMessage(tr("Replayed into %1").arg(out));
+            openRunFolder(out);
+        } else {
+            statusBar()->showMessage(tr("The replay did not finish (see MIME Output)"));
+            mimeConsole_->raise();
+        }
+    });
+    const QStringList args = {QStringLiteral("run"), experiment, QStringLiteral("--commands"), log,
+                              QStringLiteral("--out"), out};
+    mimeConsole_->appendStdout(QStringLiteral("$ %1 %2\n").arg(mimeCommand(), args.join(' ')).toUtf8());
+    replayAction_->setEnabled(false);
+    statusBar()->showMessage(tr("Replaying the session into %1...").arg(out));
+    process->start(mimeCommand(), args);
 }
 
 void MainWindow::onSimulationPause()

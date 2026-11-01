@@ -39,13 +39,28 @@ MIME 0.2's experiment folders (`experiment.yaml`, `physics/params.py`, a
 hand-made `world.usda`) and its runner (`python -m mime.runner`) are
 retired: MICROROBOTICA no longer opens or runs them.
 
-## Play a run's recording
+## Open a run folder
 
-A run folder that `run_to(..., stage_every=...)` or
-`mime run <folder> --duration T --out <run> --stage-every S` wrote holds
-`recording.usdc`, time samples over the run folder's own copy of the
-stage. **File → Open USD Scene** → `recording.usdc` plays it on the
-timeline: scrub, play, pause and loop.
+A run folder is what `run_to(...)`, `mime run` or a live session wrote:
+its experiment (`experiment/`), its outputs (`outputs.json`,
+`outputs.npz`), its record (`run.json`), its topology and, when the run
+recorded its stage (`stage_every=...`, `--stage-every`, or **Record**
+during a session), `recording.usdc`: time samples over the run folder's
+own copy of the stage.
+
+**File → Open Run Folder** (or `microbotica <run folder>`) opens it whole:
+
+- the recording plays on the timeline (scrub, play, pause, loop, and a
+  speed from 0.1x to 4x), or the experiment's stage is shown when there
+  is none;
+- the **Plots** panel shows what the run recorded per step
+  (`record=[...]`, `every=...`), in its units, flags shaded where raised,
+  with a cursor that follows playback;
+- the **Claims** panel shows what MIME says of the run: the validity lines
+  it was watched against, its flags and its profile's pending items;
+- the graph inspector shows the graph it ran; Launch runs its experiment
+  again, live; and **Simulation → Replay This Session** replays a live
+  session from its command log into a new run folder.
 
 ## Run a saved experiment live
 

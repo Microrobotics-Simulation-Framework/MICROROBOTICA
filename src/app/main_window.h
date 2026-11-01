@@ -9,6 +9,7 @@
 #include <nlohmann/json.hpp>
 
 class QAction;
+class QProcess;
 class QTemporaryDir;
 class QTimer;
 
@@ -37,6 +38,8 @@ class ProjectBrowserPanel;
 class GraphInspectorPanel;
 class ScriptEditorPanel;
 class LiveInputsPanel;
+class PlotsPanel;
+class ClaimsPanel;
 } // namespace microbotica::panels
 
 namespace microbotica::experiment {
@@ -135,6 +138,18 @@ private:
     void onStepRequested();
     void onRecordToggled(bool on);
     bool liveSessionActive() const;
+    // ── Run folders (MIME 0.3): playback, outputs, claims, replay ──────────
+    /// Open a run folder: its recording (or its stage), its experiment, its
+    /// topology, its recorded series (plots) and MIME's claims about it.
+    bool openRunFolder(const QString& folder);
+    void onOpenRunFolder();
+    /// Replay the open run folder's live session (`mime run <experiment>
+    /// --commands commands.jsonl`) into a new run folder, then open it.
+    void onReplayRequested();
+    /// `mime visuals view <run folder>`: the layer that draws MIME's meshes
+    /// over the recording, opened in its place when it differs.
+    void requestVisualsView(const QString& runFolder, const QString& opened);
+
     /// Settings → MIME command (MICROROBOTICA_MIME overrides it).
     QString mimeCommand() const;
     /// Settings → Run folders.
@@ -164,6 +179,11 @@ private:
     std::shared_ptr<const live::BindingFrames> liveFrames_;
     nlohmann::json pendingSet_;   // the live inputs sent, until set's reply
     QString lastRunFolder_;       // the run folder the last session wrote
+    QString runFolder_;           // the run folder open (File → Open Run Folder)
+    QAction* openLastRunAction_ = nullptr;
+    QAction* replayAction_ = nullptr;
+    QProcess* replayProcess_ = nullptr;
+    QProcess* visualsProcess_ = nullptr;
     QAction* stepAction_ = nullptr;
     QAction* recordAction_ = nullptr;
 
@@ -188,6 +208,8 @@ private:
     panels::GraphInspectorPanel* graphInspector_ = nullptr;
     panels::ScriptEditorPanel* scriptEditor_ = nullptr;
     panels::LiveInputsPanel* liveInputsPanel_ = nullptr;
+    panels::PlotsPanel* plotsPanel_ = nullptr;
+    panels::ClaimsPanel* claimsPanel_ = nullptr;
 
     // Status bar widgets
     QLabel* simTimeLabel_ = nullptr;

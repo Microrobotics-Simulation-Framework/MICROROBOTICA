@@ -30,6 +30,7 @@ src/
 ├── scene/         USD three-layer scene management
 ├── simulation/    SimulationController and async polling
 ├── live/          MIME 0.3's live sessions (mime.live/1): protocol, binding, transport
+├── runs/          MIME 0.3's run folders: outputs.npz, the manifest, flags and validity watches
 ├── scripting/     Embedded Python interpreter and microrobotica module
 ├── viewport/      OpenGL/software viewport rendering
 ├── panels/        Qt dock widgets (hierarchy, properties, timeline, console)
@@ -96,6 +97,7 @@ This metadata is machine-readable (JSON-serializable) and harvested by
 | MBCA-COMP-040 | microrobotica module | `src/scripting/microbota_module.cpp` |
 | MBCA-COMP-041 | ConsoleWidget | `src/panels/console_widget.h` |
 | MBCA-COMP-042 | MimeConsolePanel | `src/panels/mime_console_panel.h` |
+| MBCA-COMP-070 | RunFolder | `src/runs/run_folder.h` |
 | MBCA-IMPL-001 | StubPhysicsProcess | `src/stubs/stub_physics_process.h` |
 | MBCA-IMPL-002 | LocalComputeBackend | `src/stubs/local_compute_backend.h` |
 | MBCA-IMPL-013 | LivePhysicsProcess | `src/live/live_physics_process.h` |

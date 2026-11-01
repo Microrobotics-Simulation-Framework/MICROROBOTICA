@@ -13,6 +13,7 @@ add_executable(microbotica_tests
     test_live_protocol.cpp
     test_live_client.cpp
     test_live_mime_serve.cpp
+    test_run_folder.cpp
     ${CMAKE_SOURCE_DIR}/src/stubs/stub_physics_process.cpp
     ${CMAKE_SOURCE_DIR}/src/connection/connection_manager.cpp
     ${CMAKE_SOURCE_DIR}/src/connection/ssh_tunnel.cpp
@@ -21,6 +22,8 @@ add_executable(microbotica_tests
     ${CMAKE_SOURCE_DIR}/src/live/binding_frames.cpp
     ${CMAKE_SOURCE_DIR}/src/live/live_client.cpp
     ${CMAKE_SOURCE_DIR}/src/live/live_physics_process.cpp
+    ${CMAKE_SOURCE_DIR}/src/runs/npz.cpp
+    ${CMAKE_SOURCE_DIR}/src/runs/run_folder.cpp
     ${CMAKE_SOURCE_DIR}/src/experiment/experiment_runner.cpp
     ${CMAKE_SOURCE_DIR}/src/experiment/cloud_job_launcher.cpp
     ${CMAKE_SOURCE_DIR}/src/experiment/connection_dialog.cpp
@@ -50,6 +53,7 @@ target_link_libraries(microbotica_tests PRIVATE
     Qt6::Core
     Qt6::Widgets
     pybind11::embed
+    ZLIB::ZLIB
 )
 
 # Pass source dir so tests can find fixture files with absolute paths

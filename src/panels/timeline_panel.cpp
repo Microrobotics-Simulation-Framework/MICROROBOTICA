@@ -9,6 +9,7 @@
 
 #include <spdlog/spdlog.h>
 #include <algorithm>
+#include <cmath>
 
 namespace microbotica::panels {
 
@@ -54,10 +55,24 @@ TimelinePanel::TimelinePanel(simulation::SimulationController& simCtrl,
             this, &TimelinePanel::onSliderMoved);
     layout->addWidget(playbackSlider_);
 
+    auto* frameRow = new QHBoxLayout;
     frameLabel_ = new QLabel(container);
     frameLabel_->setFont(QFont("Monospace", 9));
     frameLabel_->setVisible(false);
-    layout->addWidget(frameLabel_);
+    frameRow->addWidget(frameLabel_);
+    frameRow->addStretch();
+    speedCombo_ = new QComboBox(container);
+    for (double factor : {0.1, 0.25, 0.5, 1.0, 2.0, 4.0}) {
+        speedCombo_->addItem(QStringLiteral("%1×").arg(factor), factor);
+    }
+    speedCombo_->setCurrentIndex(speedCombo_->findData(1.0));
+    speedCombo_->setToolTip(tr("Playback speed: a factor of the recording's own rate"));
+    speedCombo_->setVisible(false);
+    connect(speedCombo_, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this](int) {
+        setPlaybackSpeed(speedCombo_->currentData().toDouble());
+    });
+    frameRow->addWidget(speedCombo_);
+    layout->addLayout(frameRow);
 
     container->setLayout(layout);
     setWidget(container);
@@ -190,6 +205,8 @@ void TimelinePanel::enterPlaybackMode(double startTime, double endTime, double f
     playbackSlider_->setValue(currentFrame_);
     playbackSlider_->setVisible(true);
     frameLabel_->setVisible(true);
+    speedCombo_->setVisible(true);
+    framePhase_ = 0.0;
 
     // Hide simulation-mode widgets
     fpsLabel_->setVisible(false);
@@ -205,6 +222,7 @@ void TimelinePanel::enterSimulationMode()
     playbackTimer_->stop();
     playbackSlider_->setVisible(false);
     frameLabel_->setVisible(false);
+    speedCombo_->setVisible(false);
     fpsLabel_->setVisible(true);
     streamLabel_->setVisible(true);
     timeLabel_->setText(tr("Sim: 0.000 s"));
@@ -243,15 +261,23 @@ void TimelinePanel::onPlaybackTimerTick()
     // timeline's pace).  First tick after Play (lastPlaybackTick_ == {})
     // falls back to a single-frame step so a paused-and-resumed playback
     // doesn't jump.
+    // At a speed other than 1 the frames owed accumulate (framePhase_), so a
+    // slow playback advances a frame every few ticks rather than every tick.
     const auto now = std::chrono::steady_clock::now();
     int frames_advance = 1;
     if (lastPlaybackTick_.time_since_epoch().count() != 0) {
         const double dt_s = std::chrono::duration<double>(
             now - lastPlaybackTick_).count();
-        frames_advance = std::max(
-            1, static_cast<int>(std::round(dt_s * playbackFps_)));
+        framePhase_ += dt_s * playbackFps_ * playbackSpeed_;
+        frames_advance = static_cast<int>(std::floor(framePhase_));
+        framePhase_ -= frames_advance;
+    } else {
+        framePhase_ = 0.0;
     }
     lastPlaybackTick_ = now;
+    if (frames_advance <= 0) {
+        return;
+    }
 
     currentFrame_ += frames_advance;
     if (currentFrame_ > static_cast<int>(playbackEnd_)) {
@@ -269,6 +295,17 @@ void TimelinePanel::onPlaybackTimerTick()
     playbackSlider_->setValue(currentFrame_);
     Q_EMIT timeCodeChanged(static_cast<double>(currentFrame_));
     updateFrameLabel();
+}
+
+void TimelinePanel::setPlaybackSpeed(double factor)
+{
+    if (!(factor > 0.0)) return;
+    playbackSpeed_ = factor;
+    framePhase_ = 0.0;
+    const int index = speedCombo_->findData(factor);
+    if (index >= 0 && index != speedCombo_->currentIndex()) {
+        speedCombo_->setCurrentIndex(index);
+    }
 }
 
 void TimelinePanel::onSliderPressed()
@@ -304,6 +341,7 @@ void TimelinePanel::updateFrameLabel()
                              .arg(totalFrames)
                              .arg(timeSec, 0, 'f', 3));
     timeLabel_->setText(QString("Time: %1 s").arg(timeSec, 0, 'f', 3));
+    Q_EMIT playbackSecondsChanged(timeSec);
 }
 
 } // namespace microbotica::panels

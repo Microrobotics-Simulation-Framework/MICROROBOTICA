@@ -17,8 +17,12 @@ int main(int argc, char* argv[])
         QStringLiteral("Run the opened saved experiment live at once (mime serve)."));
     const QCommandLineOption quitAfter(QStringLiteral("quit-after"),
         QStringLiteral("Close the window, cleanly, after <seconds> (scripted runs)."), QStringLiteral("seconds"));
+    const QCommandLineOption screenshot(QStringLiteral("screenshot"),
+        QStringLiteral("With --quit-after: save a picture of the window to <png> just before closing."),
+        QStringLiteral("png"));
     parser.addOption(launch);
     parser.addOption(quitAfter);
+    parser.addOption(screenshot);
     parser.process(app);
 
     microbotica::app::MainWindow mainWindow;
@@ -36,7 +40,13 @@ int main(int argc, char* argv[])
     }
     if (parser.isSet(quitAfter)) {
         const int ms = static_cast<int>(parser.value(quitAfter).toDouble() * 1000.0);
-        QTimer::singleShot(ms, &mainWindow, &QWidget::close);
+        const QString picture = parser.value(screenshot);
+        QTimer::singleShot(ms, &mainWindow, [&mainWindow, picture]() {
+            if (!picture.isEmpty()) {
+                mainWindow.grab().save(picture);
+            }
+            mainWindow.close();
+        });
     }
 
     return app.exec();

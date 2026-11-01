@@ -1,0 +1,41 @@
+{
+  "duration": 1.98,
+  "environment": {
+    "cpu": {
+      "flags_sha256": "5124b048901de4914eb2d5d6d584fa4cc9f80ed3bef810d7beea092108841d56",
+      "model": "12th Gen Intel(R) Core(TM) i7-12850HX"
+    },
+    "deterministic": false,
+    "device": "cpu",
+    "gpu": null,
+    "jax": "0.12.0.1",
+    "jaxlib": "0.12.0.1",
+    "maddening": "0.4.2",
+    "matmul_precision": null,
+    "mime": "0.3.0.dev0",
+    "openmaterica": "0.1.0.dev3",
+    "platform": "linux-x86_64",
+    "prng": "threefry2x32 (jax_threefry_partitionable=True)",
+    "python": "3.14.5",
+    "runner": {},
+    "runner_info": {},
+    "usd_core": "26.11",
+    "x64": false,
+    "xla_flags": ""
+  },
+  "every": 0.0165,
+  "folder": null,
+  "load_report": null,
+  "non_finite": null,
+  "recorded": [
+    "swim_speed:umr.speed"
+  ],
+  "recording": "recording.usdc",
+  "seconds": {
+    "load_and_build": null,
+    "run": 4.791,
+    "save": 6.977
+  },
+  "stage_every": 0.0165,
+  "steps": 3960
+}

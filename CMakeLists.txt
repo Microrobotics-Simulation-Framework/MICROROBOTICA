@@ -37,6 +37,18 @@ qt_standard_project_setup()
 # Use Q_EMIT, Q_SIGNALS, Q_SLOTS in our code instead.
 add_compile_definitions(QT_NO_EMIT)
 
+# Qt Charts (optional — the plots panel draws with it; without it, the panel
+# lists each series' latest value). In the base image from qt6-charts-dev.
+find_package(Qt6 QUIET COMPONENTS Charts)
+if(Qt6Charts_FOUND)
+    message(STATUS "Qt Charts found: the plots panel draws")
+else()
+    message(STATUS "Qt Charts not found — the plots panel lists values only")
+endif()
+
+# zlib (required — reads deflated members of a run's outputs.npz)
+find_package(ZLIB REQUIRED)
+
 # pybind11 (required for scripting)
 find_package(pybind11 REQUIRED)
 find_package(Python3 REQUIRED COMPONENTS Interpreter Development)
@@ -101,6 +113,8 @@ target_sources(microbotica PRIVATE
     src/live/binding_frames.cpp
     src/live/live_client.cpp
     src/live/live_physics_process.cpp
+    src/runs/npz.cpp
+    src/runs/run_folder.cpp
     src/experiment/experiment_runner.cpp
     src/experiment/cloud_job_launcher.cpp
     src/experiment/connection_dialog.cpp
@@ -130,6 +144,8 @@ target_sources(microbotica PRIVATE
     src/panels/python_highlighter.cpp
     src/panels/script_editor_panel.cpp
     src/panels/live_inputs_panel.cpp
+    src/panels/plots_panel.cpp
+    src/panels/claims_panel.cpp
     src/app/application.cpp
     src/app/main_window.cpp
     src/app/settings_dialog.cpp
@@ -144,7 +160,12 @@ target_link_libraries(microbotica PRIVATE
     Qt6::Widgets
     Qt6::OpenGLWidgets
     pybind11::embed
+    ZLIB::ZLIB
 )
+if(Qt6Charts_FOUND)
+    target_link_libraries(microbotica PRIVATE Qt6::Charts)
+    target_compile_definitions(microbotica PRIVATE MICROBOTICA_HAS_QTCHARTS=1)
+endif()
 if(OpenUSD_FOUND)
     target_include_directories(microbotica SYSTEM PRIVATE ${OpenUSD_INCLUDE_DIRS})
     target_link_libraries(microbotica PRIVATE ${OpenUSD_LIBRARIES})
