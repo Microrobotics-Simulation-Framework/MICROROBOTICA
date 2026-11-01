@@ -5,6 +5,7 @@
 #include <QByteArray>
 #include <QString>
 #include <cstdint>
+#include <functional>
 #include <memory>
 #include <string>
 #include <vector>
@@ -52,8 +53,10 @@ class ExperimentRunner;
 namespace microbotica::live {
 class LiveClient;
 class BindingFrames;
+class LivePhysicsProcess;
 struct Hello;
 struct Reply;
+struct LiveOutcome;
 } // namespace microbotica::live
 
 namespace microbotica::app {
@@ -122,12 +125,24 @@ private:
     void finishSimulationStart();
 
     // ── Live sessions (MIME 0.3, mime.live/1) ──────────────────────────────
+    // Nothing here waits for MIME on the UI thread: commands go out on the
+    // client's lanes, and their outcomes come back as queued calls.
     /// Local: spawn `mime serve <saved folder>` and connect once its ready
     /// file appears.
     void startLocalSession();
     /// Connect to a session (Local, once ready; Manual, at the panel's
-    /// endpoints): hello, the stage, the panels, then start it.
+    /// endpoints): ask hello, and take the session up when it answers.
     void connectLiveSession(const QString& commands, const QString& frames);
+    /// hello answered (or not): the stage, the panels, then start it.
+    void onLiveConnected(quint64 session, const QString& commands, const live::LiveOutcome& outcome);
+    /// A command's outcome, on the UI thread: a set's state in the live
+    /// inputs, a reply to onLiveReply, an error to the console.
+    void onLiveOutcome(const live::LiveOutcome& outcome);
+    /// Post a command on the session's commands lane; its outcome comes to
+    /// onLiveOutcome, then to `after`, on the UI thread.
+    void postLive(const nlohmann::json& request, std::function<void(const live::LiveOutcome&)> after = {});
+    /// Stop a connection still waiting for hello.
+    void cancelLiveConnect();
     /// What hello says, shown: the stage (and MIME's visuals overlay), the
     /// graph, the live inputs. False when the session's stage is not here.
     bool applyHello(const live::Hello& hello);
@@ -138,8 +153,13 @@ private:
     /// The run panel's status line: the state, what the session is doing and
     /// what is pending from replies, the step and time from frames.
     void showLiveLine();
-    /// Tear the session down: the client, the panels, the MIME process.
+    /// End the session without blocking: its `stop` (after any command still
+    /// on its way), then the MIME process's exit, then completeLiveSession.
     void endLiveSession(const QString& why);
+    /// The session has stopped: wait for a Local mime serve to exit.
+    void onLiveStopped();
+    /// Tear the session down: the client, the panels, the message.
+    void completeLiveSession();
     /// The `mime serve` process ended (stopped, or crashed).
     void onServeProcessEnded();
     void onStepRequested();
@@ -183,8 +203,17 @@ private:
     std::unique_ptr<QTemporaryDir> readyDir_;
     QTimer* readyTimer_ = nullptr;
     std::shared_ptr<live::LiveClient> liveClient_;
+    std::shared_ptr<live::LiveClient> connectingClient_;  // while hello is on its way
+    live::LivePhysicsProcess* liveProcess_ = nullptr;     // simController_'s, while the session runs
     std::shared_ptr<const live::BindingFrames> liveFrames_;
-    nlohmann::json pendingSet_;   // the live inputs sent, until set's reply
+    quint64 liveSessionId_ = 0;   // each connection's; an outcome of another is dropped
+    bool statusInFlight_ = false; // a status poll on its way
+    bool liveEnding_ = false;     // the session is stopping
+    bool awaitingServeExit_ = false;  // stopped; mime serve writing its run folder and exiting
+    QString liveEndWhy_;
+    bool closeAfterEnd_ = false;  // the window closes once the session has ended
+    bool endForced_ = false;      // asked to close twice: wait for MIME no longer
+    bool relaunchAfterEnd_ = false;  // Rebuild: a new session once this one has ended
     // The session's status line: state, activity and pending from replies,
     // step and time from frame headers (MIME's client note, entries 18, 21).
     struct LiveLine {

@@ -12,6 +12,8 @@
 
 #include <atomic>
 #include <chrono>
+#include <condition_variable>
+#include <future>
 #include <cstring>
 #include <fstream>
 #include <iterator>
@@ -38,12 +40,16 @@ std::string readFixture(const std::string& name) {
 /// Its other modes: a stop taken while a chunk runs (answered pending, as captured; the final frame follows the
 /// reply), the same with the server gone before any final frame (its frames' socket closed), and a reply to another
 /// command than the one asked (a `status` answered as a `set`).
+///
+/// Like mime serve, it serves several clients at once (a ROUTER), answering each when its reply is due: with
+/// `setDelayMs`, a `set` is answered that long after it came, as MIME answers it at the end of the chunk in hand, while
+/// other clients' requests are answered at once.
 class StandIn {
 public:
     enum class Mode { Normal, StopPending, StopPendingGone, WrongReply };
 
-    StandIn(std::string commands, std::string frames, Mode mode = Mode::Normal)
-        : commands_(std::move(commands)), frames_(std::move(frames)), mode_(mode) {
+    StandIn(std::string commands, std::string frames, Mode mode = Mode::Normal, int setDelayMs = 0)
+        : commands_(std::move(commands)), frames_(std::move(frames)), mode_(mode), setDelayMs_(setDelayMs) {
         replies_ = nlohmann::json::parse(readFixture("replies_a0_callback.json"));
         pending_ = nlohmann::json::parse(readFixture("replies_pending_a0_callback.json"));
         hello_ = readFixture("hello_a0_callback.json");
@@ -63,13 +69,34 @@ public:
 private:
     void serve() {
         zmq::context_t ctx(1);
-        zmq::socket_t rep(ctx, zmq::socket_type::rep);
-        rep.set(zmq::sockopt::linger, 0);
-        rep.set(zmq::sockopt::rcvtimeo, 100);
-        rep.bind(commands_);
+        zmq::socket_t router(ctx, zmq::socket_type::router);
+        router.set(zmq::sockopt::linger, 0);
+        router.set(zmq::sockopt::rcvtimeo, 10);
+        router.bind(commands_);
+        struct Due {
+            std::string peer;
+            std::string answer;
+            std::chrono::steady_clock::time_point at;
+        };
+        std::vector<Due> due;
         while (running_) {
+            const auto now = std::chrono::steady_clock::now();
+            for (auto it = due.begin(); it != due.end();) {
+                if (it->at > now) {
+                    ++it;
+                    continue;
+                }
+                router.send(zmq::buffer(it->peer), zmq::send_flags::sndmore);
+                router.send(zmq::message_t(), zmq::send_flags::sndmore);
+                router.send(zmq::buffer(it->answer), zmq::send_flags::none);
+                it = due.erase(it);
+            }
+            zmq::message_t peer;
+            if (!router.recv(peer, zmq::recv_flags::none)) continue;
+            zmq::message_t empty;
             zmq::message_t in;
-            if (!rep.recv(in, zmq::recv_flags::none)) continue;
+            (void)router.recv(empty, zmq::recv_flags::none);  // a REQ's envelope: its peer, an empty frame, the body
+            (void)router.recv(in, zmq::recv_flags::none);
             const auto request = nlohmann::json::parse(std::string(static_cast<char*>(in.data()), in.size()));
             const std::string command = request.value("command", "");
             {
@@ -93,9 +120,8 @@ private:
             if (command == "start") {
                 started_ = true;
             }
-            zmq::message_t out(answer.size());
-            std::memcpy(out.data(), answer.data(), answer.size());
-            rep.send(out, zmq::send_flags::none);
+            const int delay = command == "set" ? setDelayMs_ : 0;
+            due.push_back({peer.to_string(), answer, now + std::chrono::milliseconds(delay)});
         }
     }
 
@@ -140,6 +166,7 @@ private:
 
     std::string commands_, frames_;
     Mode mode_;
+    int setDelayMs_;
     nlohmann::json replies_, pending_;
     std::string hello_;
     std::atomic<bool> running_{true};
@@ -166,9 +193,9 @@ TEST_CASE("Live session: hello, start, frames through the binding, a refused set
     LivePhysicsProcess process(client, mapping);
     std::vector<Reply> replies;
     std::mutex repliesMutex;
-    process.setReplyObserver([&](const Reply& r) {
+    process.setCommandObserver([&](const LiveOutcome& o) {  // on the client's thread: no assertion here
         std::lock_guard<std::mutex> lock(repliesMutex);
-        replies.push_back(r);
+        if (o.reply) replies.push_back(*o.reply);
     });
     std::atomic<int> observed{0};
     process.setFrameObserver([&](const LiveFrame&) { ++observed; });
@@ -196,9 +223,9 @@ TEST_CASE("Live session: hello, start, frames through the binding, a refused set
     CHECK(stats.dropped == lastNumber - 2);
     CHECK(stats.finalSeen);
 
-    process.sendParameters({{"gain", 1.0}});    // refused: no such live input
-    process.sendParameters({{"offset", 0.002}});  // accepted
-    process.stop();
+    process.sendParameters({{"gain", 1.0}});    // posted: refused, no such live input
+    process.sendParameters({{"offset", 0.002}});  // posted: accepted
+    process.stop();  // after them, in order: by its return every outcome has been observed
     CHECK(process.runFolder().value_or("") == "/data/runs/script_a0-live");
     {
         std::lock_guard<std::mutex> lock(repliesMutex);
@@ -250,6 +277,66 @@ TEST_CASE("Live client: a reply to another command than the one sent is refused,
     client.connect();
     CHECK_THROWS_AS(client.request(statusRequest()), ProtocolError);  // answered as a `set`: another client's reply
     CHECK(client.request(startRequest()).command == "start");
+}
+
+TEST_CASE("Live client: commands are posted without waiting, in order; a status is answered while a set waits",
+          "[integration][live]") {
+    using Clock = std::chrono::steady_clock;
+    const std::string commands = "tcp://127.0.0.1:15593";
+    const std::string frames = "tcp://127.0.0.1:15594";
+    StandIn standIn(commands, frames, StandIn::Mode::Normal, 600);  // set answered at its chunk's end, 0.6 s on
+    LiveClient client(commands, frames, LiveClient::Timeouts::all(3000));
+    client.connect();
+
+    std::mutex mutex;
+    std::condition_variable cv;
+    std::vector<std::pair<std::string, double>> outcomes;  // command, seconds after posting
+    const auto t0 = Clock::now();
+    auto record = [&](const LiveOutcome& o) {  // on the client's thread: no assertion here
+        std::lock_guard<std::mutex> lock(mutex);
+        outcomes.emplace_back(o.reply ? o.reply->command : "error: " + o.errorText(),
+                              std::chrono::duration<double>(Clock::now() - t0).count());
+        cv.notify_all();
+    };
+    client.post(setRequest({{"offset", 0.001}}), record);
+    client.post(pauseRequest(), record);
+    const double posting = std::chrono::duration<double>(Clock::now() - t0).count();
+    CHECK(posting < 0.05);  // nothing waited for a reply
+
+    // The status lane is answered while the set still waits for its chunk.
+    std::promise<double> statusAnswered;
+    client.postStatus([&](const LiveOutcome& o) {
+        statusAnswered.set_value(o.reply ? std::chrono::duration<double>(Clock::now() - t0).count() : 99.0);
+    });
+    const double status = statusAnswered.get_future().get();
+    CHECK(status < 0.4);
+
+    std::unique_lock<std::mutex> lock(mutex);
+    REQUIRE(cv.wait_for(lock, std::chrono::seconds(5), [&] { return outcomes.size() == 2; }));
+    CHECK(outcomes[0].first == "set");    // in the order posted: the pause waited behind the set
+    CHECK(outcomes[1].first == "pause");
+    CHECK(outcomes[0].second >= 0.55);
+    CHECK(status < outcomes[0].second);
+    lock.unlock();
+    CHECK(standIn.received() == std::vector<std::string>{"hello", "set", "status", "pause"});
+}
+
+TEST_CASE("Live client: close() ends a request in flight at once, and every later one", "[integration][live]") {
+    using Clock = std::chrono::steady_clock;
+    const std::string commands = "tcp://127.0.0.1:15597";
+    const std::string frames = "tcp://127.0.0.1:15598";
+    StandIn standIn(commands, frames, StandIn::Mode::Normal, 20000);  // a set never answered in time
+    LiveClient client(commands, frames, LiveClient::Timeouts::all(30000));
+    client.connect();
+    std::promise<std::string> setOutcome;
+    client.post(setRequest({{"offset", 0.001}}), [&](const LiveOutcome& o) { setOutcome.set_value(o.errorText()); });
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    const auto t0 = Clock::now();
+    client.close();
+    const std::string why = setOutcome.get_future().get();
+    CHECK(std::chrono::duration<double>(Clock::now() - t0).count() < 0.5);
+    CHECK(why.find("closed") != std::string::npos);
+    CHECK_THROWS_AS(client.request(statusRequest()), std::runtime_error);
 }
 
 TEST_CASE("Live client: each command waits as long as MIME may take to answer it", "[unit][live]") {

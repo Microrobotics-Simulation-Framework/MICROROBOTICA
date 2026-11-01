@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **The window stays responsive during a live session** (it froze while MIME compiled a first chunk, or answered a
+  `set` at a chunk's end, or wrote a run folder; MIME 0.2's client froze the same way). Commands go out on the live
+  client's worker threads, in the order given, and their replies come back to the UI as they arrive: connecting,
+  start, pause, set, Step and Record no longer wait, and status polls have a socket of their own, never queued behind a
+  command. Stop ends the session in two steps that do not block, its `stop` and then `mime serve`'s exit (no more
+  `waitForFinished` on the UI thread); closing the window during a session stops it, then closes, and a second close
+  stops waiting for MIME.
 - **Live sessions follow MIME's phase 7n-b** (MIME PR #89, its client note's entries 16 to 24), checked against
   MIME's `v0.3` at `62d7604`. MIME answers `hello`, `status`, `pause` and a stop taken while a chunk runs at once, even
   while the first chunk compiles, and the commands that change the run at the chunk's end: each command now waits as

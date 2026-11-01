@@ -295,6 +295,22 @@ activity ("compiling") and what is pending from replies, the step and time
 from frames, and polls `status` while the first chunk compiles or a pause is
 pending, never after a stop.
 
+**The window never waits for MIME.** `LiveClient` sends on worker threads
+("lanes"), each with its own REQ socket: the commands lane takes every
+command one at a time in the order given (so a pause clicked after a set
+reaches MIME after it), and the status lane takes the status polls alone, so
+a poll is never queued behind a `set` waiting for the chunk in hand. Outcomes
+come back to callbacks, which the main window turns into queued calls on the
+UI thread (each tagged with its session, so a late one of an ended session is
+dropped). `connect`, start, pause, set, Step, Record and the status polls are
+posted; Stop is two phases, the session's `stop` (`requestStop`) and then
+`mime serve`'s exit, awaited on its `finished` signal (60 s, then SIGTERM,
+then kill 15 s later) rather than with `waitForFinished`. Closing the window
+during a session stops it first and closes when it has ended; closing again
+waits for MIME no longer. `close()` on the client ends a request in flight
+within 100 ms. The synchronous `request()`, `connect()` and `stop()` remain,
+as waits on the same lanes, for tests and teardown.
+
 **The build report** (`mime.report/1`, `src/runs/build_report.*`): `hello`
 and a run folder's `report.json` give the validity lines (declared and not
 yet checked, computed at the build, or a capability record's limit), the

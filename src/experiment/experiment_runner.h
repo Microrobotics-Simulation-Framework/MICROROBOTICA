@@ -101,8 +101,17 @@ public:
 
     /// Stop the MIME process: wait for it to exit on its own (after a `stop`
     /// command it writes its run folder and exits), then SIGTERM (which
-    /// `mime serve` also answers by stopping cleanly), then kill.
+    /// `mime serve` also answers by stopping cleanly), then kill. Blocks.
     void stop();
+
+    /// The process is about to exit because it was told to (a session's
+    /// `stop`): its exit is a stop, not a crash.
+    void expectExit();
+
+    /// Stop the MIME process without blocking: let it exit on its own for
+    /// `graceMs` (writing its run folder), then SIGTERM, then after 15 s more
+    /// kill. processStopped says when it has exited.
+    void stopAsync(int graceMs);
 
     /// @return Current runner status
     RunnerStatus runnerStatus() const { return status_; }

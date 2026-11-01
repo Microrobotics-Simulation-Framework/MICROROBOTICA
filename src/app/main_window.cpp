@@ -116,9 +116,22 @@ MainWindow::~MainWindow()
     if (readyTimer_) {
         readyTimer_->stop();
     }
-    if (simController_ && simController_->isRunning()) {
+    if (liveStatusPoll_) {
+        liveStatusPoll_->stop();
+    }
+    // No request waits for MIME any longer: a stop still to send fails at once.
+    if (connectingClient_) {
+        connectingClient_->close();
+        connectingClient_.reset();
+    }
+    if (liveClient_) {
+        liveClient_->close();
+    }
+    if (simController_) {
         simController_->teardown();
     }
+    liveProcess_ = nullptr;
+    liveClient_.reset();
     if (serveProcess_ && serveProcess_->isRunning()) {
         serveProcess_->stop();
     }
@@ -126,8 +139,20 @@ MainWindow::~MainWindow()
 
 void MainWindow::closeEvent(QCloseEvent* event) {
     saveLayout();
+    cancelLiveConnect();
     if (liveSessionActive()) {
-        endLiveSession(tr("Live session stopped."));  // its run folder is written
+        // Stop the session first, its run folder written, without blocking the
+        // window; it closes once the session has ended. Asked again: MIME is
+        // waited for no longer.
+        if (closeAfterEnd_) {
+            endForced_ = true;
+            if (liveClient_) liveClient_->close();
+            if (serveProcess_ && serveProcess_->isRunning()) serveProcess_->stopAsync(0);
+        }
+        closeAfterEnd_ = true;
+        endLiveSession(tr("Live session stopped."));
+        event->ignore();
+        return;
     }
     QMainWindow::closeEvent(event);
 }
@@ -409,15 +434,19 @@ void MainWindow::wireSignals()
             statusBar()->showMessage(tr("No live session: nothing to set"));
             return;
         }
-        pendingSet_ = values;
-        simController_->sendParameters(values);
+        simController_->sendParameters(values);  // posted: its outcome comes to onLiveOutcome
     });
     connect(timelinePanel_, &panels::TimelinePanel::playbackSecondsChanged,
             plotsPanel_, &panels::PlotsPanel::setCursor);
     connect(liveInputsPanel_, &panels::LiveInputsPanel::rebuildRequested, this, [this]() {
-        // A physical setting changed in the saved folder: a new session.
+        // A physical setting changed in the saved folder: a new session, once
+        // this one has ended.
         if (experimentDir_.empty()) return;
-        onSimulationStop();
+        if (liveSessionActive()) {
+            relaunchAfterEnd_ = true;
+            endLiveSession(tr("Live session stopped for a rebuild."));
+            return;
+        }
         onSimulationStart();
     });
 
@@ -716,6 +745,7 @@ void MainWindow::onSimulationStart()
 
     if (simController_->isRunning() || liveSessionActive()) return;
     if (readyTimer_ && readyTimer_->isActive()) return;  // a session is starting
+    if (connectingClient_) return;                       // hello is on its way
 
     const connection::ConnectionMode mode = runConfigPanel_
         ? runConfigPanel_->selectedMode()
@@ -865,7 +895,7 @@ void MainWindow::startLocalSession()
             }
         }
         if (std::chrono::steady_clock::now() - started > std::chrono::minutes(5)) {
-            if (serveProcess_) serveProcess_->stop();
+            if (serveProcess_) serveProcess_->stopAsync(0);
             fail(tr("mime serve was not ready within 5 minutes."));
         }
     });
@@ -879,14 +909,42 @@ void MainWindow::connectLiveSession(const QString& commands, const QString& fram
     // record, pace, start and step at the end of the chunk in hand (30 s, a
     // first chunk's compile); a stop between chunks once its run folder is
     // written (LiveClient::Timeouts).
+    // hello is asked on the client's commands lane; the session is taken up
+    // when it answers (onLiveConnected), the window answering meanwhile.
     auto client = std::make_shared<live::LiveClient>(commands.toStdString(), frames.toStdString());
-    try {
-        client->connect();
-    } catch (const std::exception& e) {
-        const QString why = QString::fromUtf8(e.what());
-        spdlog::error("connectLiveSession: {}", e.what());
+    connectingClient_ = client;
+    const quint64 session = ++liveSessionId_;
+    runConfigPanel_->setLaunchEnabled(false);
+    runConfigPanel_->setConnectionStatus(tr("Connecting to %1...").arg(commands));
+    client->connectAsync([this, session, commands](const live::LiveOutcome& outcome) {
+        QMetaObject::invokeMethod(this, [this, session, commands, outcome]() {
+            onLiveConnected(session, commands, outcome);
+        }, Qt::QueuedConnection);
+    });
+}
+
+void MainWindow::cancelLiveConnect()
+{
+    if (!connectingClient_) return;
+    ++liveSessionId_;  // its hello, if it comes, is dropped
+    connectingClient_->close();
+    connectingClient_.reset();
+    if (serveProcess_ && serveProcess_->isRunning()) serveProcess_->stopAsync(0);
+    runConfigPanel_->setLaunchEnabled(true);
+    runConfigPanel_->setConnectionStatus(tr("Idle"));
+}
+
+void MainWindow::onLiveConnected(quint64 session, const QString& commands, const live::LiveOutcome& outcome)
+{
+    if (session != liveSessionId_ || !connectingClient_) return;  // cancelled meanwhile
+    const std::shared_ptr<live::LiveClient> client = std::move(connectingClient_);
+    connectingClient_.reset();
+    if (outcome.error) {
+        const QString why = QString::fromStdString(outcome.errorText());
+        spdlog::error("connectLiveSession: {}", outcome.errorText());
         mimeConsole_->appendStderr((QStringLiteral("hello at %1: ").arg(commands) + why + QLatin1Char('\n')).toUtf8());
-        if (serveProcess_ && serveProcess_->isRunning()) serveProcess_->stop();
+        // Never started: a Local mime serve goes (SIGTERM, which it answers by stopping).
+        if (serveProcess_ && serveProcess_->isRunning()) serveProcess_->stopAsync(0);
         runConfigPanel_->setLaunchEnabled(true);
         runConfigPanel_->setConnectionStatus(tr("Idle"));
         QMessageBox::warning(this, tr("Live session"),
@@ -895,10 +953,8 @@ void MainWindow::connectLiveSession(const QString& commands, const QString& fram
     }
     const live::Hello& hello = client->hello();
     if (!applyHello(hello)) {
-        if (serveProcess_ && serveProcess_->isRunning()) {
-            try { client->request(live::stopRequest()); } catch (const std::exception&) {}
-            serveProcess_->stop();
-        }
+        // Never started: a Local mime serve goes; a Manual one is left as it was.
+        if (serveProcess_ && serveProcess_->isRunning()) serveProcess_->stopAsync(0);
         runConfigPanel_->setLaunchEnabled(true);
         runConfigPanel_->setConnectionStatus(tr("Idle"));
         return;
@@ -936,6 +992,9 @@ void MainWindow::connectLiveSession(const QString& commands, const QString& fram
     runFolder_.clear();
     sessionRunFolder_.clear();
     liveStopPending_ = false;
+    statusInFlight_ = false;
+    liveEnding_ = false;
+    endForced_ = false;
     liveLine_ = LiveLine{};
     liveLineLogged_.clear();
     liveLine_.state = hello.status.state;
@@ -945,11 +1004,14 @@ void MainWindow::connectLiveSession(const QString& commands, const QString& fram
     replayAction_->setEnabled(false);
 
     auto backend = std::make_unique<live::LiveComputeBackend>(
-        client, liveFrames_, [this, flagPaths](live::LivePhysicsProcess& process) {
-            // Commands are sent from the UI thread, so a reply is shown before
-            // its command returns (stop's run folder included).
-            process.setReplyObserver([this](const live::Reply& reply) {
-                QMetaObject::invokeMethod(this, [this, reply]() { onLiveReply(reply); }, Qt::AutoConnection);
+        client, liveFrames_, [this, flagPaths, session](live::LivePhysicsProcess& process) {
+            liveProcess_ = &process;
+            // Each command's outcome, from the client's commands lane, to the
+            // UI thread, in the order the commands were posted.
+            process.setCommandObserver([this, session](const live::LiveOutcome& outcome) {
+                QMetaObject::invokeMethod(this, [this, session, outcome]() {
+                    if (session == liveSessionId_ && liveClient_) onLiveOutcome(outcome);
+                }, Qt::QueuedConnection);
             });
             auto reported = std::make_shared<std::set<std::string>>();
             process.setFrameObserver([this, flagPaths, reported](const live::LiveFrame& frame) {
@@ -973,7 +1035,7 @@ void MainWindow::connectLiveSession(const QString& commands, const QString& fram
             });
         });
     simController_->setComputeBackend(std::move(backend));
-    simController_->launchPhysics(liveFrames_->physicsConfig());  // sends `start`
+    simController_->launchPhysics(liveFrames_->physicsConfig());  // posts `start`
 
     paused_ = false;
     stepAction_->setEnabled(true);
@@ -1093,10 +1155,6 @@ void MainWindow::onLiveReply(const live::Reply& reply)
         const QString code = reply.errors.empty() ? QString() : QString::fromStdString(reply.errors.front().code);
         statusBar()->showMessage(tr("MIME refused %1: %2 (see MIME Output)").arg(command, code));
     }
-    if (reply.command == "set") {
-        liveInputsPanel_->markSet(pendingSet_, reply.ok);
-        pendingSet_ = nlohmann::json();
-    }
     if (reply.command == "record" && reply.ok) {
         recordAction_->blockSignals(true);
         recordAction_->setChecked(reply.status.recording);
@@ -1134,16 +1192,27 @@ void MainWindow::onLiveReply(const live::Reply& reply)
         liveStatusPoll_ = new QTimer(this);
         liveStatusPoll_->setInterval(250);
         connect(liveStatusPoll_, &QTimer::timeout, this, [this]() {
-            if (!liveClient_ || liveClient_->closed() || liveStopPending_) {
+            if (!liveClient_ || liveClient_->closed() || liveStopPending_ || liveEnding_) {
                 liveStatusPoll_->stop();
                 return;
             }
-            try {
-                onLiveReply(liveClient_->request(live::statusRequest()));
-            } catch (const std::exception& e) {
-                liveStatusPoll_->stop();
-                statusBar()->showMessage(tr("status: %1").arg(QString::fromUtf8(e.what())));
-            }
+            if (statusInFlight_) return;  // one at a time
+            statusInFlight_ = true;
+            const quint64 session = liveSessionId_;
+            // The status lane: never queued behind a command waiting for the
+            // chunk in hand.
+            liveClient_->postStatus([this, session](const live::LiveOutcome& outcome) {
+                QMetaObject::invokeMethod(this, [this, session, outcome]() {
+                    if (session != liveSessionId_ || !liveClient_) return;
+                    statusInFlight_ = false;
+                    if (outcome.error) {
+                        liveStatusPoll_->stop();
+                        statusBar()->showMessage(tr("status: %1").arg(QString::fromStdString(outcome.errorText())));
+                        return;
+                    }
+                    if (!liveEnding_) onLiveReply(*outcome.reply);
+                }, Qt::QueuedConnection);
+            });
         });
     }
     if (poll && !liveStatusPoll_->isActive()) {
@@ -1173,42 +1242,98 @@ void MainWindow::showLiveLine()
     runConfigPanel_->setConnectionStatus(line);
 }
 
+void MainWindow::onLiveOutcome(const live::LiveOutcome& outcome)
+{
+    const std::string command = outcome.request.value("command", std::string());
+    if (command == "set") {
+        liveInputsPanel_->markSet(outcome.request.value("values", nlohmann::json()), outcome.ok());
+    }
+    if (outcome.error) {
+        const QString why = QString::fromStdString(outcome.errorText());
+        mimeConsole_->appendStderr((QStringLiteral("[session] ") + why + QLatin1Char('\n')).toUtf8());
+        statusBar()->showMessage(tr("%1: %2").arg(QString::fromStdString(command), why));
+        return;
+    }
+    onLiveReply(*outcome.reply);
+}
+
+void MainWindow::postLive(const nlohmann::json& request, std::function<void(const live::LiveOutcome&)> after)
+{
+    if (!liveClient_ || liveEnding_) return;
+    const quint64 session = liveSessionId_;
+    liveClient_->post(request, [this, session, after = std::move(after)](const live::LiveOutcome& outcome) {
+        QMetaObject::invokeMethod(this, [this, session, after, outcome]() {
+            if (session != liveSessionId_ || !liveClient_) return;
+            onLiveOutcome(outcome);
+            if (after) after(outcome);
+        }, Qt::QueuedConnection);
+    });
+}
+
 void MainWindow::onStepRequested()
 {
-    if (!liveSessionActive()) return;
+    if (!liveSessionActive() || liveEnding_) return;
     if (!paused_) {
         statusBar()->showMessage(tr("Pause the session to step it"));
         return;
     }
-    try {
-        onLiveReply(liveClient_->request(live::stepRequest(1)));
-        simController_->requestNextFrame();
-    } catch (const std::exception& e) {
-        statusBar()->showMessage(tr("step: %1").arg(QString::fromUtf8(e.what())));
-    }
+    // Answered once the chunk is stepped (a first chunk compiles first): the
+    // window answers meanwhile, and the stepped frame is shown when it comes.
+    postLive(live::stepRequest(1), [this](const live::LiveOutcome&) { simController_->requestNextFrame(); });
 }
 
 void MainWindow::onRecordToggled(bool on)
 {
-    if (!liveSessionActive()) return;
-    try {
-        onLiveReply(liveClient_->request(live::recordRequest(on)));
-    } catch (const std::exception& e) {
-        statusBar()->showMessage(tr("record: %1").arg(QString::fromUtf8(e.what())));
-    }
+    if (!liveSessionActive() || liveEnding_) return;
+    postLive(live::recordRequest(on));
 }
 
 void MainWindow::endLiveSession(const QString& why)
 {
+    if (!liveSessionActive() || liveEnding_) return;
+    liveEnding_ = true;
+    liveEndWhy_ = why;
     if (liveStatusPoll_) liveStatusPoll_->stop();
-    if (simController_->isRunning()) {
-        // A live session: `stop`, which writes its run folder. Taken while a
-        // chunk runs, it returns once the final frame has come.
-        simController_->stop();
+    stepAction_->setEnabled(false);
+    recordAction_->setEnabled(false);
+    runConfigPanel_->setConnectionStatus(tr("Stopping the session..."));
+    statusBar()->showMessage(tr("Stopping the live session..."));
+    // mime serve exits on its own once stopped: that exit is no crash.
+    if (serveProcess_ && serveProcess_->isRunning()) serveProcess_->expectExit();
+    const quint64 session = liveSessionId_;
+    if (liveProcess_ && simController_->isRunning()) {
+        // `stop`, after any command still on its way. Between chunks it
+        // replies once the run folder is written; taken while a chunk runs,
+        // it completes with the final frame.
+        liveProcess_->requestStop([this, session]() {
+            QMetaObject::invokeMethod(this, [this, session]() {
+                if (session == liveSessionId_) onLiveStopped();
+            }, Qt::QueuedConnection);
+        });
+    } else {
+        onLiveStopped();  // the stream had already ended
     }
+}
+
+void MainWindow::onLiveStopped()
+{
+    if (!liveEnding_ || awaitingServeExit_) return;
+    simController_->stop();  // the stream has ended: joins its worker, logs its summary
+    liveProcess_ = nullptr;
     if (serveProcess_ && serveProcess_->isRunning()) {
-        serveProcess_->stop();  // it exits on its own after stop, its run folder written; SIGTERM otherwise
+        // A pending stop's run folder is written after the final frame, and
+        // any stop's process exits after its folder: wait for that exit.
+        awaitingServeExit_ = true;
+        runConfigPanel_->setConnectionStatus(tr("Waiting for mime serve to finish its run folder..."));
+        serveProcess_->stopAsync(endForced_ ? 0 : 60000);
+        return;  // onServeProcessEnded completes the end
     }
+    completeLiveSession();
+}
+
+void MainWindow::completeLiveSession()
+{
+    awaitingServeExit_ = false;
     mimeConsole_->flush();
     // A pending stop's reply names no run folder: a Local session's is where
     // its ready file said it would write, once the process has written it.
@@ -1222,8 +1347,10 @@ void MainWindow::endLiveSession(const QString& why)
     const bool folderUnknown = sessionRunFolder_.isEmpty() && liveStopPending_;
     sessionRunFolder_.clear();
     liveOut_.clear();
+    liveProcess_ = nullptr;
     liveClient_.reset();
     liveFrames_.reset();
+    liveEnding_ = false;
     paused_ = false;
     stepAction_->setEnabled(false);
     recordAction_->setEnabled(false);
@@ -1232,7 +1359,7 @@ void MainWindow::endLiveSession(const QString& why)
     if (cameraToolbar_) cameraToolbar_->onSimStopped();
     runConfigPanel_->setLaunchEnabled(true);
     runConfigPanel_->setConnectionStatus(tr("Idle"));
-    QString message = why;
+    QString message = liveEndWhy_;
     if (folderUnknown) {
         message += tr(" It stopped at the end of a chunk; its run folder is the one mime serve was told to write "
                       "(--out).");
@@ -1242,15 +1369,33 @@ void MainWindow::endLiveSession(const QString& why)
         mimeConsole_->appendStdout(("[session] run folder: " + lastRunFolder_ + QLatin1Char('\n')).toUtf8());
     }
     statusBar()->showMessage(message);
+    spdlog::info("Live session ended: {}", message.toStdString());
+
+    if (closeAfterEnd_) {
+        QTimer::singleShot(0, this, &QWidget::close);
+    } else if (relaunchAfterEnd_) {
+        relaunchAfterEnd_ = false;
+        QTimer::singleShot(0, this, &MainWindow::onSimulationStart);
+    }
 }
 
 void MainWindow::onServeProcessEnded()
 {
-    if (!liveSessionActive()) return;  // a stop we asked for, already handled
-    // The process ended under a live session (a crash, or stopped elsewhere):
-    // no reply can come, so do not wait for one.
+    if (awaitingServeExit_) {
+        completeLiveSession();  // stopped, and its run folder written
+        return;
+    }
+    if (connectingClient_) {
+        // It ended while hello was on its way: no hello can come.
+        connectingClient_->close();
+        return;
+    }
+    if (!liveSessionActive()) return;
+    // The process ended under a live session (a crash, stopped elsewhere, or
+    // before our stop completed): no reply can come, so end the requests in
+    // flight rather than wait for them.
     liveClient_->close();
-    endLiveSession(tr("mime serve ended (see MIME Output)."));
+    if (!liveEnding_) endLiveSession(tr("mime serve ended (see MIME Output)."));
 }
 
 // ---------------------------------------------------------------------------
@@ -1443,14 +1588,19 @@ void MainWindow::onSimulationStop()
     if (readyTimer_ && readyTimer_->isActive()) {  // stop a session still starting
         readyTimer_->stop();
         if (noticeOverlay_) noticeOverlay_->removeNotice(QStringLiteral("mime-serve"));
-        if (serveProcess_) serveProcess_->stop();
+        if (serveProcess_) serveProcess_->stopAsync(0);  // not ready: nothing to finish
         runConfigPanel_->setLaunchEnabled(true);
         runConfigPanel_->setConnectionStatus(tr("Idle"));
         statusBar()->showMessage(tr("mime serve stopped before it was ready"));
         return;
     }
+    if (connectingClient_) {  // stop a connection still waiting for hello
+        cancelLiveConnect();
+        statusBar()->showMessage(tr("Connection cancelled"));
+        return;
+    }
     if (liveSessionActive()) {
-        endLiveSession(tr("Live session stopped."));
+        endLiveSession(tr("Live session stopped."));  // returns at once; the end follows
         return;
     }
 

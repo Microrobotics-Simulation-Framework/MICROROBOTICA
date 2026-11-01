@@ -6,6 +6,7 @@
 #include <mutex>
 #include <optional>
 #include <string>
+#include <vector>
 
 #include "core/compute_backend.h"
 #include "core/physics_process.h"
@@ -21,6 +22,9 @@ namespace microbotica::live {
 /// ResultFrames SimulationController applies to the scene; launch, pause and stop are the session's start, pause and
 /// stop; sendParameters sets the controller's live inputs.
 ///
+/// Nothing but stop() waits for the session: start, pause, resume and set are posted to the client's commands lane, in
+/// order, and their outcomes go to the command observer as they come. requestStop() stops without waiting.
+///
 /// MBCA-IMPL-013
 class LivePhysicsProcess : public core::PhysicsProcess {
 public:
@@ -32,17 +36,20 @@ public:
     static const core::ComponentMeta& meta() {
         static const core::ComponentMeta m{
             .component_id      = "MBCA-IMPL-013",
-            .component_version = "1.1.0",
+            .component_version = "1.2.0",
             .stability         = core::StabilityLevel::Experimental,
             .description       = "A MIME 0.3 live session (mime.live/1, mime serve) as a PhysicsProcess.",
             .preconditions     = {"The client is connected: hello was answered"},
             .postconditions    = {"Every frame received is mapped through the stage binding to a ResultFrame",
                                   "stop() sends stop, which stops the session in every state",
-                                  "A stop taken while a chunk runs returns once the session's final frame arrives "
-                                  "or its connection closes"},
-            .invariants        = {"Positions are converted from metres to the stage's units"},
+                                  "A stop taken while a chunk runs completes once the session's final frame "
+                                  "arrives or its connection closes",
+                                  "launch, sendParameters and setPaused return without waiting for a reply"},
+            .invariants        = {"Positions are converted from metres to the stage's units",
+                                  "Commands reach the session in the order they were given"},
             .design_rationale  = "Keeps the scene pipeline (SimulationController, ResultsApplicator) as it was; "
-                                 "the protocol's shapes stay in live_protocol, its transport in LiveClient.",
+                                 "the protocol's shapes stay in live_protocol, its transport in LiveClient, whose "
+                                 "lanes keep the caller (the UI thread) from waiting on MIME.",
             .assumptions       = {"The session's frames are the binding's fields (mime serve's default selection)"},
             .limitations       = {"A refused command is reported to the observer, not raised",
                                   "A stop taken while a chunk runs names no run folder: MIME writes it after the "
@@ -57,20 +64,29 @@ public:
         return m;
     }
 
-    /// Sends `start` (the session steps, paced). With startOnLaunch false, launch only starts receiving.
+    /// Starts receiving frames and posts `start` (the session steps, paced). With startOnLaunch false, launch only
+    /// starts receiving.
     void launch(const core::PhysicsConfig& config) override;
     std::optional<core::ResultFrame> receiveResult() override;
-    /// Sets the controller's live inputs: `params` is {label: value}.
+    /// Posts `set` for the controller's live inputs: `params` is {label: value}.
     void sendParameters(const nlohmann::json& params) override;
+    /// Posts `pause`, or `start` to resume.
     void setPaused(bool paused) override;
+    /// requestStop, waited for.
     void stop() override;
     core::ProcessStatus status() const override;
     core::StreamStats streamStats() const override;
     /// The session pauses itself (no frames while paused), and a step while paused sends frames that must be shown.
     bool pausesItself() const override { return true; }
 
-    /// Every reply, accepted or refused, as it arrives (on the calling thread): the console shows refusals.
-    void setReplyObserver(std::function<void(const Reply&)> observer);
+    /// Post `stop` (after the commands posted before it) and return: `done` runs, on a client thread, once the session
+    /// has stopped (stop's reply, or for a stop taken while a chunk ran, its final frame or closed connection; or the
+    /// stop failed), when the stream has ended and status() is Stopped. A second call adds its `done` to the first's.
+    void requestStop(std::function<void()> done);
+
+    /// Every command's outcome, accepted, refused or failed, as it comes (on a client thread): the console shows
+    /// refusals, the run panel the status.
+    void setCommandObserver(std::function<void(const LiveOutcome&)> observer);
     /// Every frame as it arrives (on the frames thread): the plots read the scalars.
     void setFrameObserver(std::function<void(const LiveFrame&)> observer);
     void setStartOnLaunch(bool start) { startOnLaunch_ = start; }
@@ -78,22 +94,30 @@ public:
     /// stop's run folder, once the session has stopped, when stop's reply named it (a stop between chunks).
     std::optional<std::string> runFolder() const;
     /// The stop was taken while a chunk ran (pending): its reply named no run folder.
-    bool stoppedPending() const { return stoppedPending_.load(); }
+    bool stoppedPending() const;
 
 private:
-    std::optional<Reply> send(const nlohmann::json& message, int timeoutMs = -1);
+    /// What the client's callbacks touch, shared so that a callback that comes late never reaches a process gone.
+    struct State {
+        mutable std::mutex mutex;
+        std::function<void(const LiveOutcome&)> commandObserver;
+        std::function<void(const LiveFrame&)> frameObserver;
+        std::optional<std::string> runFolder;
+        bool stoppedPending = false;
+        bool stopRequested = false;
+        bool stopped = false;
+        std::vector<std::function<void()>> onStopped;
+        std::atomic<core::ProcessStatus> status{core::ProcessStatus::Idle};
+        core::ThreadSafeQueue<std::optional<core::ResultFrame>> queue;
+    };
+
+    /// Post a command; its outcome goes to the observer, then to `then`.
+    void send(const nlohmann::json& message, std::function<void(const LiveOutcome&)> then = {});
 
     std::shared_ptr<LiveClient> client_;
     std::shared_ptr<const BindingFrames> frames_;
-    core::ThreadSafeQueue<std::optional<core::ResultFrame>> queue_;
-    std::atomic<core::ProcessStatus> status_{core::ProcessStatus::Idle};
-    std::atomic<bool> finished_{false};
-    std::atomic<bool> stoppedPending_{false};
+    std::shared_ptr<State> state_;
     bool startOnLaunch_ = true;
-    mutable std::mutex mutex_;
-    std::function<void(const Reply&)> replyObserver_;
-    std::function<void(const LiveFrame&)> frameObserver_;
-    std::optional<std::string> runFolder_;
 };
 
 /// The compute backend of a live session: its PhysicsProcess shares the session's client.

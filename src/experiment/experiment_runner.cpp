@@ -1,6 +1,8 @@
 #include "experiment/experiment_runner.h"
 #include <spdlog/spdlog.h>
+#include <QPointer>
 #include <QProcessEnvironment>
+#include <QTimer>
 
 #include <chrono>
 #include <thread>
@@ -109,6 +111,30 @@ void ExperimentRunner::stop() {
         }
     }
     status_ = RunnerStatus::Stopped;
+}
+
+void ExperimentRunner::expectExit() {
+    intentional_stop_ = true;
+}
+
+void ExperimentRunner::stopAsync(int graceMs) {
+    intentional_stop_ = true;
+    if (!process_ || process_->state() == QProcess::NotRunning) {
+        return;
+    }
+    // Only this process: a later session's has a QProcess of its own.
+    QPointer<QProcess> process(process_);
+    spdlog::info("ExperimentRunner: waiting up to {} ms for the MIME process to exit", graceMs);
+    QTimer::singleShot(graceMs, this, [process]() {
+        if (!process || process->state() == QProcess::NotRunning) return;
+        spdlog::warn("ExperimentRunner: the MIME process has not exited: SIGTERM");
+        process->terminate();
+        QTimer::singleShot(15000, process, [process]() {
+            if (!process || process->state() == QProcess::NotRunning) return;
+            spdlog::warn("ExperimentRunner: the MIME process did not stop: killing it");
+            process->kill();
+        });
+    });
 }
 
 bool ExperimentRunner::isRunning() const {

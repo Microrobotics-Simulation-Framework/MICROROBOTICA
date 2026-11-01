@@ -86,6 +86,10 @@ set `MICROROBOTICA_MIME`.
 - The run panel's status line follows the session: its state from MIME's
   replies, its step and time from each frame, "compiling" while its first
   chunk compiles (a few seconds for A0), and a pause or stop pending.
+- The window never waits for MIME: commands go out in the order you give
+  them and their replies are shown as they come. Closing the window during
+  a session stops the session first (its run folder written), then closes;
+  closing it again stops waiting.
 - The **Live Inputs** panel lists what the controller declares settable
   live (A0 called back: `offset`, metres along the tube), each starting at
   its default (the value at which it changes nothing), sent with **Set**;

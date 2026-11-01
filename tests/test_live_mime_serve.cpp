@@ -23,6 +23,7 @@
 #include <filesystem>
 #include <fstream>
 #include <iterator>
+#include <mutex>
 #include <thread>
 
 using namespace microbotica::live;
@@ -49,8 +50,10 @@ TEST_CASE("A real mime serve: hello, step, set, record, run at real time, pause,
     LivePhysicsProcess process(client, mapping);
     process.setStartOnLaunch(false);
     std::vector<Reply> refusals;
-    process.setReplyObserver([&](const Reply& r) {
-        if (!r.ok) refusals.push_back(r);
+    std::mutex refusalsMutex;
+    process.setCommandObserver([&](const LiveOutcome& o) {  // on the client's thread
+        std::lock_guard<std::mutex> lock(refusalsMutex);
+        if (o.reply && !o.reply->ok) refusals.push_back(*o.reply);
     });
     process.launch(microbotica::core::PhysicsConfig{});
 
@@ -110,12 +113,16 @@ TEST_CASE("A real mime serve: hello, step, set, record, run at real time, pause,
     CHECK(running <= static_cast<std::size_t>(1.1 * 2 * perSecond) + 1);
 
     // A live input, and one the controller does not declare (refused in MIME's shape); a step acts on it.
+    // Posted, in order; the step's reply, after them on the same lane, says they have been answered.
     process.sendParameters({{hello.liveInputs.at(0).label, 0.002}});
     process.sendParameters({{"no_such_input", 1.0}});
-    REQUIRE(refusals.size() == 1);
-    CHECK(refusals[0].errors.at(0).code.rfind("live.", 0) == 0);
     const Reply after = client->request(stepRequest(1));
     REQUIRE(after.ok);
+    {
+        std::lock_guard<std::mutex> lock(refusalsMutex);
+        REQUIRE(refusals.size() == 1);
+        CHECK(refusals[0].errors.at(0).code.rfind("live.", 0) == 0);
+    }
 
     process.stop();
     REQUIRE(process.runFolder().has_value());  // between chunks: the stop has taken effect, its folder written

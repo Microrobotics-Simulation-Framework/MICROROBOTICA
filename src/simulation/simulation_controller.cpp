@@ -155,15 +155,18 @@ void SimulationController::requestNextFrame() {
 }
 
 void SimulationController::stop() {
-    if (!running_.load()) return;
+    // A stream that ended on its own (a live session stopped, its last frame
+    // received) has left its worker to join and its summary to log; its
+    // physics needs no stop.
+    const bool wasRunning = running_.exchange(false);
+    if (!wasRunning && !workerFuture_.valid()) return;
 
-    running_.store(false);
-    if (physics_) {
+    if (physics_ && wasRunning) {
         physics_->stop();
     }
 
     if (workerFuture_.valid()) {
-        workerFuture_.wait();
+        workerFuture_.get();  // the worker catches its own errors; get() leaves no future to join twice
     }
 
     spdlog::info("SimulationController: Stopped after {} frames", frameCount_);
