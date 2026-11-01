@@ -11,6 +11,8 @@
 #include <pxr/usd/sdf/primSpec.h>
 #include <pxr/usd/usdGeom/mesh.h>
 #include <pxr/usd/usdGeom/primvarsAPI.h>
+#include <pxr/usd/usdGeom/imageable.h>
+#include <pxr/usd/usdGeom/tokens.h>
 #include <pxr/base/gf/quatf.h>
 #include <pxr/base/gf/vec3f.h>
 #endif
@@ -76,6 +78,38 @@ void ResultsApplicator::apply(const core::ResultFrame& frame,
             } else {
                 cached.orientOp.Set(GfQuatd(quat.w, GfVec3d(quat.x, quat.y, quat.z)));
             }
+        }
+    }
+
+    // Uniform scales (a field vector's arrow, scaled to its length).
+    for (const auto& [actor, scale] : frame.scales) {
+        auto it = actorOpsCache_.find(actor);
+        if (it == actorOpsCache_.end()) continue;
+        auto& cached = *it->second;
+        if (!cached.valid) continue;
+        if (!cached.scaleOp) {
+            UsdGeomXformable xformable(cached.prim);
+            if (!xformable) continue;
+            cached.scaleOp = xformable.AddScaleOp(UsdGeomXformOp::PrecisionDouble);
+        }
+        if (cached.scaleOp.GetTypeName() == SdfValueTypeNames->Float3) {
+            const float s = static_cast<float>(scale);
+            cached.scaleOp.Set(GfVec3f(s, s, s));
+        } else {
+            cached.scaleOp.Set(GfVec3d(scale, scale, scale));
+        }
+    }
+
+    // Visibility (a field vector's arrow, hidden in the static stage).
+    for (const auto& [actor, visible] : frame.visibility) {
+        auto it = actorOpsCache_.find(actor);
+        if (it == actorOpsCache_.end()) continue;
+        const auto& cached = *it->second;
+        if (!cached.valid) continue;
+        UsdGeomImageable imageable(cached.prim);
+        if (imageable) {
+            imageable.CreateVisibilityAttr().Set(visible ? UsdGeomTokens->inherited
+                                                         : UsdGeomTokens->invisible);
         }
     }
 
@@ -187,10 +221,14 @@ ResultsApplicator::CachedOps& ResultsApplicator::getCachedOps(
                 if (op.GetOpType() == UsdGeomXformOp::TypeOrient) {
                     ops->orientOp = op;
                 }
+                if (op.GetOpType() == UsdGeomXformOp::TypeScale) {
+                    ops->scaleOp = op;
+                }
             }
             // Create ops if they don't exist yet
             if (!ops->translateOp) ops->translateOp = xformable.AddTranslateOp();
             if (!ops->orientOp) ops->orientOp = xformable.AddOrientOp();
+            ops->prim = prim;
             ops->valid = true;
         }
     }

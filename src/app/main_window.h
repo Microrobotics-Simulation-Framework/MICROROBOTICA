@@ -3,7 +3,14 @@
 #include <QMainWindow>
 #include <QLabel>
 #include <QByteArray>
+#include <QString>
 #include <memory>
+
+#include <nlohmann/json.hpp>
+
+class QAction;
+class QTemporaryDir;
+class QTimer;
 
 #include "core/stability.h"
 #include "core/audit_logger.h"
@@ -29,8 +36,19 @@ class RunConfigPanel;
 class ProjectBrowserPanel;
 class GraphInspectorPanel;
 class ScriptEditorPanel;
-class ParameterPanel;
+class LiveInputsPanel;
 } // namespace microbotica::panels
+
+namespace microbotica::experiment {
+class ExperimentRunner;
+} // namespace microbotica::experiment
+
+namespace microbotica::live {
+class LiveClient;
+class BindingFrames;
+struct Hello;
+struct Reply;
+} // namespace microbotica::live
 
 namespace microbotica::app {
 
@@ -51,6 +69,13 @@ class MainWindow : public QMainWindow {
 public:
     explicit MainWindow(QWidget* parent = nullptr);
     ~MainWindow() override;
+
+    /// Open a path as File's actions do: a MIME 0.3 saved experiment folder,
+    /// or a USD file (a recording plays). False, with a message, otherwise.
+    bool openPath(const QString& path);
+
+    /// Launch, as the Run Configuration panel's button does.
+    void launch() { onSimulationStart(); }
 
 protected:
     void closeEvent(QCloseEvent* event) override;
@@ -90,6 +115,31 @@ private:
     /// Pick the compute backend for the selected mode and launch physics.
     void finishSimulationStart();
 
+    // ── Live sessions (MIME 0.3, mime.live/1) ──────────────────────────────
+    /// Local: spawn `mime serve <saved folder>` and connect once its ready
+    /// file appears.
+    void startLocalSession();
+    /// Connect to a session (Local, once ready; Manual, at the panel's
+    /// endpoints): hello, the stage, the panels, then start it.
+    void connectLiveSession(const QString& commands, const QString& frames);
+    /// What hello says, shown: the stage (and MIME's visuals overlay), the
+    /// graph, the live inputs. False when the session's stage is not here.
+    bool applyHello(const live::Hello& hello);
+    /// A reply of the session, on the UI thread: a refusal goes to the MIME
+    /// console in its shape; the status to the run panel.
+    void onLiveReply(const live::Reply& reply);
+    /// Tear the session down: the client, the panels, the MIME process.
+    void endLiveSession(const QString& why);
+    /// The `mime serve` process ended (stopped, or crashed).
+    void onServeProcessEnded();
+    void onStepRequested();
+    void onRecordToggled(bool on);
+    bool liveSessionActive() const;
+    /// Settings → MIME command (MICROROBOTICA_MIME overrides it).
+    QString mimeCommand() const;
+    /// Settings → Run folders.
+    QString runsDir() const;
+
     /// Read the persisted notice-overlay preferences from QSettings and
     /// apply them to noticeOverlay_. Called on startup and after the
     /// Settings dialog is accepted.
@@ -105,6 +155,17 @@ private:
     // The MIME 0.3 saved experiment opened (File → Open Saved Experiment);
     // empty when none is.
     std::string experimentDir_;
+
+    // The live session: `mime serve` (Local), its client, its binding.
+    std::unique_ptr<experiment::ExperimentRunner> serveProcess_;
+    std::unique_ptr<QTemporaryDir> readyDir_;
+    QTimer* readyTimer_ = nullptr;
+    std::shared_ptr<live::LiveClient> liveClient_;
+    std::shared_ptr<const live::BindingFrames> liveFrames_;
+    nlohmann::json pendingSet_;   // the live inputs sent, until set's reply
+    QString lastRunFolder_;       // the run folder the last session wrote
+    QAction* stepAction_ = nullptr;
+    QAction* recordAction_ = nullptr;
 
     // Central widget
     viewport::ViewportWidget* viewportWidget_ = nullptr;
@@ -126,7 +187,7 @@ private:
     panels::ProjectBrowserPanel* projectBrowser_ = nullptr;
     panels::GraphInspectorPanel* graphInspector_ = nullptr;
     panels::ScriptEditorPanel* scriptEditor_ = nullptr;
-    panels::ParameterPanel* parameterPanel_ = nullptr;
+    panels::LiveInputsPanel* liveInputsPanel_ = nullptr;
 
     // Status bar widgets
     QLabel* simTimeLabel_ = nullptr;

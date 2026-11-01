@@ -11,12 +11,19 @@ add_executable(microbotica_tests
     test_mime_stub.cpp
     test_ansi_parser.cpp
     test_mime_error.cpp
+    test_live_protocol.cpp
+    test_live_client.cpp
+    test_live_mime_serve.cpp
     ${CMAKE_SOURCE_DIR}/src/stubs/stub_physics_process.cpp
     ${CMAKE_SOURCE_DIR}/src/connection/connection_manager.cpp
     ${CMAKE_SOURCE_DIR}/src/connection/ssh_tunnel.cpp
     ${CMAKE_SOURCE_DIR}/src/mime_adapter/mime_physics_process.cpp
     ${CMAKE_SOURCE_DIR}/src/mime_adapter/binary_frame_decoder.cpp
     ${CMAKE_SOURCE_DIR}/src/mime_adapter/mime_stub_physics_process.cpp
+    ${CMAKE_SOURCE_DIR}/src/live/live_protocol.cpp
+    ${CMAKE_SOURCE_DIR}/src/live/binding_frames.cpp
+    ${CMAKE_SOURCE_DIR}/src/live/live_client.cpp
+    ${CMAKE_SOURCE_DIR}/src/live/live_physics_process.cpp
     ${CMAKE_SOURCE_DIR}/src/experiment/experiment_runner.cpp
     ${CMAKE_SOURCE_DIR}/src/experiment/cloud_job_launcher.cpp
     ${CMAKE_SOURCE_DIR}/src/experiment/connection_dialog.cpp
@@ -32,6 +39,7 @@ add_executable(microbotica_tests
     verification/test_scripting_api.cpp
     verification/test_zmq_protocol.cpp
     verification/test_e2e_mime_stub.cpp
+    verification/test_live_stage.cpp
 )
 
 target_include_directories(microbotica_tests PRIVATE
@@ -85,6 +93,9 @@ catch_discover_tests(microbotica_tests
     PROPERTIES
         ENVIRONMENT
         "LSAN_OPTIONS=suppressions=${CMAKE_SOURCE_DIR}/lsan.suppressions"
+        # Catch2's SKIP() exits 4: a test that needs what is not here (a
+        # running mime serve) is skipped, not failed.
+        SKIP_RETURN_CODE 4
 )
 
 # --- Screenshot tests: Storm on Mesa (llvmpipe), headless over EGL --------------------------------------------------
@@ -124,6 +135,7 @@ if(OpenUSD_FOUND AND OpenGL_OpenGL_FOUND AND OpenGL_EGL_FOUND)
         TEST_PREFIX "screenshot: "
         WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
         DISCOVERY_MODE PRE_TEST
+        PROPERTIES SKIP_RETURN_CODE 4
     )
 else()
     message(STATUS "Screenshot tests not built (they need OpenUSD and an EGL library)")

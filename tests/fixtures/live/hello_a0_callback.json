@@ -1,0 +1,1420 @@
+{
+ "protocol": "mime.live/1",
+ "ok": true,
+ "command": "hello",
+ "mime": "0.3.0.dev0",
+ "experiment": "script_a0",
+ "hashes": {
+  "recipe": "mime.hash/1",
+  "document": "sha256:32c169533b5f55f8b424839aecea6f233fbe8316a7aed98b2fddc534d8a9fdd5",
+  "input": "sha256:8c13b870b3f8ec256438f5a9a1496261c116145ae35246de7cdeb66cb5a9b21b",
+  "derived": "sha256:21916a3586e9215ae6ac72d93a4c1dfec28bb1d58aaa73378257c80f036ef56e",
+  "observations": "sha256:808b9d6b8b5a15d09a192e18b781f70a2161b86276190f90116205651ceffa85"
+ },
+ "dt": 0.0005,
+ "chunk_steps": 40,
+ "controller": {
+  "entry": "arm_tracking 0.1.0",
+  "mode": "callback",
+  "every": 20,
+  "latency": 0
+ },
+ "live_inputs": {
+  "offset": {
+   "units": "m",
+   "shape": [],
+   "meaning": "moves the point the magnet is held above along the axis, ahead of the body (towards +axis) or behind it, the point still held within reach"
+  }
+ },
+ "stage": "/data/a0_callback_saved/scene/scene.usda",
+ "visuals": {
+  "overlay": null,
+  "drawn": 0,
+  "missing": {
+   "ar4_mk5": 18
+  },
+  "notice": []
+ },
+ "binding": {
+  "format": "mime.binding/1",
+  "entries": [
+   {
+    "prim": "/World/umr",
+    "node": "umr",
+    "field": "pose",
+    "index": null,
+    "kind": "pose",
+    "thing": "umr",
+    "name": "umr",
+    "unit": "m; 1",
+    "space": "world"
+   },
+   {
+    "prim": "/World/rpm/arm/world",
+    "node": "rpm.arm",
+    "field": "frame_poses",
+    "index": 0,
+    "kind": "pose",
+    "thing": "rpm",
+    "name": "rpm.arm.world",
+    "unit": "m; 1",
+    "space": "world"
+   },
+   {
+    "prim": "/World/rpm/arm/base_link",
+    "node": "rpm.arm",
+    "field": "frame_poses",
+    "index": 1,
+    "kind": "pose",
+    "thing": "rpm",
+    "name": "rpm.arm.base_link",
+    "unit": "m; 1",
+    "space": "world"
+   },
+   {
+    "prim": "/World/rpm/arm/base_link_aluminum",
+    "node": "rpm.arm",
+    "field": "frame_poses",
+    "index": 2,
+    "kind": "pose",
+    "thing": "rpm",
+    "name": "rpm.arm.base_link_aluminum",
+    "unit": "m; 1",
+    "space": "world"
+   },
+   {
+    "prim": "/World/rpm/arm/base_link_enclosure",
+    "node": "rpm.arm",
+    "field": "frame_poses",
+    "index": 3,
+    "kind": "pose",
+    "thing": "rpm",
+    "name": "rpm.arm.base_link_enclosure",
+    "unit": "m; 1",
+    "space": "world"
+   },
+   {
+    "prim": "/World/rpm/arm/base_link_motor",
+    "node": "rpm.arm",
+    "field": "frame_poses",
+    "index": 4,
+    "kind": "pose",
+    "thing": "rpm",
+    "name": "rpm.arm.base_link_motor",
+    "unit": "m; 1",
+    "space": "world"
+   },
+   {
+    "prim": "/World/rpm/arm/link_1",
+    "node": "rpm.arm",
+    "field": "frame_poses",
+    "index": 5,
+    "kind": "pose",
+    "thing": "rpm",
+    "name": "rpm.arm.link_1",
+    "unit": "m; 1",
+    "space": "world"
+   },
+   {
+    "prim": "/World/rpm/arm/link_1_aluminum",
+    "node": "rpm.arm",
+    "field": "frame_poses",
+    "index": 6,
+    "kind": "pose",
+    "thing": "rpm",
+    "name": "rpm.arm.link_1_aluminum",
+    "unit": "m; 1",
+    "space": "world"
+   },
+   {
+    "prim": "/World/rpm/arm/link_1_motor",
+    "node": "rpm.arm",
+    "field": "frame_poses",
+    "index": 7,
+    "kind": "pose",
+    "thing": "rpm",
+    "name": "rpm.arm.link_1_motor",
+    "unit": "m; 1",
+    "space": "world"
+   },
+   {
+    "prim": "/World/rpm/arm/link_2",
+    "node": "rpm.arm",
+    "field": "frame_poses",
+    "index": 8,
+    "kind": "pose",
+    "thing": "rpm",
+    "name": "rpm.arm.link_2",
+    "unit": "m; 1",
+    "space": "world"
+   },
+   {
+    "prim": "/World/rpm/arm/link_2_aluminum",
+    "node": "rpm.arm",
+    "field": "frame_poses",
+    "index": 9,
+    "kind": "pose",
+    "thing": "rpm",
+    "name": "rpm.arm.link_2_aluminum",
+    "unit": "m; 1",
+    "space": "world"
+   },
+   {
+    "prim": "/World/rpm/arm/link_2_motor",
+    "node": "rpm.arm",
+    "field": "frame_poses",
+    "index": 10,
+    "kind": "pose",
+    "thing": "rpm",
+    "name": "rpm.arm.link_2_motor",
+    "unit": "m; 1",
+    "space": "world"
+   },
+   {
+    "prim": "/World/rpm/arm/link_2_cover",
+    "node": "rpm.arm",
+    "field": "frame_poses",
+    "index": 11,
+    "kind": "pose",
+    "thing": "rpm",
+    "name": "rpm.arm.link_2_cover",
+    "unit": "m; 1",
+    "space": "world"
+   },
+   {
+    "prim": "/World/rpm/arm/link_2_logo",
+    "node": "rpm.arm",
+    "field": "frame_poses",
+    "index": 12,
+    "kind": "pose",
+    "thing": "rpm",
+    "name": "rpm.arm.link_2_logo",
+    "unit": "m; 1",
+    "space": "world"
+   },
+   {
+    "prim": "/World/rpm/arm/link_3",
+    "node": "rpm.arm",
+    "field": "frame_poses",
+    "index": 13,
+    "kind": "pose",
+    "thing": "rpm",
+    "name": "rpm.arm.link_3",
+    "unit": "m; 1",
+    "space": "world"
+   },
+   {
+    "prim": "/World/rpm/arm/link_3_aluminum",
+    "node": "rpm.arm",
+    "field": "frame_poses",
+    "index": 14,
+    "kind": "pose",
+    "thing": "rpm",
+    "name": "rpm.arm.link_3_aluminum",
+    "unit": "m; 1",
+    "space": "world"
+   },
+   {
+    "prim": "/World/rpm/arm/link_3_motor",
+    "node": "rpm.arm",
+    "field": "frame_poses",
+    "index": 15,
+    "kind": "pose",
+    "thing": "rpm",
+    "name": "rpm.arm.link_3_motor",
+    "unit": "m; 1",
+    "space": "world"
+   },
+   {
+    "prim": "/World/rpm/arm/link_4",
+    "node": "rpm.arm",
+    "field": "frame_poses",
+    "index": 16,
+    "kind": "pose",
+    "thing": "rpm",
+    "name": "rpm.arm.link_4",
+    "unit": "m; 1",
+    "space": "world"
+   },
+   {
+    "prim": "/World/rpm/arm/link_4_aluminum",
+    "node": "rpm.arm",
+    "field": "frame_poses",
+    "index": 17,
+    "kind": "pose",
+    "thing": "rpm",
+    "name": "rpm.arm.link_4_aluminum",
+    "unit": "m; 1",
+    "space": "world"
+   },
+   {
+    "prim": "/World/rpm/arm/link_4_motor",
+    "node": "rpm.arm",
+    "field": "frame_poses",
+    "index": 18,
+    "kind": "pose",
+    "thing": "rpm",
+    "name": "rpm.arm.link_4_motor",
+    "unit": "m; 1",
+    "space": "world"
+   },
+   {
+    "prim": "/World/rpm/arm/link_4_cover",
+    "node": "rpm.arm",
+    "field": "frame_poses",
+    "index": 19,
+    "kind": "pose",
+    "thing": "rpm",
+    "name": "rpm.arm.link_4_cover",
+    "unit": "m; 1",
+    "space": "world"
+   },
+   {
+    "prim": "/World/rpm/arm/link_4_logo",
+    "node": "rpm.arm",
+    "field": "frame_poses",
+    "index": 20,
+    "kind": "pose",
+    "thing": "rpm",
+    "name": "rpm.arm.link_4_logo",
+    "unit": "m; 1",
+    "space": "world"
+   },
+   {
+    "prim": "/World/rpm/arm/link_5",
+    "node": "rpm.arm",
+    "field": "frame_poses",
+    "index": 21,
+    "kind": "pose",
+    "thing": "rpm",
+    "name": "rpm.arm.link_5",
+    "unit": "m; 1",
+    "space": "world"
+   },
+   {
+    "prim": "/World/rpm/arm/link_5_aluminum",
+    "node": "rpm.arm",
+    "field": "frame_poses",
+    "index": 22,
+    "kind": "pose",
+    "thing": "rpm",
+    "name": "rpm.arm.link_5_aluminum",
+    "unit": "m; 1",
+    "space": "world"
+   },
+   {
+    "prim": "/World/rpm/arm/link_5_motor",
+    "node": "rpm.arm",
+    "field": "frame_poses",
+    "index": 23,
+    "kind": "pose",
+    "thing": "rpm",
+    "name": "rpm.arm.link_5_motor",
+    "unit": "m; 1",
+    "space": "world"
+   },
+   {
+    "prim": "/World/rpm/arm/link_6",
+    "node": "rpm.arm",
+    "field": "frame_poses",
+    "index": 24,
+    "kind": "pose",
+    "thing": "rpm",
+    "name": "rpm.arm.link_6",
+    "unit": "m; 1",
+    "space": "world"
+   },
+   {
+    "prim": "/World/rpm/arm/link_6_aluminum",
+    "node": "rpm.arm",
+    "field": "frame_poses",
+    "index": 25,
+    "kind": "pose",
+    "thing": "rpm",
+    "name": "rpm.arm.link_6_aluminum",
+    "unit": "m; 1",
+    "space": "world"
+   },
+   {
+    "prim": "/World/rpm/arm/ee_link",
+    "node": "rpm.arm",
+    "field": "frame_poses",
+    "index": 26,
+    "kind": "pose",
+    "thing": "rpm",
+    "name": "rpm.arm.ee_link",
+    "unit": "m; 1",
+    "space": "world"
+   },
+   {
+    "prim": "/World/rpm/motor/base",
+    "node": "rpm.motor",
+    "field": "frame_poses",
+    "index": 0,
+    "kind": "pose",
+    "thing": "rpm",
+    "name": "rpm.motor.base",
+    "unit": "m; 1",
+    "space": "world"
+   },
+   {
+    "prim": "/World/rpm/motor/rotor",
+    "node": "rpm.motor",
+    "field": "frame_poses",
+    "index": 1,
+    "kind": "pose",
+    "thing": "rpm",
+    "name": "rpm.motor.rotor",
+    "unit": "m; 1",
+    "space": "world"
+   },
+   {
+    "prim": "/World/rpm/magnetic/magnetic_torque_umr",
+    "node": "rpm.magnetic",
+    "field": "flux_density_magnetic_torque_umr",
+    "index": null,
+    "kind": "vector",
+    "thing": "rpm",
+    "name": "rpm.magnetic.magnetic_torque_umr",
+    "unit": "T",
+    "space": "world",
+    "at": {
+     "node": "umr",
+     "field": "pose"
+    }
+   }
+  ]
+ },
+ "topology": {
+  "format": "mime.topology/1",
+  "experiment": "script_a0",
+  "dt": 0.0005,
+  "nodes": [
+   {
+    "name": "rpm.magnetic",
+    "type": "PointDipoleNode",
+    "timestep": 0.0005,
+    "every": 1,
+    "owner": "rpm.magnetic",
+    "section": "provider",
+    "entry": {
+     "kind": "field provider",
+     "name": "point_dipole",
+     "version": "0.1.0",
+     "label": "point_dipole 0.1.0"
+    },
+    "thing": "rpm",
+    "params": {
+     "initial_mount_pose": [
+      5.7647783920200535e-05,
+      4.632606928023364e-05,
+      0.14992504759752973,
+      -0.18755478232630143,
+      -0.681994124526133,
+      -0.18691675701536628,
+      -0.681739938455439
+     ],
+     "magnet_radius": 0.020155644370746375,
+     "moment": [
+      18.89,
+      0.0,
+      0.0
+     ],
+     "mount_count": 2,
+     "mount_index": 1,
+     "placement": [
+      0.0,
+      0.0,
+      0.0,
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "slots": [
+      "magnetic_force_umr",
+      "magnetic_torque_umr"
+     ]
+    }
+   },
+   {
+    "name": "drag:umr",
+    "type": "SurrogateDragNode",
+    "timestep": 0.0005,
+    "every": 1,
+    "owner": "drag:umr",
+    "section": "interaction",
+    "entry": {
+     "kind": "interaction",
+     "name": "drag",
+     "version": "0.3.0",
+     "label": "drag 0.3.0 (rung surrogate)"
+    },
+    "thing": null,
+    "params": {
+     "helix_wavenumber": 2.33,
+     "length": 0.00747,
+     "lubrication_epsilon": 0.00015,
+     "outer_radius": 0.0020748000000000003,
+     "radius": 0.0015600000000000002,
+     "reference_point": "centre",
+     "vessel_axis": [
+      1.0,
+      0.0,
+      0.0
+     ],
+     "vessel_centre": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "vessel_radius": 0.00317499996162951,
+     "vessel_shape": "cylinder",
+     "viscosity": 0.001,
+     "weights": "dejongh_mlp_v2",
+     "weights_sha256": "ac1fca5c109fa3e2f27520cbd0ee1c0ce5e85ac31a0b1e93e7b8085c68f0a345"
+    }
+   },
+   {
+    "name": "gravity:umr",
+    "type": "GravityNode",
+    "timestep": 0.0005,
+    "every": 1,
+    "owner": "gravity:umr",
+    "section": "interaction",
+    "entry": {
+     "kind": "interaction",
+     "name": "gravity",
+     "version": "0.1.0",
+     "label": "gravity 0.1.0"
+    },
+    "thing": null,
+    "params": {
+     "buoyant_volume": 6.022068099805108e-08,
+     "centre_of_buoyancy": null,
+     "fluid_density": 1000.0,
+     "gravity": [
+      -0.0,
+      -0.0,
+      -9.81
+     ],
+     "mass": 8.491116020725203e-05
+    }
+   },
+   {
+    "name": "magnetic.force:umr",
+    "type": "MagneticForceNode",
+    "timestep": 0.0005,
+    "every": 1,
+    "owner": "magnetic.force:umr",
+    "section": "interaction",
+    "entry": {
+     "kind": "interaction",
+     "name": "magnetic.force",
+     "version": "0.1.0",
+     "label": "magnetic.force 0.1.0"
+    },
+    "thing": null,
+    "params": {
+     "magnet_centre": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "moment": [
+      0.0,
+      0.00168,
+      0.0
+     ]
+    }
+   },
+   {
+    "name": "magnetic.torque:umr",
+    "type": "MagneticTorqueNode",
+    "timestep": 0.0005,
+    "every": 1,
+    "owner": "magnetic.torque:umr",
+    "section": "interaction",
+    "entry": {
+     "kind": "interaction",
+     "name": "magnetic.torque",
+     "version": "0.1.0",
+     "label": "magnetic.torque 0.1.0"
+    },
+    "thing": null,
+    "params": {
+     "moment": [
+      0.0,
+      0.00168,
+      0.0
+     ]
+    }
+   },
+   {
+    "name": "umr",
+    "type": "RigidInertialNode",
+    "timestep": 0.0005,
+    "every": 1,
+    "owner": "umr",
+    "section": "dynamics",
+    "entry": {
+     "kind": "dynamics",
+     "name": "rigid_inertial",
+     "version": "0.2.0",
+     "label": "rigid_inertial 0.2.0"
+    },
+    "thing": "umr",
+    "params": {
+     "extent": 0.0020748000000000003,
+     "inertia": [
+      1.0331989974018431e-10,
+      1.0331989974018431e-10,
+      1.0331989974018431e-10
+     ],
+     "initial_pose": [
+      0.0,
+      0.0,
+      -0.001,
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "initial_twist": [
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "margin": 0.0001,
+     "mass": 8.491116020725203e-05,
+     "surface_axis": [
+      1.0,
+      0.0,
+      0.0
+     ],
+     "surface_centre": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "surface_radius": 0.003175,
+     "surface_shape": "cylinder",
+     "velocity_rule": "remove_outward"
+    }
+   },
+   {
+    "name": "rpm.arm",
+    "type": "KinematicArmNode",
+    "timestep": 0.0005,
+    "every": 1,
+    "owner": "rpm.arm",
+    "section": "dynamics",
+    "entry": {
+     "kind": "dynamics",
+     "name": "arm",
+     "version": "0.1.0",
+     "label": "arm 0.1.0 (rung kinematic)"
+    },
+    "thing": "rpm",
+    "params": {
+     "axes": [
+      0.0,
+      0.0,
+      1.0,
+      0.0,
+      0.0,
+      -1.0,
+      0.0,
+      0.0,
+      -1.0,
+      0.0,
+      0.0,
+      -1.0,
+      1.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      1.0
+     ],
+     "bounded": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5
+     ],
+     "dof_names": [
+      "joint_1",
+      "joint_2",
+      "joint_3",
+      "joint_4",
+      "joint_5",
+      "joint_6"
+     ],
+     "frame_bodies": [
+      -1,
+      -1,
+      -1,
+      -1,
+      -1,
+      0,
+      0,
+      0,
+      1,
+      1,
+      1,
+      1,
+      1,
+      2,
+      2,
+      2,
+      3,
+      3,
+      3,
+      3,
+      3,
+      4,
+      4,
+      4,
+      5,
+      5,
+      5
+     ],
+     "frame_names": [
+      "world",
+      "base_link",
+      "base_link_aluminum",
+      "base_link_enclosure",
+      "base_link_motor",
+      "link_1",
+      "link_1_aluminum",
+      "link_1_motor",
+      "link_2",
+      "link_2_aluminum",
+      "link_2_motor",
+      "link_2_cover",
+      "link_2_logo",
+      "link_3",
+      "link_3_aluminum",
+      "link_3_motor",
+      "link_4",
+      "link_4_aluminum",
+      "link_4_motor",
+      "link_4_cover",
+      "link_4_logo",
+      "link_5",
+      "link_5_aluminum",
+      "link_5_motor",
+      "link_6",
+      "link_6_aluminum",
+      "ee_link"
+     ],
+     "frame_rotations": [
+      1.0,
+      0.0,
+      0.0,
+      0.0,
+      1.0,
+      0.0,
+      0.0,
+      0.0,
+      1.0,
+      0.0,
+      0.0,
+      0.0,
+      1.0,
+      0.0,
+      0.0,
+      0.0,
+      1.0,
+      0.0,
+      0.0,
+      0.0,
+      1.0,
+      0.0,
+      0.0,
+      0.0,
+      1.0,
+      0.0,
+      0.0,
+      0.0,
+      1.0,
+      0.0,
+      0.0,
+      0.0,
+      1.0,
+      0.0,
+      0.0,
+      0.0,
+      1.0,
+      0.0,
+      0.0,
+      0.0,
+      1.0,
+      0.0,
+      0.0,
+      0.0,
+      1.0,
+      0.0,
+      0.0,
+      0.0,
+      1.0,
+      0.0,
+      0.0,
+      0.0,
+      1.0,
+      0.0,
+      0.0,
+      0.0,
+      1.0,
+      0.0,
+      0.0,
+      0.0,
+      1.0,
+      0.0,
+      0.0,
+      0.0,
+      1.0,
+      0.0,
+      0.0,
+      0.0,
+      1.0,
+      0.0,
+      0.0,
+      0.0,
+      1.0,
+      0.0,
+      0.0,
+      0.0,
+      1.0,
+      0.0,
+      0.0,
+      0.0,
+      1.0,
+      0.0,
+      0.0,
+      0.0,
+      1.0,
+      0.0,
+      0.0,
+      0.0,
+      1.0,
+      0.0,
+      0.0,
+      0.0,
+      1.0,
+      0.0,
+      0.0,
+      0.0,
+      1.0,
+      0.0,
+      0.0,
+      0.0,
+      1.0,
+      0.0,
+      0.0,
+      0.0,
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "frame_translations": [
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "initial_joint_positions": [
+      -0.02761,
+      0.23896,
+      -0.77475,
+      1.55611,
+      1.54628,
+      0.0
+     ],
+     "initial_mount_pose": [
+      0.0,
+      0.0,
+      0.0,
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "initial_mount_rate": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "lower": [
+      -2.792526803190927,
+      -0.7330382858376184,
+      -1.5533430342749532,
+      -3.141592653589793,
+      -1.8325957145940461,
+      -3.141592653589793
+     ],
+     "mount_count": 0,
+     "mount_index": -1,
+     "origin_rotations": [
+      6.123233995736766e-17,
+      1.0,
+      0.0,
+      0.0,
+      0.49999816339744835,
+      0.4999999999966269,
+      -0.5000018366025517,
+      -0.4999999999966269,
+      -3.6732051033465744e-06,
+      0.0,
+      0.0,
+      0.9999999999932538,
+      0.49999816339744835,
+      0.4999999999966269,
+      -0.5000018366025517,
+      -0.4999999999966269,
+      4.3297723290846517e-17,
+      0.7071054825112364,
+      -0.7071080798594737,
+      -4.3297882332556774e-17,
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "origin_translations": [
+      0.0,
+      0.0,
+      0.092,
+      0.0,
+      0.06415,
+      -0.07778,
+      0.0,
+      -0.305,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      -0.22294,
+      0.0,
+      0.0,
+      0.041
+     ],
+     "parents": [
+      -1,
+      0,
+      1,
+      2,
+      3,
+      4
+     ],
+     "placement": [
+      -0.05,
+      0.328,
+      -0.43,
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rates": false,
+     "revolute": [
+      true,
+      true,
+      true,
+      true,
+      true,
+      true
+     ],
+     "servo_time_constant": null,
+     "upper": [
+      2.792526803190927,
+      1.5707963267948966,
+      0.9075712110370514,
+      3.141592653589793,
+      1.8325957145940461,
+      3.141592653589793
+     ]
+    }
+   },
+   {
+    "name": "rpm.motor",
+    "type": "KinematicMotorNode",
+    "timestep": 0.0005,
+    "every": 1,
+    "owner": "rpm.motor",
+    "section": "dynamics",
+    "entry": {
+     "kind": "dynamics",
+     "name": "motor",
+     "version": "0.2.0",
+     "label": "motor 0.2.0 (rung kinematic)"
+    },
+    "thing": "rpm",
+    "params": {
+     "axis": [
+      0.0,
+      0.0,
+      1.0
+     ],
+     "initial_angle": 0.0,
+     "initial_mount_pose": [
+      5.7647783920200535e-05,
+      4.632606928023364e-05,
+      0.14992504759752973,
+      -0.18755478232630143,
+      -0.681994124526133,
+      -0.18691675701536628,
+      -0.681739938455439
+     ],
+     "initial_mount_rate": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "mount_count": 27,
+     "mount_index": 24,
+     "placement": [
+      0.0,
+      0.0,
+      0.0,
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "prescribed": "velocity",
+     "rates": false
+    }
+   },
+   {
+    "name": "swim_speed:umr",
+    "type": "SwimSpeedNode",
+    "timestep": 0.0005,
+    "every": 1,
+    "owner": "swim_speed:umr",
+    "section": "observation",
+    "entry": {
+     "kind": "observation",
+     "name": "swim_speed",
+     "version": "0.1.0",
+     "label": "swim_speed 0.1.0"
+    },
+    "thing": null,
+    "params": {
+     "after": 0.0,
+     "along": [
+      1.0,
+      0.0,
+      0.0
+     ]
+    }
+   },
+   {
+    "name": "drive:rpm.motor.velocity",
+    "type": "ConstantNode",
+    "timestep": 0.0005,
+    "every": 1,
+    "owner": "drive:rpm.motor.velocity",
+    "section": "drive",
+    "entry": {
+     "kind": "drive",
+     "name": "drive.constant",
+     "version": "0.1.0",
+     "label": "drive.constant 0.1.0"
+    },
+    "thing": "rpm",
+    "params": {
+     "value": 18.84955592153876
+    }
+   }
+  ],
+  "edges": [
+   {
+    "source_node": "rpm.motor",
+    "source_field": "frame_poses",
+    "target_node": "rpm.magnetic",
+    "target_field": "mount_poses",
+    "additive": false,
+    "source_units": "m; 1",
+    "target_units": "m; 1",
+    "reads": "this step"
+   },
+   {
+    "source_node": "umr",
+    "source_field": "pose",
+    "target_node": "rpm.magnetic",
+    "target_field": "points_magnetic_force_umr",
+    "additive": false,
+    "source_units": "m; 1",
+    "target_units": "m; 1",
+    "reads": "previous step"
+   },
+   {
+    "source_node": "umr",
+    "source_field": "pose",
+    "target_node": "rpm.magnetic",
+    "target_field": "points_magnetic_torque_umr",
+    "additive": false,
+    "source_units": "m; 1",
+    "target_units": "m; 1",
+    "reads": "previous step"
+   },
+   {
+    "source_node": "umr",
+    "source_field": "pose",
+    "target_node": "drag:umr",
+    "target_field": "pose",
+    "additive": false,
+    "source_units": "m; 1",
+    "target_units": "m; 1",
+    "reads": "previous step"
+   },
+   {
+    "source_node": "rpm.magnetic",
+    "source_field": "gradient_magnetic_force_umr",
+    "target_node": "magnetic.force:umr",
+    "target_field": "gradient",
+    "additive": false,
+    "source_units": "T/m",
+    "target_units": "T/m",
+    "reads": "this step"
+   },
+   {
+    "source_node": "umr",
+    "source_field": "pose",
+    "target_node": "magnetic.force:umr",
+    "target_field": "pose",
+    "additive": false,
+    "source_units": "m; 1",
+    "target_units": "m; 1",
+    "reads": "previous step"
+   },
+   {
+    "source_node": "rpm.magnetic",
+    "source_field": "flux_density_magnetic_torque_umr",
+    "target_node": "magnetic.torque:umr",
+    "target_field": "flux_density",
+    "additive": false,
+    "source_units": "T",
+    "target_units": "T",
+    "reads": "this step"
+   },
+   {
+    "source_node": "umr",
+    "source_field": "pose",
+    "target_node": "magnetic.torque:umr",
+    "target_field": "pose",
+    "additive": false,
+    "source_units": "m; 1",
+    "target_units": "m; 1",
+    "reads": "previous step"
+   },
+   {
+    "source_node": "gravity:umr",
+    "source_field": "wrench",
+    "target_node": "umr",
+    "target_field": "applied_wrench",
+    "additive": true,
+    "source_units": "N; N m",
+    "target_units": "N; N m",
+    "reads": "this step"
+   },
+   {
+    "source_node": "magnetic.force:umr",
+    "source_field": "wrench",
+    "target_node": "umr",
+    "target_field": "applied_wrench",
+    "additive": true,
+    "source_units": "N; N m",
+    "target_units": "N; N m",
+    "reads": "this step"
+   },
+   {
+    "source_node": "magnetic.torque:umr",
+    "source_field": "wrench",
+    "target_node": "umr",
+    "target_field": "applied_wrench",
+    "additive": true,
+    "source_units": "N; N m",
+    "target_units": "N; N m",
+    "reads": "this step"
+   },
+   {
+    "source_node": "drag:umr",
+    "source_field": "background_load",
+    "target_node": "umr",
+    "target_field": "background_load",
+    "additive": true,
+    "source_units": "N; N m",
+    "target_units": "N; N m",
+    "reads": "this step"
+   },
+   {
+    "source_node": "drag:umr",
+    "source_field": "resistance",
+    "target_node": "umr",
+    "target_field": "resistance",
+    "additive": true,
+    "source_units": "N s/m; N s; N m s",
+    "target_units": "N s/m; N s; N m s",
+    "reads": "this step"
+   },
+   {
+    "source_node": "rpm.arm",
+    "source_field": "frame_poses",
+    "target_node": "rpm.motor",
+    "target_field": "mount_poses",
+    "additive": false,
+    "source_units": "m; 1",
+    "target_units": "m; 1",
+    "reads": "this step"
+   },
+   {
+    "source_node": "drive:rpm.motor.velocity",
+    "source_field": "value",
+    "target_node": "rpm.motor",
+    "target_field": "velocity",
+    "additive": false,
+    "source_units": "Hz",
+    "target_units": "Hz",
+    "reads": "this step"
+   },
+   {
+    "source_node": "umr",
+    "source_field": "twist",
+    "target_node": "swim_speed:umr",
+    "target_field": "twist",
+    "additive": false,
+    "source_units": "m/s; rad/s",
+    "target_units": "m/s; rad/s",
+    "reads": "this step"
+   }
+  ],
+  "coupling_groups": [],
+  "external_inputs": [
+   {
+    "node": "rpm.arm",
+    "field": "joint_positions",
+    "shape": [
+     6
+    ],
+    "dtype": "float32"
+   }
+  ],
+  "controller": {
+   "entry": "arm_tracking 0.1.0",
+   "mode": "callback",
+   "every": 20,
+   "latency": 0,
+   "reads": {
+    "body_pose": "umr.pose",
+    "body_twist": "umr.twist",
+    "joint_positions": "rpm.arm.joint_positions"
+   },
+   "writes": {
+    "joint_positions": "rpm.arm.joint_positions"
+   },
+   "live": {
+    "offset": {
+     "units": "m",
+     "shape": [],
+     "meaning": "moves the point the magnet is held above along the axis, ahead of the body (towards +axis) or behind it, the point still held within reach"
+    }
+   }
+  }
+ },
+ "schema": {
+  "id": 2645518914,
+  "frame_bytes": 900,
+  "header_bytes": 32,
+  "byte_order": "little",
+  "fields": [
+   {
+    "path": "umr.pose",
+    "node": "umr",
+    "field": "pose",
+    "shape": [
+     7
+    ],
+    "dtype": "<f4",
+    "unit": "m; 1",
+    "offset": 0
+   },
+   {
+    "path": "rpm.arm.frame_poses",
+    "node": "rpm.arm",
+    "field": "frame_poses",
+    "shape": [
+     27,
+     7
+    ],
+    "dtype": "<f4",
+    "unit": "m; 1",
+    "offset": 28
+   },
+   {
+    "path": "rpm.motor.frame_poses",
+    "node": "rpm.motor",
+    "field": "frame_poses",
+    "shape": [
+     2,
+     7
+    ],
+    "dtype": "<f4",
+    "unit": "m; 1",
+    "offset": 784
+   },
+   {
+    "path": "rpm.magnetic.flux_density_magnetic_torque_umr",
+    "node": "rpm.magnetic",
+    "field": "flux_density_magnetic_torque_umr",
+    "shape": [
+     3
+    ],
+    "dtype": "<f4",
+    "unit": "T",
+    "offset": 840
+   },
+   {
+    "path": "swim_speed:umr.speed",
+    "node": "swim_speed:umr",
+    "field": "speed",
+    "shape": [],
+    "dtype": "<f4",
+    "unit": "m/s",
+    "offset": 852
+   },
+   {
+    "path": "drag:umr.clamp_fired",
+    "node": "drag:umr",
+    "field": "clamp_fired",
+    "shape": [],
+    "dtype": "<f4",
+    "unit": "1",
+    "offset": 856
+   },
+   {
+    "path": "drag:umr.tilt_fired",
+    "node": "drag:umr",
+    "field": "tilt_fired",
+    "shape": [],
+    "dtype": "<f4",
+    "unit": "1",
+    "offset": 860
+   },
+   {
+    "path": "drag:umr.bore_fired",
+    "node": "drag:umr",
+    "field": "bore_fired",
+    "shape": [],
+    "dtype": "<f4",
+    "unit": "1",
+    "offset": 864
+   }
+  ]
+ },
+ "commands": [
+  "hello",
+  "status",
+  "start",
+  "pause",
+  "step",
+  "stop",
+  "set",
+  "record",
+  "pace"
+ ],
+ "state": "ready",
+ "step": 0,
+ "time": 0.0,
+ "frames": 0,
+ "pace": 1.0,
+ "recording": false,
+ "non_finite": null
+}

@@ -60,16 +60,28 @@ void SettingsDialog::createGeneralTab(QTabWidget* tabs) {
     dirLayout->addWidget(browseBtn);
     form->addRow(tr("Default experiment directory:"), dirLayout);
 
-    // ZMQ ports
-    zmqPubPort_ = new QSpinBox(page);
-    zmqPubPort_->setRange(1024, 65535);
-    zmqPubPort_->setValue(5556);
-    form->addRow(tr("ZMQ PUB port:"), zmqPubPort_);
+    // MIME 0.3: the command that serves a saved experiment live, and where
+    // its sessions' run folders go.
+    mimeCommand_ = new QLineEdit(page);
+    mimeCommand_->setPlaceholderText(QStringLiteral("mime"));
+    mimeCommand_->setToolTip(
+        tr("The `mime` command (MIME 0.3), or its full path, such as\n"
+           "<MIME checkout>/.venv/bin/mime. MICROROBOTICA_MIME overrides it."));
+    form->addRow(tr("MIME command:"), mimeCommand_);
 
-    zmqReqPort_ = new QSpinBox(page);
-    zmqReqPort_->setRange(1024, 65535);
-    zmqReqPort_->setValue(5555);
-    form->addRow(tr("ZMQ REQ port:"), zmqReqPort_);
+    auto* runsLayout = new QHBoxLayout;
+    runsDir_ = new QLineEdit(page);
+    runsLayout->addWidget(runsDir_);
+    auto* runsBrowse = new QPushButton(tr("..."), page);
+    runsBrowse->setFixedWidth(30);
+    connect(runsBrowse, &QPushButton::clicked, this, [this]() {
+        QString dir = QFileDialog::getExistingDirectory(this, tr("Run Folders"), runsDir_->text());
+        if (!dir.isEmpty()) runsDir_->setText(dir);
+    });
+    runsLayout->addWidget(runsBrowse);
+    runsDir_->setToolTip(tr("Where each live session writes its run folder\n"
+                            "(its experiment, command log, outputs, recording)."));
+    form->addRow(tr("Run folders:"), runsLayout);
 
     // ── Notices: viewport overlay shown for long-running background state
     // (waiting on the MIME runner, decode errors, ...). Style is inspired
@@ -195,8 +207,10 @@ void SettingsDialog::loadSettings() {
     QSettings s;
     s.beginGroup("general");
     defaultExperimentDir_->setText(s.value("default_experiment_dir").toString());
-    zmqPubPort_->setValue(s.value("zmq_pub_port", 5556).toInt());
-    zmqReqPort_->setValue(s.value("zmq_req_port", 5555).toInt());
+    s.endGroup();
+    s.beginGroup("mime");
+    mimeCommand_->setText(s.value("command").toString());
+    runsDir_->setText(s.value("runs_dir", QDir::homePath() + "/MICROROBOTICA/runs").toString());
     s.endGroup();
 
     s.beginGroup("notices");
@@ -242,8 +256,10 @@ void SettingsDialog::saveSettings() {
     QSettings s;
     s.beginGroup("general");
     s.setValue("default_experiment_dir", defaultExperimentDir_->text());
-    s.setValue("zmq_pub_port", zmqPubPort_->value());
-    s.setValue("zmq_req_port", zmqReqPort_->value());
+    s.endGroup();
+    s.beginGroup("mime");
+    s.setValue("command", mimeCommand_->text().trimmed());
+    s.setValue("runs_dir", runsDir_->text().trimmed());
     s.endGroup();
 
     s.beginGroup("notices");

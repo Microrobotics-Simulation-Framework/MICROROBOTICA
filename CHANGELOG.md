@@ -14,7 +14,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   run scripts pass the host's render nodes (never an NVIDIA GPU's) instead of `--gpus all` (`scripts/render-args.sh`;
   `MICROROBOTICA_RENDER=llvmpipe` forces software). `MICROROBOTICA_MSAA` overrides the 4x multisampling.
 
+### Fixed
+
+- **A stage's units and up axis survive the session layer**: `metersPerUnit` and `upAxis` are mirrored from the opened
+  file onto the anonymous session layer, as the time codes are; the composed stage read USD's fallbacks (centimetres,
+  Y up) before.
+
 ### Removed
+
+- **The parameter panel** and its `{"command": "params"}`: a MIME 0.3 session changes only its controller's declared
+  live inputs (`set`); a physical setting is a rebuild.
 
 - **MIME 0.2's experiment form**: the in-repository `experiments/` (A0 as a MIME 0.3 saved folder is the reference
   experiment now), `ExperimentLoader` (MBCA-COMP-060) and `experiment.yaml`/`experiment.json`, the `physics/params.py`
@@ -30,6 +39,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Live sessions of MIME 0.3 experiments** (`mime.live/1`, MIME's `mime serve`): Launch on an opened saved experiment
+  spawns `mime serve` (Settings → MIME command, or `MICROROBOTICA_MIME`) and connects once its ready file appears;
+  Manual endpoint connects to a session already serving (a remote one through an SSH tunnel). `hello` gives the stage
+  (opened, with MIME's visuals overlay when the asset cache has one; what is missing said otherwise), the stage
+  binding (each frame's poses on their prims, in the stage's units; field vectors as arrows), the topology (the graph
+  inspector) and the controller's live inputs. Start, pause, stop, Step (F8) and Record are the protocol's commands;
+  Stop names the run folder the session wrote. `src/live/` (MBCA-IMPL-013); tests against messages captured from a
+  real `mime serve` (MBCA-VER-014, -015) and a live frame on a millimetre stage (MBCA-VER-016); an opt-in test against
+  a running `mime serve` (`MICROROBOTICA_LIVE_READY`).
+- **Live-inputs panel** (replaces the parameter panel): the controller's declared live inputs, editable and sent with
+  `set`; the experiment's settings read-only from its lock; "Rebuild from the saved folder".
+- **Graph inspector on MIME 0.3's topology**: nodes coloured by their entry's kind, tooltips with entries, settings,
+  units and when each edge reads.
+- **Command line**: `microbotica [folder or USD file] [--launch] [--quit-after <seconds>]`.
 - **MIME's coded errors in the console** (MimeConsolePanel, MBCA-COMP-042): MIME 0.3's errors, read from the MIME
   process's stderr or a live-protocol reply's `errors`, are shown in their shape: each reason's class (coloured by
   who can act on it), code, what happened, why, what to do, where, and its documentation page as a link

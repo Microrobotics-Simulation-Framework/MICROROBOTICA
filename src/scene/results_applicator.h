@@ -79,6 +79,8 @@ private:
     struct CachedOps {
         UsdGeomXformOp translateOp;
         UsdGeomXformOp orientOp;
+        UsdGeomXformOp scaleOp;  // found, or added on the first uniform scale
+        UsdPrim prim;
         bool valid = false;
     };
     std::unordered_map<std::string, std::unique_ptr<CachedOps>> opsCache_;

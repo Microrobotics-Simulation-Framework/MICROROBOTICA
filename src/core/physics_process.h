@@ -80,6 +80,11 @@ public:
     /// bytes/frame, decode latency). Default is all-zeros for backends
     /// that do not stream over a wire (e.g. stubs). Thread-safe.
     virtual StreamStats streamStats() const { return {}; }
+
+    /// True when the backend itself stops producing frames while paused (a
+    /// live session pauses at its source). The controller then keeps
+    /// receiving while paused, so a frame sent then (a step) is shown.
+    virtual bool pausesItself() const { return false; }
 };
 
 } // namespace microbotica::core

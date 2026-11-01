@@ -30,6 +30,29 @@ RunConfigPanel::RunConfigPanel(QWidget* parent)
            "example a remote one through an SSH tunnel."));
     form->addRow(tr("Mode:"), modeCombo_);
 
+    // Manual endpoint: where a session already serving takes commands and
+    // sends frames (mime serve's defaults; through an SSH tunnel for a remote
+    // one: ssh -L 5555:localhost:5555 -L 5556:localhost:5556 <host>).
+    commandsEdit_ = new QLineEdit(QStringLiteral("tcp://127.0.0.1:5555"), container);
+    commandsEdit_->setToolTip(tr("The session's commands endpoint (mime serve --commands)."));
+    commandsLabel_ = new QLabel(tr("Commands:"), container);
+    form->addRow(commandsLabel_, commandsEdit_);
+    framesEdit_ = new QLineEdit(QStringLiteral("tcp://127.0.0.1:5556"), container);
+    framesEdit_->setToolTip(tr("The session's frames endpoint (mime serve --frames)."));
+    framesLabel_ = new QLabel(tr("Frames:"), container);
+    form->addRow(framesLabel_, framesEdit_);
+    auto showEndpoints = [this]() {
+        const bool manual = modeCombo_->currentData().toInt()
+            == static_cast<int>(connection::ConnectionMode::Manual);
+        for (QWidget* w : {static_cast<QWidget*>(commandsLabel_), static_cast<QWidget*>(commandsEdit_),
+                           static_cast<QWidget*>(framesLabel_), static_cast<QWidget*>(framesEdit_)}) {
+            w->setVisible(manual);
+        }
+    };
+    showEndpoints();
+    connect(modeCombo_, QOverload<int>::of(&QComboBox::currentIndexChanged), this,
+            [showEndpoints](int) { showEndpoints(); });
+
     // Experiment directory
     auto* dirLayout = new QHBoxLayout;
     experimentDirEdit_ = new QLineEdit(container);
@@ -87,6 +110,14 @@ void RunConfigPanel::setExperimentDir(const std::string& path) {
     // QLineEdit::setText here triggers Qt's built-in textChanged but not
     // our custom signal, so this does not re-enter initExperiment.
     experimentDirEdit_->setText(QString::fromStdString(path));
+}
+
+std::string RunConfigPanel::commandsEndpoint() const {
+    return commandsEdit_->text().trimmed().toStdString();
+}
+
+std::string RunConfigPanel::framesEndpoint() const {
+    return framesEdit_->text().trimmed().toStdString();
 }
 
 void RunConfigPanel::setConnectionStatus(const QString& status) {

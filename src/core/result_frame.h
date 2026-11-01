@@ -44,6 +44,10 @@ struct ResultFrame {
     std::unordered_map<std::string, Quatf> orientations;
     std::unordered_map<std::string, double> scalars;
     std::unordered_map<std::string, MeshData> meshes;
+    /// Uniform scale by actor (a field vector's arrow: its length).
+    std::unordered_map<std::string, double> scales;
+    /// Visibility by actor: true shows the prim (visibility "inherited"), false hides it ("invisible").
+    std::unordered_map<std::string, bool> visibility;
 };
 
 // Custom to_json/from_json for backward-compatible serialization.
@@ -55,7 +59,9 @@ inline void to_json(nlohmann::json& j, const ResultFrame& f) {
         {"positions", f.positions},
         {"orientations", f.orientations},
         {"scalars", f.scalars},
-        {"meshes", f.meshes}
+        {"meshes", f.meshes},
+        {"scales", f.scales},
+        {"visibility", f.visibility}
     };
 }
 
@@ -68,6 +74,12 @@ inline void from_json(const nlohmann::json& j, ResultFrame& f) {
     }
     if (j.contains("meshes")) {
         j.at("meshes").get_to(f.meshes);
+    }
+    if (j.contains("scales")) {
+        j.at("scales").get_to(f.scales);
+    }
+    if (j.contains("visibility")) {
+        j.at("visibility").get_to(f.visibility);
     }
 }
 

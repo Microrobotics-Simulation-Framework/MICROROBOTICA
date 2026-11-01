@@ -23,48 +23,51 @@ ExperimentRunner::~ExperimentRunner() {
     stop();
 }
 
-bool ExperimentRunner::start(const std::string& experiment_dir,
-                              const std::string& stream_format,
-                              int publish_fps) {
+QStringList ExperimentRunner::serveArguments(const ServeCommand& command) {
+    QStringList args;
+    args << QStringLiteral("serve") << command.folder
+         << QStringLiteral("--commands") << QStringLiteral("tcp://127.0.0.1:0")
+         << QStringLiteral("--frames") << QStringLiteral("tcp://127.0.0.1:0");
+    if (!command.readyFile.isEmpty()) {
+        args << QStringLiteral("--ready-file") << command.readyFile;
+    }
+    if (!command.out.isEmpty()) {
+        args << QStringLiteral("--out") << command.out;
+    }
+    if (command.jsonFrames) {
+        args << QStringLiteral("--json-frames");
+    }
+    return args;
+}
+
+bool ExperimentRunner::startServe(const ServeCommand& command) {
     if (process_ && process_->state() != QProcess::NotRunning) {
         spdlog::warn("ExperimentRunner: Process already running — stop it first");
         return false;
     }
+    if (process_) {
+        process_->deleteLater();
+        process_ = nullptr;
+    }
 
     intentional_stop_ = false;
     status_ = RunnerStatus::Starting;
-
     process_ = new QProcess(this);
 
-    // Inherit the parent environment; layer on the runner-tweaking env
-    // vars when the UI has requested a non-default value. We only call
-    // setProcessEnvironment() if we're actually changing something, so
-    // the default-everything path stays cost-free.
-    const bool wantStreamFormat = !stream_format.empty();
-    const bool wantPublishFps   = (publish_fps > 0);
-    if (wantStreamFormat || wantPublishFps) {
-        QProcessEnvironment env = QProcessEnvironment::systemEnvironment();
-        if (wantStreamFormat) {
-            env.insert("MIME_STREAM_FORMAT",
-                       QString::fromStdString(stream_format));
-            spdlog::info("ExperimentRunner: requesting MIME_STREAM_FORMAT={}",
-                         stream_format);
-        }
-        if (wantPublishFps) {
-            env.insert("MIME_PUBLISH_FPS",
-                       QString::number(publish_fps));
-            spdlog::info("ExperimentRunner: requesting MIME_PUBLISH_FPS={}",
-                         publish_fps);
-        }
-        process_->setProcessEnvironment(env);
+    // JAX on the CPU unless the user's environment says otherwise: MIME 0.3
+    // runs there by default, and a GPU must be chosen, never stumbled on.
+    QProcessEnvironment env = QProcessEnvironment::systemEnvironment();
+    if (!env.contains(QStringLiteral("JAX_PLATFORMS"))) {
+        env.insert(QStringLiteral("JAX_PLATFORMS"), QStringLiteral("cpu"));
     }
+    env.insert(QStringLiteral("PYTHONUNBUFFERED"), QStringLiteral("1"));  // the console sees lines as they come
+    process_->setProcessEnvironment(env);
 
     connect(process_,
             QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
             this, &ExperimentRunner::onProcessFinished);
     connect(process_, &QProcess::started,
             this, &ExperimentRunner::onProcessStarted);
-
     // Forward stdout/stderr to anyone listening (MimeConsolePanel).
     connect(process_, &QProcess::readyReadStandardOutput, this, [this]() {
         Q_EMIT stdoutChunk(process_->readAllStandardOutput());
@@ -73,22 +76,18 @@ bool ExperimentRunner::start(const std::string& experiment_dir,
         Q_EMIT stderrChunk(process_->readAllStandardError());
     });
 
-    QStringList args;
-    args << "-u"  // unbuffered so the panel sees output line-by-line
-         << "-m" << "mime.runner" << QString::fromStdString(experiment_dir);
-
-    spdlog::info("ExperimentRunner: Launching MIME runner for {}", experiment_dir);
-    process_->start("python3", args);
-
+    const QStringList args = serveArguments(command);
+    spdlog::info("ExperimentRunner: {} {}", command.program.toStdString(),
+                 args.join(QLatin1Char(' ')).toStdString());
+    process_->start(command.program, args);
     if (!process_->waitForStarted(10000)) {
-        spdlog::error("ExperimentRunner: Failed to start MIME runner: {}",
-                       process_->errorString().toStdString());
+        spdlog::error("ExperimentRunner: could not start {}: {}", command.program.toStdString(),
+                      process_->errorString().toStdString());
         status_ = RunnerStatus::Crashed;
         delete process_;
         process_ = nullptr;
         return false;
     }
-
     return true;
 }
 
@@ -98,12 +97,16 @@ void ExperimentRunner::stop() {
     }
 
     intentional_stop_ = true;
-    spdlog::info("ExperimentRunner: Stopping MIME runner");
-    process_->terminate();
+    spdlog::info("ExperimentRunner: Stopping the MIME process");
+    // After a `stop` command, mime serve writes its run folder and exits on
+    // its own; SIGTERM makes it do the same; only then, kill.
     if (!process_->waitForFinished(5000)) {
-        spdlog::warn("ExperimentRunner: MIME runner did not terminate — killing");
-        process_->kill();
-        process_->waitForFinished(3000);
+        process_->terminate();
+        if (!process_->waitForFinished(15000)) {
+            spdlog::warn("ExperimentRunner: the MIME process did not stop — killing");
+            process_->kill();
+            process_->waitForFinished(3000);
+        }
     }
     status_ = RunnerStatus::Stopped;
 }

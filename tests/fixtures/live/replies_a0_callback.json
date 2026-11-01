@@ -1,0 +1,131 @@
+{
+ "status": {
+  "protocol": "mime.live/1",
+  "ok": true,
+  "command": "status",
+  "state": "ready",
+  "step": 0,
+  "time": 0.0,
+  "frames": 0,
+  "pace": 1.0,
+  "recording": false,
+  "non_finite": null
+ },
+ "step": {
+  "protocol": "mime.live/1",
+  "ok": true,
+  "command": "step",
+  "state": "paused",
+  "step": 120,
+  "time": 0.06,
+  "frames": 4,
+  "pace": 1.0,
+  "recording": false,
+  "non_finite": null
+ },
+ "set": {
+  "protocol": "mime.live/1",
+  "ok": true,
+  "command": "set",
+  "state": "paused",
+  "step": 120,
+  "time": 0.06,
+  "frames": 4,
+  "pace": 1.0,
+  "recording": false,
+  "non_finite": null
+ },
+ "set_refused": {
+  "protocol": "mime.live/1",
+  "ok": false,
+  "command": "set",
+  "errors": [
+   {
+    "code": "live.input-unknown",
+    "class": "user",
+    "message": "the controller arm_tracking 0.1.0 has no live input 'gain'; its live inputs are offset",
+    "why": "a live session changes only what the controller declares live; a physical setting is a rebuild",
+    "action": "set one it declares: session.set(<label>, value), a label of Controller.live",
+    "where": null,
+    "page": "https://microrobotica.org/mime/0.3.0/pages/errors/live.input-unknown"
+   }
+  ]
+ },
+ "unknown_refused": {
+  "protocol": "mime.live/1",
+  "ok": false,
+  "command": "jump",
+  "errors": [
+   {
+    "code": "live.command",
+    "class": "user",
+    "message": "no command 'jump'; the commands are hello, status, start, pause, step, stop, set, record, pace",
+    "why": null,
+    "action": "send one of them: `{\"command\": \"hello\"}`",
+    "where": null,
+    "page": "https://microrobotica.org/mime/0.3.0/pages/errors/live.command"
+   }
+  ]
+ },
+ "record_on": {
+  "protocol": "mime.live/1",
+  "ok": true,
+  "command": "record",
+  "state": "paused",
+  "step": 120,
+  "time": 0.06,
+  "frames": 4,
+  "pace": 1.0,
+  "recording": true,
+  "non_finite": null
+ },
+ "start": {
+  "protocol": "mime.live/1",
+  "ok": true,
+  "command": "start",
+  "state": "running",
+  "step": 120,
+  "time": 0.06,
+  "frames": 4,
+  "pace": 1.0,
+  "recording": true,
+  "non_finite": null
+ },
+ "pause": {
+  "protocol": "mime.live/1",
+  "ok": true,
+  "command": "pause",
+  "state": "paused",
+  "step": 160,
+  "time": 0.08,
+  "frames": 5,
+  "pace": 1.0,
+  "recording": true,
+  "non_finite": null
+ },
+ "pace": {
+  "protocol": "mime.live/1",
+  "ok": true,
+  "command": "pace",
+  "state": "paused",
+  "step": 160,
+  "time": 0.08,
+  "frames": 5,
+  "pace": null,
+  "recording": true,
+  "non_finite": null
+ },
+ "stop": {
+  "protocol": "mime.live/1",
+  "ok": true,
+  "command": "stop",
+  "folder": "/data/runs/script_a0-live",
+  "state": "stopped",
+  "step": 160,
+  "time": 0.08,
+  "frames": 6,
+  "pace": null,
+  "recording": true,
+  "non_finite": null
+ }
+}

@@ -48,8 +48,8 @@ private:
 
     // General tab
     QLineEdit* defaultExperimentDir_ = nullptr;
-    QSpinBox* zmqPubPort_ = nullptr;
-    QSpinBox* zmqReqPort_ = nullptr;
+    QLineEdit* mimeCommand_ = nullptr;
+    QLineEdit* runsDir_ = nullptr;
 
     // Notices group (in General tab)
     QCheckBox* showNotices_ = nullptr;

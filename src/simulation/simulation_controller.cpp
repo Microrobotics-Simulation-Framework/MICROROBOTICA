@@ -231,7 +231,7 @@ void SimulationController::workerFunction() {
             // When paused, sleep instead of producing frames.
             // This freezes sim time because the physics process
             // isn't called and no frames are generated.
-            if (paused_.load()) {
+            if (paused_.load() && !physics_->pausesItself()) {
                 std::this_thread::sleep_for(std::chrono::milliseconds(50));
                 continue;
             }

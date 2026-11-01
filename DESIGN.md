@@ -243,3 +243,42 @@ repaints 6-12 ms, the demo's 36-43 ms.
 **Files**: `src/viewport/gl_requirements.h`, `src/viewport/storm_renderer.cpp`,
 `src/viewport/local_viewport.cpp`, `src/viewport/viewport_widget.cpp`,
 `scripts/render-args.sh`, `tests/screenshot/`
+
+---
+
+## D12: MIME 0.3's Live Sessions Through One Isolated Protocol Layer
+
+**Decision**: MICROROBOTICA runs a MIME 0.3 experiment live by spawning
+`mime serve <saved folder>` (or connecting to one) and speaking `mime.live/1`.
+Every message shape of that protocol lives in `src/live/live_protocol.*` and
+nowhere else; the transport (`LiveClient`), the stage mapping (`BindingFrames`)
+and the scene pipeline (`LivePhysicsProcess` → `SimulationController` →
+`ResultsApplicator`) see only its parsed types.
+
+**Rationale**: MIME's side (its PR #86) was still in its fix round when this
+was written: field names, refusals and notice texts could change. One layer,
+tested against messages captured from a real `mime serve`
+(`tests/fixtures/live/`, `scripts/capture_live_fixtures.py`), keeps such a
+change to one file and its test. Parsing is tolerant within the major version,
+as the protocol asks: unknown fields are ignored.
+
+**Stage binding, not actor maps**: MIME names the prim each state field moves
+(`hello.binding`), every bound prim placed in the world, so a pose is applied
+as it stands. MIME's frames are in metres; positions are divided by the
+stage's `metersPerUnit`, which the session layer now mirrors from the opened
+file (as it mirrors the time codes, D1).
+
+**Readiness from the ready file and hello**, not port polling: `mime serve
+--ready-file` names its endpoints once its sockets listen; `hello` describes
+the session. The frames socket's handshake is awaited before `hello`, so a
+`step` right after connecting keeps its frames.
+
+**Measured** (A0, this laptop, CPU): a session through the app, 910 frames of
+900 bytes in about 22 s, none dropped, decode about 35 µs, scene apply about
+380 µs a frame.
+
+**Status**: Implemented against MIME PR #86's head (`3136fb1`).
+
+**Files**: `src/live/`, `src/app/main_window.cpp`, `src/panels/live_inputs_panel.cpp`,
+`tests/test_live_protocol.cpp`, `tests/test_live_client.cpp`, `tests/test_live_mime_serve.cpp`,
+`tests/verification/test_live_stage.cpp`

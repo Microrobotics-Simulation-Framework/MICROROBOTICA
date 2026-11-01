@@ -1,0 +1,6 @@
+{
+ "protocol": "mime.live/1",
+ "commands": "tcp://127.0.0.1:33683",
+ "frames": "tcp://127.0.0.1:33629",
+ "out": "/data/runs/script_a0-live"
+}

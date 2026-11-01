@@ -47,8 +47,35 @@ A run folder that `run_to(..., stage_every=...)` or
 stage. **File → Open USD Scene** → `recording.usdc` plays it on the
 timeline: scrub, play, pause and loop.
 
-Running a saved experiment live, through MIME 0.3's `mime serve`, comes
-with MICROROBOTICA's client for its `mime.live/1` protocol.
+## Run a saved experiment live
+
+With a saved experiment open, **Launch** (Run Configuration, mode Local)
+runs `mime serve <folder>` and connects to it (MIME's `mime.live/1`
+protocol). Name the `mime` command in **File → Settings → MIME command**
+when it is not on `PATH` (for example `<MIME checkout>/.venv/bin/mime`), or
+set `MICROROBOTICA_MIME`.
+
+- The viewport moves the stage's prims as MIME's stage binding says, in the
+  stage's units; a field vector draws as an arrow at the body.
+- **Pause**, **Start**, **Simulation → Step One Chunk** (F8) and
+  **Simulation → Record** act on the session; **Stop** ends it, and the
+  status bar names the run folder it wrote (under **Settings → Run
+  folders**): its experiment, command log, outputs and, when recorded,
+  `recording.usdc`.
+- The **Live Inputs** panel lists what the controller declares settable
+  live (A0 called back: `offset`, metres along the tube), sent with **Set**;
+  the experiment's settings are shown read-only, since changing one is a
+  rebuild.
+- The **Graph Inspector** shows the built graph (`topology()`), and the
+  **MIME Output** panel shows `mime serve`'s output and any refusal in
+  MIME's shape.
+- A remote session: run `mime serve` there, open an SSH tunnel
+  (`ssh -L 5555:localhost:5555 -L 5556:localhost:5556 <host>`), open the
+  same saved experiment here, and connect with mode **Manual endpoint**.
+
+The AR4's meshes are Annin Robotics' design and are never shipped: the arm
+draws as simple shapes until `mime visuals fetch ar4_mk5` puts them in
+MIME's asset cache, from which the session's overlay draws them.
 
 ## The viewport needs no NVIDIA GPU
 

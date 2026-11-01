@@ -130,6 +130,10 @@ target_sources(microbotica PRIVATE
     src/mime_adapter/mime_physics_process.cpp
     src/mime_adapter/binary_frame_decoder.cpp
     src/mime_adapter/mime_stub_physics_process.cpp
+    src/live/live_protocol.cpp
+    src/live/binding_frames.cpp
+    src/live/live_client.cpp
+    src/live/live_physics_process.cpp
     src/experiment/experiment_runner.cpp
     src/experiment/cloud_job_launcher.cpp
     src/experiment/connection_dialog.cpp
@@ -158,7 +162,7 @@ target_sources(microbotica PRIVATE
     src/panels/graph_inspector_panel.cpp
     src/panels/python_highlighter.cpp
     src/panels/script_editor_panel.cpp
-    src/panels/parameter_panel.cpp
+    src/panels/live_inputs_panel.cpp
     src/app/application.cpp
     src/app/main_window.cpp
     src/app/settings_dialog.cpp

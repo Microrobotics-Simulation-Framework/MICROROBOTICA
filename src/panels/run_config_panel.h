@@ -31,6 +31,12 @@ public:
     /// the path into the panel without re-triggering initExperiment.
     void setExperimentDir(const std::string& path);
 
+    /// Manual endpoint: the session's commands (REP) and frames (PUB)
+    /// endpoints, e.g. tcp://127.0.0.1:5555 and tcp://127.0.0.1:5556 (a
+    /// remote `mime serve` reached through an SSH tunnel).
+    std::string commandsEndpoint() const;
+    std::string framesEndpoint() const;
+
     /// Update connection status display.
     void setConnectionStatus(const QString& status);
 
@@ -45,6 +51,10 @@ Q_SIGNALS:
 private:
     QComboBox* modeCombo_ = nullptr;
     QLineEdit* experimentDirEdit_ = nullptr;
+    QLabel* commandsLabel_ = nullptr;
+    QLineEdit* commandsEdit_ = nullptr;
+    QLabel* framesLabel_ = nullptr;
+    QLineEdit* framesEdit_ = nullptr;
     QPushButton* launchButton_ = nullptr;
     QPushButton* stopButton_ = nullptr;
     QLabel* statusLabel_ = nullptr;

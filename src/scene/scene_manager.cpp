@@ -6,6 +6,8 @@
 #ifdef MICROBOTICA_HAS_USD
 #include <pxr/usd/usd/primRange.h>
 #include <pxr/usd/sdf/schema.h>   // SdfFieldKeys (FramesPerSecond)
+#include <pxr/usd/usdGeom/metrics.h>
+#include <pxr/usd/usdGeom/tokens.h>
 #endif
 
 namespace microbotica::scene {
@@ -96,10 +98,25 @@ bool SceneManager::loadScene(const std::string& filePath)
         sessionLayer->SetFramesPerSecond(fps);
     }
 
+    // The same holds for the stage's units and up axis: metadata of its root
+    // layer, which the anonymous session layer would otherwise lack, so the
+    // composed stage would read USD's fallbacks (centimetres, Y up). MIME's
+    // stages and recordings author both; a live session's positions, in
+    // metres, are converted by metersPerUnit.
+    for (const TfToken& key : {UsdGeomTokens->metersPerUnit, UsdGeomTokens->upAxis}) {
+        if (stage_->HasAuthoredMetadata(key)) {
+            VtValue value;
+            stage_->GetMetadata(key, &value);
+            sessionLayer->GetPseudoRoot()->SetInfo(key, value);
+        }
+    }
+
     // Replace the stage's root layer with our session layer
     stage_ = UsdStage::Open(sessionLayer);
 
     applicator_ = std::make_unique<ResultsApplicator>(resultsLayer_, stage_);
+    overlayPath_.clear();
+    filePath_ = filePath;
     sceneLoaded_ = true;
     ++sceneGeneration_;
 
@@ -134,8 +151,72 @@ void SceneManager::closeScene() {
 #endif
     sceneLoaded_ = false;
     hasAnimation_ = false;
+    overlayPath_.clear();
+    filePath_.clear();
     ++sceneGeneration_;
     Q_EMIT sceneClosed();
+}
+
+bool SceneManager::setOverlayLayer(const std::string& path)
+{
+#ifdef MICROBOTICA_HAS_USD
+    if (!stage_ || !baseLayer_) return false;
+    auto overlay = SdfLayer::FindOrOpen(path);
+    if (!overlay) {
+        spdlog::warn("SceneManager: cannot open the overlay layer {}", path);
+        return false;
+    }
+    auto session = stage_->GetRootLayer();
+    auto indexOf = [&session](const std::string& id) {
+        const std::vector<std::string> paths = session->GetSubLayerPaths();
+        for (size_t i = 0; i < paths.size(); ++i) {
+            if (paths[i] == id) return static_cast<int>(i);
+        }
+        return -1;
+    };
+    if (!overlayPath_.empty()) {
+        const int old = indexOf(overlayPath_);
+        if (old >= 0) session->RemoveSubLayerPath(old);
+    }
+    // [results, override, overlay, base]: stronger than the stage, weaker
+    // than the user's overrides and the simulation's results.
+    session->InsertSubLayerPath(overlay->GetIdentifier(), indexOf(baseLayer_->GetIdentifier()));
+    overlayPath_ = overlay->GetIdentifier();
+    ++sceneGeneration_;  // prims under the overlay may be new: drop cached xform ops
+    spdlog::info("SceneManager: overlay {} added over the stage", overlayPath_);
+    stageChanged();
+    return true;
+#else
+    (void)path;
+    return false;
+#endif
+}
+
+double SceneManager::metersPerUnit() const
+{
+#ifdef MICROBOTICA_HAS_USD
+    if (stage_) {
+        return UsdGeomGetStageMetersPerUnit(stage_);
+    }
+#endif
+    return 1.0;
+}
+
+std::unordered_map<std::string, double> SceneManager::vectorMetresPerUnit() const
+{
+    std::unordered_map<std::string, double> out;
+#ifdef MICROBOTICA_HAS_USD
+    if (!stage_) return out;
+    static const TfToken name("mime:vector:metres_per_unit");
+    for (const auto& prim : stage_->Traverse()) {
+        const auto attr = prim.GetAttribute(name);
+        double value = 0.0;
+        if (attr && attr.Get(&value)) {
+            out[prim.GetPath().GetString()] = value;
+        }
+    }
+#endif
+    return out;
 }
 
 void SceneManager::applyResultFrame(const core::ResultFrame& frame,

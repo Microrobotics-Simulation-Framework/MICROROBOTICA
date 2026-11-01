@@ -7,6 +7,10 @@
 #include <QFile>
 #include <QFileInfo>
 #include <QDir>
+#include <QDateTime>
+#include <QProcessEnvironment>
+#include <QTemporaryDir>
+#include <fstream>
 #include <QMessageBox>
 #include <QSettings>
 #include <QCloseEvent>
@@ -24,16 +28,20 @@
 #include "panels/project_browser_panel.h"
 #include "panels/graph_inspector_panel.h"
 #include "panels/script_editor_panel.h"
-#include "panels/parameter_panel.h"
+#include "panels/live_inputs_panel.h"
 #include <nlohmann/json.hpp>
 #include "viewport/camera_toolbar.h"
 #include "viewport/camera_controller.h"
 #include "viewport/local_viewport.h"
 #include "viewport/notice_overlay.h"
 #include <QTimer>
+#include <chrono>
 #include "stubs/local_compute_backend.h"
-#include "mime_adapter/mime_compute_backend.h"
-#include "mime_adapter/mime_physics_process.h"
+#include "experiment/experiment_runner.h"
+#include "live/binding_frames.h"
+#include "live/live_client.h"
+#include "live/live_physics_process.h"
+#include "live/live_protocol.h"
 #include "connection/connection_config.h"
 
 #include <spdlog/spdlog.h>
@@ -98,14 +106,40 @@ MainWindow::MainWindow(QWidget* parent)
 
 MainWindow::~MainWindow()
 {
+    if (readyTimer_) {
+        readyTimer_->stop();
+    }
     if (simController_ && simController_->isRunning()) {
         simController_->teardown();
+    }
+    if (serveProcess_ && serveProcess_->isRunning()) {
+        serveProcess_->stop();
     }
 }
 
 void MainWindow::closeEvent(QCloseEvent* event) {
     saveLayout();
+    if (liveSessionActive()) {
+        endLiveSession(tr("Live session stopped."));  // its run folder is written
+    }
     QMainWindow::closeEvent(event);
+}
+
+bool MainWindow::openPath(const QString& path)
+{
+    const QFileInfo info(path);
+    if (info.isDir()) {
+        return initExperiment(info.absoluteFilePath());
+    }
+    if (!info.exists()) {
+        QMessageBox::warning(this, tr("Open Failed"), tr("No such file or folder:\n%1").arg(path));
+        return false;
+    }
+    if (!openStage(info.absoluteFilePath())) {
+        QMessageBox::warning(this, tr("Open Failed"), tr("Could not open scene file:\n%1").arg(path));
+        return false;
+    }
+    return true;
 }
 
 // ---------------------------------------------------------------------------
@@ -198,6 +232,19 @@ void MainWindow::createMenuBar()
     auto* stopAction = simMenu->addAction(tr("S&top"));
     connect(stopAction, &QAction::triggered, this, &MainWindow::onSimulationStop);
 
+    simMenu->addSeparator();
+    stepAction_ = simMenu->addAction(tr("St&ep One Chunk"));
+    stepAction_->setShortcut(QKeySequence(Qt::Key_F8));
+    stepAction_->setToolTip(tr("Step a paused live session by one chunk (mime.live/1 step)."));
+    stepAction_->setEnabled(false);
+    connect(stepAction_, &QAction::triggered, this, &MainWindow::onStepRequested);
+
+    recordAction_ = simMenu->addAction(tr("&Record"));
+    recordAction_->setCheckable(true);
+    recordAction_->setToolTip(tr("Record the live session's stage into its run folder (recording.usdc)."));
+    recordAction_->setEnabled(false);
+    connect(recordAction_, &QAction::toggled, this, &MainWindow::onRecordToggled);
+
     // View menu
     auto* viewMenu = menuBar()->addMenu(tr("&View"));
 
@@ -216,7 +263,7 @@ void MainWindow::createMenuBar()
     viewMenu->addAction(projectBrowser_->toggleViewAction());
     viewMenu->addAction(graphInspector_->toggleViewAction());
     viewMenu->addAction(scriptEditor_->toggleViewAction());
-    viewMenu->addAction(parameterPanel_->toggleViewAction());
+    viewMenu->addAction(liveInputsPanel_->toggleViewAction());
 
     // Help menu
     auto* helpMenu = menuBar()->addMenu(tr("&Help"));
@@ -275,8 +322,8 @@ void MainWindow::createDockWidgets()
     scriptEditor_ = new panels::ScriptEditorPanel(this);
     addDockWidget(Qt::BottomDockWidgetArea, scriptEditor_);
 
-    parameterPanel_ = new panels::ParameterPanel(this);
-    addDockWidget(Qt::RightDockWidgetArea, parameterPanel_);
+    liveInputsPanel_ = new panels::LiveInputsPanel(this);
+    addDockWidget(Qt::RightDockWidgetArea, liveInputsPanel_);
 
     // Tab bottom panels together
     tabifyDockWidget(timelinePanel_, consoleWidget_);
@@ -313,18 +360,21 @@ void MainWindow::wireSignals()
             this, &MainWindow::onSimulationStart);
     connect(runConfigPanel_, &panels::RunConfigPanel::stopRequested,
             this, &MainWindow::onSimulationStop);
-    // Parameter panel edits → forward to the running MIME backend.
-    connect(parameterPanel_, &panels::ParameterPanel::parametersChanged,
-            this, [this](const nlohmann::json& params) {
-        const bool running =
-            simController_ && simController_->isRunning();
-        spdlog::info(
-            "ParameterPanel → runner: {} keys, sim {} → {}",
-            params.size(), running ? "running" : "idle",
-            running ? "forwarding" : "DROPPED (sim not running)");
-        if (running) {
-            simController_->sendParameters(params);
+    // Live inputs → the session's `set` (from the controller's next tick).
+    connect(liveInputsPanel_, &panels::LiveInputsPanel::setRequested,
+            this, [this](const nlohmann::json& values) {
+        if (!liveSessionActive() || !simController_->isRunning()) {
+            statusBar()->showMessage(tr("No live session: nothing to set"));
+            return;
         }
+        pendingSet_ = values;
+        simController_->sendParameters(values);
+    });
+    connect(liveInputsPanel_, &panels::LiveInputsPanel::rebuildRequested, this, [this]() {
+        // A physical setting changed in the saved folder: a new session.
+        if (experimentDir_.empty()) return;
+        onSimulationStop();
+        onSimulationStart();
     });
 
     connect(runConfigPanel_, &panels::RunConfigPanel::experimentDirChanged,
@@ -518,8 +568,20 @@ bool MainWindow::initExperiment(const QString& dirStr)
     }
     // The live inputs come from the session (mime.live/1's hello), not from
     // the folder: nothing to show until a session runs.
-    if (parameterPanel_) {
-        parameterPanel_->loadParameters(nlohmann::json::object());
+    if (liveInputsPanel_) {
+        liveInputsPanel_->clearAll();
+        // The experiment's settings, read-only, as its lock resolved them.
+        std::ifstream lock(dir.filePath(QStringLiteral("mime.lock")).toStdString());
+        if (lock) {
+            try {
+                const auto j = nlohmann::json::parse(lock);
+                if (j.contains("resolved") && j["resolved"].contains("entries")) {
+                    liveInputsPanel_->showSettings(j["resolved"]["entries"]);
+                }
+            } catch (const std::exception& e) {
+                spdlog::warn("initExperiment: mime.lock not read: {}", e.what());
+            }
+        }
     }
 
     statusBar()->showMessage(
@@ -585,16 +647,10 @@ void MainWindow::onSimulationStart()
         return;
     }
 
-    if (!sceneMgr_->isLoaded()) {
-        QMessageBox::information(this, tr("No Scene"),
-            tr("Open a USD scene or a saved experiment before starting."));
-        return;
-    }
-
     // Resume from pause
     if (paused_ && simController_->isRunning()) {
         paused_ = false;
-        simController_->setPaused(false);
+        simController_->setPaused(false);  // a live session: `start`
         timelinePanel_->resumePolling();
         viewportWidget_->setContinuousRendering(true);
         statusBar()->showMessage(tr("Simulation resumed"));
@@ -602,55 +658,374 @@ void MainWindow::onSimulationStart()
         return;
     }
 
-    if (simController_->isRunning()) return;
+    if (simController_->isRunning() || liveSessionActive()) return;
+    if (readyTimer_ && readyTimer_->isActive()) return;  // a session is starting
 
     const connection::ConnectionMode mode = runConfigPanel_
         ? runConfigPanel_->selectedMode()
         : connection::ConnectionMode::Local;
 
-    // A saved experiment runs live through MIME 0.3's `mime serve` and its
-    // mime.live/1 protocol, which this build does not speak yet: the 0.2
-    // runner (python -m mime.runner) is retired with 0.2's experiment form.
-    if (mode == connection::ConnectionMode::Local && !experimentDir_.empty()) {
-        QMessageBox::information(this, tr("Live sessions need mime serve"),
-            tr("Running %1 live needs MIME 0.3's `mime serve` (the mime.live/1 "
-               "protocol), which this build does not speak yet.\n\n"
-               "Its stage is open; a run folder's recording.usdc plays "
-               "through File → Open USD Scene.")
-                .arg(QFileInfo(QString::fromStdString(experimentDir_)).fileName()));
+    // Manual endpoint: a session already serving (a remote mime serve
+    // through an SSH tunnel, or one started by hand).
+    if (mode == connection::ConnectionMode::Manual) {
+        connectLiveSession(QString::fromStdString(runConfigPanel_->commandsEndpoint()),
+                           QString::fromStdString(runConfigPanel_->framesEndpoint()));
+        return;
+    }
+    // Local, with a saved experiment open: `mime serve` it.
+    if (!experimentDir_.empty()) {
+        startLocalSession();
         return;
     }
 
+    if (!sceneMgr_->isLoaded()) {
+        QMessageBox::information(this, tr("No Scene"),
+            tr("Open a saved experiment (or a USD scene) before starting."));
+        return;
+    }
     finishSimulationStart();
 }
 
 void MainWindow::finishSimulationStart()
 {
+    // No MIME session: the stub backend, kept so the viewport demo works
+    // without one.
     core::PhysicsConfig config;
-
-    const connection::ConnectionMode mode = runConfigPanel_
-        ? runConfigPanel_->selectedMode()
-        : connection::ConnectionMode::Local;
-
-    if (mode == connection::ConnectionMode::Manual) {
-        // Connect to the endpoint the panel names. MIME 0.3 names the prims a
-        // frame moves in its stage binding (mime.live/1's hello), not in an
-        // actor map, so the map stays empty until that client lands.
-        connection::ConnectionConfig cc;
-        cc.mode = mode;
-        simController_->setComputeBackend(std::make_unique<mime::MimeComputeBackend>(cc));
-        spdlog::info("finishSimulationStart: Manual endpoint → MimeComputeBackend");
-    } else {
-        // Stub backend (no MIME): kept so the viewport demo works without one.
-        simController_->setComputeBackend(std::make_unique<stubs::LocalComputeBackend>());
-        config.actorToPrimPath["robot"] = "/World/Actors/UMR";
-        spdlog::info("finishSimulationStart: no MIME session → LocalComputeBackend (stub)");
-    }
-
+    simController_->setComputeBackend(std::make_unique<stubs::LocalComputeBackend>());
+    config.actorToPrimPath["robot"] = "/World/Actors/UMR";
+    spdlog::info("finishSimulationStart: no MIME session → LocalComputeBackend (stub)");
     simController_->launchPhysics(config);
-
     paused_ = false;
     statusBar()->showMessage(tr("Simulation started"));
+}
+
+// ---------------------------------------------------------------------------
+// Live sessions: MIME 0.3's `mime serve`, mime.live/1
+// ---------------------------------------------------------------------------
+
+bool MainWindow::liveSessionActive() const
+{
+    return liveClient_ != nullptr;
+}
+
+QString MainWindow::mimeCommand() const
+{
+    const QString fromEnv = QProcessEnvironment::systemEnvironment().value(QStringLiteral("MICROROBOTICA_MIME"));
+    if (!fromEnv.isEmpty()) return fromEnv;
+    QSettings s;
+    const QString fromSettings = s.value(QStringLiteral("mime/command")).toString().trimmed();
+    return fromSettings.isEmpty() ? QStringLiteral("mime") : fromSettings;
+}
+
+QString MainWindow::runsDir() const
+{
+    QSettings s;
+    const QString dir = s.value(QStringLiteral("mime/runs_dir")).toString().trimmed();
+    return dir.isEmpty() ? QDir::homePath() + QStringLiteral("/MICROROBOTICA/runs") : dir;
+}
+
+void MainWindow::startLocalSession()
+{
+    const QString folder = QString::fromStdString(experimentDir_);
+    readyDir_ = std::make_unique<QTemporaryDir>();
+    if (!readyDir_->isValid()) {
+        QMessageBox::critical(this, tr("Live session"), tr("Could not make a temporary folder for mime serve."));
+        return;
+    }
+    const QString name = QFileInfo(folder).fileName();
+    const QString stamp = QDateTime::currentDateTimeUtc().toString(QStringLiteral("yyyyMMddTHHmmssZ"));
+    QDir().mkpath(runsDir());
+
+    experiment::ExperimentRunner::ServeCommand command;
+    command.program = mimeCommand();
+    command.folder = folder;
+    command.readyFile = readyDir_->filePath(QStringLiteral("ready.json"));
+    command.out = QDir(runsDir()).filePath(QStringLiteral("%1-live-%2").arg(name, stamp));
+
+    if (!serveProcess_) {
+        serveProcess_ = std::make_unique<experiment::ExperimentRunner>(this);
+        connect(serveProcess_.get(), &experiment::ExperimentRunner::stdoutChunk,
+                mimeConsole_, &panels::MimeConsolePanel::appendStdout);
+        connect(serveProcess_.get(), &experiment::ExperimentRunner::stderrChunk,
+                mimeConsole_, &panels::MimeConsolePanel::appendStderr);
+        connect(serveProcess_.get(), &experiment::ExperimentRunner::processStopped,
+                this, &MainWindow::onServeProcessEnded);
+    }
+    mimeConsole_->appendStdout(QStringLiteral("$ %1 %2\n")
+        .arg(command.program, experiment::ExperimentRunner::serveArguments(command).join(QLatin1Char(' ')))
+        .toUtf8());
+    if (!serveProcess_->startServe(command)) {
+        QMessageBox::critical(this, tr("mime serve did not start"),
+            tr("Could not run \"%1\".\n\nInstall MIME 0.3, or name its `mime` command "
+               "in File → Settings → MIME command (or MICROROBOTICA_MIME).").arg(command.program));
+        return;
+    }
+
+    runConfigPanel_->setLaunchEnabled(false);
+    runConfigPanel_->setConnectionStatus(tr("Starting mime serve..."));
+    statusBar()->showMessage(tr("Starting mime serve for %1...").arg(name));
+    if (noticeOverlay_) {
+        noticeOverlay_->addNotice(QStringLiteral("mime-serve"), viewport::NoticeOverlay::Severity::Info,
+            tr("Starting MIME"),
+            tr("mime serve is loading and building %1, then compiling its first chunk. "
+               "You can keep navigating the viewport.").arg(name));
+    }
+
+    // Readiness: mime serve writes its ready file once its sockets listen.
+    if (!readyTimer_) {
+        readyTimer_ = new QTimer(this);
+        readyTimer_->setInterval(100);
+    }
+    readyTimer_->disconnect();
+    const QString readyFile = command.readyFile;
+    const auto started = std::chrono::steady_clock::now();
+    connect(readyTimer_, &QTimer::timeout, this, [this, readyFile, started]() {
+        auto fail = [this](const QString& why) {
+            readyTimer_->stop();
+            if (noticeOverlay_) noticeOverlay_->removeNotice(QStringLiteral("mime-serve"));
+            mimeConsole_->flush();
+            runConfigPanel_->setLaunchEnabled(true);
+            runConfigPanel_->setConnectionStatus(tr("Idle"));
+            statusBar()->showMessage(why);
+            mimeConsole_->raise();
+            QMessageBox::warning(this, tr("Live session"), why);
+        };
+        if (!serveProcess_ || !serveProcess_->isRunning()) {
+            fail(tr("mime serve stopped before it was ready: see MIME Output for why."));
+            return;
+        }
+        QFile file(readyFile);
+        if (file.exists() && file.open(QIODevice::ReadOnly)) {
+            try {
+                const auto ready = live::parseReadyFile(file.readAll().toStdString());
+                readyTimer_->stop();
+                if (noticeOverlay_) noticeOverlay_->removeNotice(QStringLiteral("mime-serve"));
+                connectLiveSession(QString::fromStdString(ready.commands), QString::fromStdString(ready.frames));
+                return;
+            } catch (const live::ProtocolError&) {
+                // Written but not yet whole: look again at the next tick.
+            }
+        }
+        if (std::chrono::steady_clock::now() - started > std::chrono::minutes(5)) {
+            if (serveProcess_) serveProcess_->stop();
+            fail(tr("mime serve was not ready within 5 minutes."));
+        }
+    });
+    readyTimer_->start();
+}
+
+void MainWindow::connectLiveSession(const QString& commands, const QString& frames)
+{
+    // 30 s a command: MIME's session answers nothing while it compiles (its
+    // first chunk; a live input's first set, measured at 2 to 5 s).
+    auto client = std::make_shared<live::LiveClient>(commands.toStdString(), frames.toStdString(), 30000);
+    try {
+        client->connect();
+    } catch (const std::exception& e) {
+        const QString why = QString::fromUtf8(e.what());
+        spdlog::error("connectLiveSession: {}", e.what());
+        mimeConsole_->appendStderr((QStringLiteral("hello at %1: ").arg(commands) + why + QLatin1Char('\n')).toUtf8());
+        if (serveProcess_ && serveProcess_->isRunning()) serveProcess_->stop();
+        runConfigPanel_->setLaunchEnabled(true);
+        runConfigPanel_->setConnectionStatus(tr("Idle"));
+        QMessageBox::warning(this, tr("Live session"),
+            tr("No mime.live/1 session answered at %1:\n%2").arg(commands, why));
+        return;
+    }
+    const live::Hello& hello = client->hello();
+    if (!applyHello(hello)) {
+        if (serveProcess_ && serveProcess_->isRunning()) {
+            try { client->request(live::stopRequest(), 120000); } catch (const std::exception&) {}
+            serveProcess_->stop();
+        }
+        runConfigPanel_->setLaunchEnabled(true);
+        runConfigPanel_->setConnectionStatus(tr("Idle"));
+        return;
+    }
+
+    // The binding, in the stage's own units (MIME's frames are in metres).
+    live::StageUnits units;
+    units.metersPerUnit = sceneMgr_->metersPerUnit();
+    units.vectorMetresPerUnit = sceneMgr_->vectorMetresPerUnit();
+    liveFrames_ = std::make_shared<const live::BindingFrames>(hello.binding, hello.schema, units);
+    for (const auto& missing : liveFrames_->unbound()) {
+        mimeConsole_->appendStderr(("[session] bound but not in the frames: " + missing + "\n").c_str());
+    }
+    liveClient_ = client;
+
+    auto backend = std::make_unique<live::LiveComputeBackend>(
+        client, liveFrames_, [this](live::LivePhysicsProcess& process) {
+            process.setReplyObserver([this](const live::Reply& reply) {
+                QMetaObject::invokeMethod(this, [this, reply]() { onLiveReply(reply); }, Qt::QueuedConnection);
+            });
+        });
+    simController_->setComputeBackend(std::move(backend));
+    simController_->launchPhysics(liveFrames_->physicsConfig());  // sends `start`
+
+    paused_ = false;
+    stepAction_->setEnabled(true);
+    recordAction_->setEnabled(true);
+    recordAction_->blockSignals(true);
+    recordAction_->setChecked(hello.status.recording);
+    recordAction_->blockSignals(false);
+    viewportWidget_->setContinuousRendering(true);
+    if (cameraToolbar_) cameraToolbar_->onSimStarted();
+    runConfigPanel_->setLaunchEnabled(false);
+    runConfigPanel_->setConnectionStatus(tr("Live: %1").arg(QString::fromStdString(hello.experiment)));
+    statusBar()->showMessage(tr("Live session: %1 (MIME %2, %3 frames of %4 bytes a chunk of %5 steps)")
+        .arg(QString::fromStdString(hello.experiment), QString::fromStdString(hello.mimeVersion))
+        .arg(hello.schema.fields.size()).arg(hello.schema.frameBytes).arg(hello.chunkSteps));
+}
+
+bool MainWindow::applyHello(const live::Hello& hello)
+{
+    mimeConsole_->appendStdout(QStringLiteral("[session] %1, MIME %2: %3 bound prims, %4 fields a frame, "
+                                              "chunk of %5 base steps of %6 s\n")
+        .arg(QString::fromStdString(hello.experiment), QString::fromStdString(hello.mimeVersion))
+        .arg(hello.binding.size()).arg(hello.schema.fields.size()).arg(hello.chunkSteps).arg(hello.dt)
+        .toUtf8());
+
+    // The stage: the served saved folder's own, when it is on this machine;
+    // for a remote session, the same saved experiment opened here.
+    const QString stage = QString::fromStdString(hello.stage);
+    const bool here = !stage.isEmpty() && QFile::exists(stage);
+    if (here) {
+        const QString open = QString::fromStdString(sceneMgr_->filePath());
+        if (playbackMode_ || !sceneMgr_->isLoaded()
+            || QFileInfo(open).canonicalFilePath() != QFileInfo(stage).canonicalFilePath()) {
+            if (!openStage(stage)) {
+                QMessageBox::warning(this, tr("Live session"), tr("The session's stage did not load:\n%1").arg(stage));
+                return false;
+            }
+        }
+    } else if (!sceneMgr_->isLoaded() || experimentDir_.empty() || playbackMode_) {
+        QMessageBox::warning(this, tr("Live session"),
+            tr("The session's stage is not on this machine:\n%1\n\n"
+               "Open the same saved experiment here (File → Open Saved Experiment), then connect.")
+                .arg(stage));
+        return false;
+    }
+
+    // MIME's visuals: the overlay that draws meshes MIME does not ship, or
+    // what is missing and how to fetch it (the arm then draws as bones).
+    if (hello.visuals) {
+        const auto& v = *hello.visuals;
+        if (v.overlay && QFile::exists(QString::fromStdString(*v.overlay))) {
+            sceneMgr_->setOverlayLayer(*v.overlay);
+        } else if (!v.missing.empty()) {
+            QStringList sets;
+            for (const auto& [set, count] : v.missing) {
+                sets << QStringLiteral("%1 (%2 meshes)").arg(QString::fromStdString(set)).arg(count);
+            }
+            QString text = tr("Drawn as simple shapes: MIME's asset cache lacks %1. "
+                              "To draw them: mime visuals fetch <set>.").arg(sets.join(QStringLiteral(", ")));
+            for (const auto& line : v.noticeLines()) {
+                text += QLatin1Char('\n') + QString::fromStdString(line);
+            }
+            mimeConsole_->appendStdout(("[session] " + text + QLatin1Char('\n')).toUtf8());
+            if (noticeOverlay_) {
+                noticeOverlay_->addNotice(QStringLiteral("visuals"), viewport::NoticeOverlay::Severity::Info,
+                                          tr("Visuals not fetched"), text);
+            }
+        }
+    }
+
+    if (graphInspector_ && hello.topology.is_object()) {
+        graphInspector_->loadFromJson(hello.topology);
+    }
+    if (liveInputsPanel_) {
+        liveInputsPanel_->showSession(hello.controller, hello.liveInputs);
+    }
+    return true;
+}
+
+void MainWindow::onLiveReply(const live::Reply& reply)
+{
+    const QString command = QString::fromStdString(reply.command);
+    if (!reply.ok) {
+        mimeConsole_->appendRefusals(tr("%1 is refused").arg(command), reply.errors);
+        const QString code = reply.errors.empty() ? QString() : QString::fromStdString(reply.errors.front().code);
+        statusBar()->showMessage(tr("MIME refused %1: %2 (see MIME Output)").arg(command, code));
+    }
+    if (reply.command == "set") {
+        liveInputsPanel_->markSet(pendingSet_, reply.ok);
+        pendingSet_ = nlohmann::json();
+    }
+    if (reply.command == "record" && reply.ok) {
+        recordAction_->blockSignals(true);
+        recordAction_->setChecked(reply.status.recording);
+        recordAction_->blockSignals(false);
+    }
+    if (reply.command == "stop" && reply.folder) {
+        lastRunFolder_ = QString::fromStdString(*reply.folder);
+    }
+    if (reply.ok && !reply.status.state.empty() && runConfigPanel_) {
+        runConfigPanel_->setConnectionStatus(tr("Live: %1, step %2, %3 s%4")
+            .arg(QString::fromStdString(reply.status.state)).arg(reply.status.step)
+            .arg(reply.status.time, 0, 'f', 3)
+            .arg(reply.status.recording ? tr(", recording") : QString()));
+    }
+}
+
+void MainWindow::onStepRequested()
+{
+    if (!liveSessionActive()) return;
+    if (!paused_) {
+        statusBar()->showMessage(tr("Pause the session to step it"));
+        return;
+    }
+    try {
+        onLiveReply(liveClient_->request(live::stepRequest(1)));
+        simController_->requestNextFrame();
+    } catch (const std::exception& e) {
+        statusBar()->showMessage(tr("step: %1").arg(QString::fromUtf8(e.what())));
+    }
+}
+
+void MainWindow::onRecordToggled(bool on)
+{
+    if (!liveSessionActive()) return;
+    try {
+        onLiveReply(liveClient_->request(live::recordRequest(on)));
+    } catch (const std::exception& e) {
+        statusBar()->showMessage(tr("record: %1").arg(QString::fromUtf8(e.what())));
+    }
+}
+
+void MainWindow::endLiveSession(const QString& why)
+{
+    if (simController_->isRunning()) {
+        simController_->stop();  // a live session: `stop`, which writes its run folder
+    }
+    if (serveProcess_ && serveProcess_->isRunning()) {
+        serveProcess_->stop();  // it exits on its own after stop; SIGTERM otherwise
+    }
+    mimeConsole_->flush();
+    liveClient_.reset();
+    liveFrames_.reset();
+    paused_ = false;
+    stepAction_->setEnabled(false);
+    recordAction_->setEnabled(false);
+    liveInputsPanel_->endSession();
+    viewportWidget_->setContinuousRendering(false);
+    if (cameraToolbar_) cameraToolbar_->onSimStopped();
+    runConfigPanel_->setLaunchEnabled(true);
+    runConfigPanel_->setConnectionStatus(tr("Idle"));
+    QString message = why;
+    if (!lastRunFolder_.isEmpty()) {
+        message += tr(" Its run folder: %1").arg(lastRunFolder_);
+        mimeConsole_->appendStdout(("[session] run folder: " + lastRunFolder_ + QLatin1Char('\n')).toUtf8());
+    }
+    statusBar()->showMessage(message);
+}
+
+void MainWindow::onServeProcessEnded()
+{
+    if (!liveSessionActive()) return;  // a stop we asked for, already handled
+    // The process ended under a live session (a crash, or stopped elsewhere):
+    // no reply can come, so do not wait for one.
+    liveClient_->close();
+    endLiveSession(tr("mime serve ended (see MIME Output)."));
 }
 
 void MainWindow::onSimulationPause()
@@ -667,8 +1042,10 @@ void MainWindow::onSimulationPause()
     if (!simController_->isRunning() || paused_) return;
 
     paused_ = true;
-    simController_->setPaused(true);
-    timelinePanel_->pausePolling();
+    simController_->setPaused(true);  // a live session: `pause`
+    if (!liveSessionActive()) {
+        timelinePanel_->pausePolling();  // a live session's step still sends frames
+    }
     viewportWidget_->setContinuousRendering(false);
     statusBar()->showMessage(tr("Simulation paused"));
     if (cameraToolbar_) cameraToolbar_->onSimPaused();
@@ -683,6 +1060,20 @@ void MainWindow::onSimulationStop()
         viewportWidget_->setContinuousRendering(false);
         statusBar()->showMessage(tr("Playback stopped"));
         if (cameraToolbar_) cameraToolbar_->onSimStopped();
+        return;
+    }
+
+    if (readyTimer_ && readyTimer_->isActive()) {  // stop a session still starting
+        readyTimer_->stop();
+        if (noticeOverlay_) noticeOverlay_->removeNotice(QStringLiteral("mime-serve"));
+        if (serveProcess_) serveProcess_->stop();
+        runConfigPanel_->setLaunchEnabled(true);
+        runConfigPanel_->setConnectionStatus(tr("Idle"));
+        statusBar()->showMessage(tr("mime serve stopped before it was ready"));
+        return;
+    }
+    if (liveSessionActive()) {
+        endLiveSession(tr("Live session stopped."));
         return;
     }
 
