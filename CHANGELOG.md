@@ -7,7 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Viewport: no NVIDIA dependency.** Hydra Storm needs OpenGL 4.5 Compatibility, not 4.6: the GL gate is lowered,
+  so the viewport draws on Mesa, on the Intel GPU (`--device /dev/dri`) or its software rasteriser (llvmpipe). The
+  run scripts pass the host's render nodes (never an NVIDIA GPU's) instead of `--gpus all` (`scripts/render-args.sh`;
+  `MICROROBOTICA_RENDER=llvmpipe` forces software). `MICROROBOTICA_MSAA` overrides the 4x multisampling.
+
 ### Added
+
+- **StormRenderer** (MBCA-COMP-032): the viewport's Storm render path (engine, camera, lights) without Qt, shared
+  with the headless screenshot tests
+- **Screenshot tests** (`microbotica_screenshot_tests`): Storm on llvmpipe over EGL, the demo recording compared with
+  `tests/fixtures/screenshots/` (MBCA-VER-011), A0's MIME 0.3 recording drawn when `MICROROBOTICA_A0_RUN` names a run
+  folder (MBCA-VER-012); `scripts/make_a0_fixtures.sh` writes A0's folders locally
 
 - **ResultFrame**: `Quatf` struct and `orientations` map for quaternion orientation data (Phase A)
 - **ResultFrame**: `MeshData` struct and `meshes` map for per-vertex color data (Phase B)

@@ -142,6 +142,7 @@ target_sources(microbotica PRIVATE
     src/scripting/microbota_module.cpp
     src/viewport/viewport_widget.cpp
     src/viewport/local_viewport.cpp
+    src/viewport/storm_renderer.cpp
     src/viewport/software_viewport.cpp
     src/viewport/camera_controller.cpp
     src/viewport/camera_toolbar.cpp

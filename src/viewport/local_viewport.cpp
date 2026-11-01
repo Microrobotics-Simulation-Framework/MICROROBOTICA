@@ -11,42 +11,31 @@
 #include <spdlog/spdlog.h>
 #include "core/profiler.h"
 
-#ifdef MICROBOTICA_HAS_USD
-#include <pxr/base/gf/camera.h>
-#include <pxr/base/gf/frustum.h>
-#include <pxr/base/gf/matrix4d.h>
-#include <pxr/base/gf/vec4d.h>
-#include <pxr/base/gf/vec4f.h>
-#include <pxr/base/gf/vec3f.h>
-#include <pxr/base/gf/range3d.h>
-#include <pxr/base/vt/value.h>
-#include <pxr/imaging/hgi/tokens.h>
-#include <pxr/usd/usd/prim.h>
-#include <pxr/usd/usdGeom/bboxCache.h>
-#include <pxr/usd/usdGeom/tokens.h>
-#endif
+#include "viewport/gl_requirements.h"
 
 namespace microbotica::viewport {
 
-LocalViewport::LocalViewport(QWindow* parent)
+LocalViewport::LocalViewport(int samples, QWindow* parent)
     : QOpenGLWindow(QOpenGLWindow::NoPartialUpdate, parent)
 {
     MBCA_EXPERIMENTAL_WARN("LocalViewport");
 
     // Request a Compatibility Profile context. USD's HgiGL (Storm) uses
-    // GL state (glPushAttrib etc.) that only exists in Compatibility Profile.
-    // NVIDIA 535.x exposes GL 4.6 in Compat but only 4.5 in Core Profile.
-    // Without this, Storm spams "invalid enum" errors on every frame.
+    // GL state (glPushAttrib etc.) that only exists in Compatibility Profile;
+    // without it Storm spams "invalid enum" errors on every frame. 4.5 is what
+    // Storm needs and what Mesa gives on every driver, its software rasteriser
+    // (llvmpipe) included; the Intel GPU through Mesa gives 4.6.
     QSurfaceFormat fmt;
-    fmt.setVersion(4, 6);
+    fmt.setVersion(kStormGlMajor, kStormGlMinor);
     fmt.setProfile(QSurfaceFormat::CompatibilityProfile);
     fmt.setDepthBufferSize(24);
     fmt.setStencilBufferSize(8);
-    // 4x MSAA. Also required by params.enableSampleAlphaToCoverage (set in
-    // paintGL): Storm fakes order-independent transparency by turning fragment
-    // alpha into multisample coverage, so the translucent vessel / tube
-    // materials only render see-through when a multisample buffer exists.
-    fmt.setSamples(4);
+    // 4x MSAA by default (viewportSamples()). Also required by
+    // params.enableSampleAlphaToCoverage (StormRenderer): Storm fakes
+    // order-independent transparency by turning fragment alpha into
+    // multisample coverage, so the translucent vessel / tube materials only
+    // render see-through when a multisample buffer exists.
+    fmt.setSamples(samples);
     // Swap interval 0 — do NOT vsync this window. It is a native window
     // composited by the desktop compositor, which already presents at the
     // display refresh. Vsyncing here too creates a double-sync: this window's
@@ -103,32 +92,9 @@ LocalViewport::~LocalViewport() = default;
 #ifdef MICROBOTICA_HAS_USD
 void LocalViewport::setStage(UsdStageRefPtr stage)
 {
-    stage_ = stage;
-    engine_.reset();
-
-    // Compute the scene's world-space bounds once, here, so paintGL can fit the
-    // near/far clip planes to it (see the depth-precision note there). Union
-    // start / middle / end so an animated recording is fully enclosed.
-    sceneCenter_ = GfVec3d(0.0);
-    sceneRadius_ = 0.0;
-    if (stage_) {
-        UsdGeomBBoxCache bboxCache(
-            UsdTimeCode::Default(),
-            {UsdGeomTokens->default_, UsdGeomTokens->render},
-            /*useExtentsHint*/ true);
-        GfRange3d range;
-        const double t0 = stage_->GetStartTimeCode();
-        const double t1 = stage_->GetEndTimeCode();
-        for (double t : {t0, 0.5 * (t0 + t1), t1}) {
-            bboxCache.SetTime(UsdTimeCode(t));
-            range.UnionWith(bboxCache.ComputeWorldBound(
-                stage_->GetPseudoRoot()).ComputeAlignedRange());
-        }
-        if (!range.IsEmpty()) {
-            sceneCenter_ = range.GetMidpoint();
-            sceneRadius_ = 0.5 * range.GetSize().GetLength();
-        }
-    }
+    // The renderer computes the stage's bounds (to fit the clip planes) and
+    // recreates its engine on the next paintGL.
+    storm_.setStage(stage);
 
     // Storm warms up over the first frames after the engine is recreated
     // (shader compiles, texture loads); allow a bounded burst of repaints to
@@ -139,8 +105,8 @@ void LocalViewport::setStage(UsdStageRefPtr stage)
     // loaded. On-demand repainting proved unreliable for this embedded native
     // window (paintGL simply stopped being called), so render continuously
     // instead — the same configuration that worked after the native-window
-    // switch. The engine is (re)created on the next paintGL.
-    if (stage_) {
+    // switch.
+    if (stage) {
         renderTimer_->start();
     } else {
         renderTimer_->stop();
@@ -172,14 +138,19 @@ void LocalViewport::initializeGL()
                      renderer ? renderer : "unknown",
                      version ? version : "unknown",
                      major, minor, profile);
+        if (renderer && isSoftwareRasteriser(renderer)) {
+            spdlog::info("LocalViewport: drawing on Mesa's software rasteriser "
+                         "({}x MSAA; MICROROBOTICA_MSAA=0 trades the translucent "
+                         "tube for speed on a large window)", fmt.samples());
+        }
 
-        // Storm (HgiGL) requires OpenGL 4.6 Compatibility Profile.
-        // If < 4.6, mark as failed — don't try Render().
-        if (major < 4 || (major == 4 && minor < 6)) {
+        // Storm (HgiGL) requires OpenGL 4.5 Compatibility Profile.
+        // Below that, mark as failed — don't try Render().
+        if (!meetsStormMinimum(major, minor)) {
             spdlog::error("LocalViewport: GL {}.{} {} Profile is below the "
-                          "4.6 minimum required by Hydra/Storm. "
+                          "{} minimum required by Hydra/Storm. "
                           "Falling back to Software viewport.",
-                          major, minor, profile);
+                          major, minor, profile, stormMinimumText());
             renderFailed_ = true;
             Q_EMIT renderFailed();
             return;
@@ -206,130 +177,39 @@ void LocalViewport::paintGL()
     }
 
 #ifdef MICROBOTICA_HAS_USD
-    if (!stage_) {
+    if (!storm_.stage()) {
         return;
     }
 
-    if (!engine_) {
-        engine_ = std::make_unique<UsdImagingGLEngine>();
-    }
-
-    const int w = width();
-    const int h = height();
+    const int w = static_cast<int>(width() * devicePixelRatio());
+    const int h = static_cast<int>(height() * devicePixelRatio());
     if (w <= 0 || h <= 0) {
         return;
     }
 
-    const double aspect = static_cast<double>(w) / static_cast<double>(h);
+    OrbitView view;
+    view.distance = cameraController_->orbitDistance();
+    view.azimuth = cameraController_->azimuth();
+    view.elevation = cameraController_->elevation();
+    view.panX = cameraController_->panX();
+    view.panY = cameraController_->panY();
 
-    const double dist = cameraController_->orbitDistance();
-    const double azim = cameraController_->azimuth();
-    const double elev = cameraController_->elevation();
-
-    // Camera in spherical coordinates (Z-up, matching USD upAxis = "Z").
-    // Azimuth: angle in XY plane from +X axis. Mouse-right = positive azimuth.
-    // Elevation: angle from XY plane toward +Z. Mouse-up = positive elevation.
-    const double cosElev = std::cos(elev);
-    GfVec3d eye(dist * cosElev * std::cos(azim),
-                dist * cosElev * std::sin(azim),
-                dist * std::sin(elev));
-
-    GfVec3d target(cameraController_->panX(),
-                    cameraController_->panY(),
-                    0.0);
-    eye += target;
-
-    GfVec3d up(0.0, 0.0, 1.0);
-
-    // Fit the clip planes to the scene bounds rather than using a fixed,
-    // enormous near/far ratio (which would wreck depth-buffer precision).
-    // Falls back to a distance-based estimate if the bounds are unavailable.
-    double nearPlane, farPlane;
-    if (sceneRadius_ > 0.0) {
-        const double camToScene = (eye - sceneCenter_).GetLength();
-        farPlane  = camToScene + sceneRadius_ * 1.25;
-        nearPlane = std::max(camToScene - sceneRadius_ * 1.25, farPlane * 1e-4);
-    } else {
-        nearPlane = std::max(dist * 0.001, 1e-7);
-        farPlane  = dist * 10.0;
-    }
-
-    // Build view and projection matrices directly.
-    // SetLookAt(eye, target, up) produces the world-to-camera transform.
-    GfMatrix4d viewMatrix;
-    viewMatrix.SetLookAt(eye, target, up);
-
-    GfFrustum frustum;
-    frustum.SetPerspective(45.0, aspect, nearPlane, farPlane);
-    GfMatrix4d projMatrix = frustum.ComputeProjectionMatrix();
-
-    UsdImagingGLRenderParams params;
-    params.frame = useCustomTimeCode_ ? UsdTimeCode(customTime_) : UsdTimeCode::Default();
-    params.drawMode = UsdImagingGLDrawMode::DRAW_SHADED_SMOOTH;
-    params.enableLighting = true;
-    params.enableSceneMaterials = true;
-    params.enableSampleAlphaToCoverage = true;  // OIT approximation for glass/transparent materials
-    params.complexity = 1.2f;
-
-    engine_->SetCameraState(viewMatrix, projMatrix);
-
-    f->glViewport(0, 0, w * devicePixelRatio(), h * devicePixelRatio());
-    engine_->SetRenderViewport(GfVec4d(0, 0, w * devicePixelRatio(),
-                                            h * devicePixelRatio()));
-
-    // Lighting: initialize once, then only update key light position per frame.
-    if (!lightingInitialized_) {
-        GlfSimpleLight keyLight(GfVec4f(0, 0, 0, 1));
-        keyLight.SetDiffuse(GfVec4f(0.9f, 0.9f, 0.9f, 1.0f));
-        keyLight.SetAmbient(GfVec4f(0.0f, 0.0f, 0.0f, 1.0f));
-        keyLight.SetSpecular(GfVec4f(0.4f, 0.4f, 0.4f, 1.0f));
-
-        GlfSimpleLight fillLight(GfVec4f(0, 0, 0, 1));
-        fillLight.SetDiffuse(GfVec4f(0.3f, 0.3f, 0.35f, 1.0f));
-        fillLight.SetAmbient(GfVec4f(0.0f, 0.0f, 0.0f, 1.0f));
-        fillLight.SetSpecular(GfVec4f(0.0f, 0.0f, 0.0f, 1.0f));
-
-        lights_ = { keyLight, fillLight };
-
-        material_.SetAmbient(GfVec4f(0.1f, 0.1f, 0.1f, 1.0f));
-        material_.SetDiffuse(GfVec4f(0.8f, 0.8f, 0.8f, 1.0f));
-        material_.SetSpecular(GfVec4f(0.3f, 0.3f, 0.3f, 1.0f));
-        material_.SetShininess(32.0f);
-
-        sceneAmbient_ = GfVec4f(0.08f, 0.08f, 0.1f, 1.0f);
-        lightingInitialized_ = true;
-    }
-
-    // Only the key light position changes per frame (tracks camera).
-    // Fill light tracks opposite side.
-    lights_[0].SetPosition(GfVec4f(
-        static_cast<float>(eye[0]), static_cast<float>(eye[1]),
-        static_cast<float>(eye[2]), 1.0f));
-    lights_[1].SetPosition(GfVec4f(
-        static_cast<float>(-eye[0]), static_cast<float>(eye[1] + dist * 0.5),
-        static_cast<float>(-eye[2]), 1.0f));
-
-    engine_->SetLightingState(lights_, material_, sceneAmbient_);
+    f->glViewport(0, 0, w, h);
 
     // Present Storm's result into the framebuffer this QOpenGLWindow draws to.
     // In NoPartialUpdate mode that is framebuffer 0 (the window surface), which
-    // is also Storm's default — but binding it explicitly keeps this correct if
-    // the update mode ever changes to an FBO-backed one. Re-set every frame
-    // because the framebuffer can be recreated on resize.
-    engine_->SetPresentationOutput(
-        HgiTokens->OpenGL,
-        VtValue(static_cast<uint32_t>(defaultFramebufferObject())));
-
-    {
-        MBCA_PROFILE_SCOPE("hydra_render");
-        engine_->Render(stage_->GetPseudoRoot(), params);
-    }
+    // is also Storm's default — but passing it explicitly keeps this correct if
+    // the update mode ever changes to an FBO-backed one.
+    const bool converged = storm_.render(
+        view,
+        useCustomTimeCode_ ? UsdTimeCode(customTime_) : UsdTimeCode::Default(),
+        w, h, static_cast<std::uint32_t>(defaultFramebufferObject()));
 
     // Storm normally converges in a single Render(); the exception is warm-up
     // right after a stage loads (shader compiles, texture loads). Pump a
     // bounded number of repaints to get through that — bounded so a backend
     // that never reports convergence cannot spin the render loop forever.
-    if (!engine_->IsConverged() && convergencePumpsLeft_ > 0) {
+    if (!converged && convergencePumpsLeft_ > 0) {
         --convergencePumpsLeft_;
         update();
     }

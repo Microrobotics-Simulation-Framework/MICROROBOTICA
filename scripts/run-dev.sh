@@ -14,8 +14,14 @@
 #   # Inside the container:
 #   cd /workspace/microbotica && ./build/debug/microbotica
 #   # Mode = Local autodetects localhost:5555 via the tunnel.
+#
+# Rendering: Mesa, on the Intel GPU's render nodes (/dev/dri) or on its
+# software rasteriser, llvmpipe (MICROROBOTICA_RENDER=llvmpipe forces it).
+# No NVIDIA GPU is passed in; see render-args.sh.
 
 set -e
+
+source "$(dirname "$(readlink -f "$0")")/render-args.sh"
 
 MSF=/home/nick/MSF/msf
 NAME=microbotica-dev
@@ -26,7 +32,7 @@ docker run -it --rm \
     --name "$NAME" \
     --user 0:0 \
     --network host \
-    --gpus all \
+    "${RENDER_ARGS[@]}" \
     -e DISPLAY="$DISPLAY" \
     -e JAX_PLATFORMS=cpu \
     -v /tmp/.X11-unix:/tmp/.X11-unix \

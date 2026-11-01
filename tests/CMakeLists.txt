@@ -87,3 +87,45 @@ catch_discover_tests(microbotica_tests
         ENVIRONMENT
         "LSAN_OPTIONS=suppressions=${CMAKE_SOURCE_DIR}/lsan.suppressions"
 )
+
+# --- Screenshot tests: Storm on Mesa (llvmpipe), headless over EGL --------------------------------------------------
+# A separate binary: it links EGL and OpenGL and draws with Mesa, which the sanitizer job need not carry. Built only
+# with OpenUSD and an EGL library (the base image has both).
+if(OpenUSD_FOUND)
+    find_package(OpenGL COMPONENTS OpenGL EGL)
+endif()
+if(OpenUSD_FOUND AND OpenGL_OpenGL_FOUND AND OpenGL_EGL_FOUND)
+    add_executable(microbotica_screenshot_tests
+        screenshot/test_storm_screenshots.cpp
+        ${CMAKE_SOURCE_DIR}/src/viewport/storm_renderer.cpp
+        ${CMAKE_SOURCE_DIR}/src/scene/scene_manager.cpp
+        ${CMAKE_SOURCE_DIR}/src/scene/results_applicator.cpp
+    )
+    target_include_directories(microbotica_screenshot_tests PRIVATE
+        ${CMAKE_SOURCE_DIR}/src
+        ${CMAKE_SOURCE_DIR}/tests
+    )
+    target_include_directories(microbotica_screenshot_tests SYSTEM PRIVATE ${OpenUSD_INCLUDE_DIRS})
+    target_link_libraries(microbotica_screenshot_tests PRIVATE
+        microbotica_core
+        Catch2::Catch2WithMain
+        Qt6::Core
+        Qt6::Gui
+        ${OpenUSD_LIBRARIES}
+        OpenGL::OpenGL
+        OpenGL::EGL
+    )
+    target_compile_definitions(microbotica_screenshot_tests PRIVATE
+        MICROBOTICA_HAS_USD=1
+        MICROBOTICA_SOURCE_DIR="${CMAKE_SOURCE_DIR}"
+        MICROBOTICA_BINARY_DIR="${CMAKE_BINARY_DIR}"
+    )
+    target_enable_warnings(microbotica_screenshot_tests)
+    catch_discover_tests(microbotica_screenshot_tests
+        TEST_PREFIX "screenshot: "
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+        DISCOVERY_MODE PRE_TEST
+    )
+else()
+    message(STATUS "Screenshot tests not built (they need OpenUSD and an EGL library)")
+endif()

@@ -6,7 +6,9 @@
 # - ~/.kube (k3s kubeconfig sky-ssh-up wrote during cluster bootstrap)
 # - ~/.ssh  (the dedicated id_ed25519_mime key referenced by ssh_node_pools.yaml)
 # - HOME set so all of the above resolve.
-# Plus the existing X11 / MSF / GPU bindings the regular dev container uses.
+# Plus the existing X11 / MSF bindings the regular dev container uses, and its
+# rendering through Mesa (render-args.sh: the Intel GPU's /dev/dri nodes or
+# llvmpipe; never an NVIDIA GPU).
 #
 # Hardening (added after a Cloud-mode launch attempt wedged the host):
 #   - SkyPilot prereqs (nc/socat/jq/autossh/rsync) baked into a local
@@ -18,6 +20,8 @@
 xhost +local:docker
 
 set -e
+
+source "$(dirname "$(readlink -f "$0")")/render-args.sh"
 
 MSF=/home/nick/MSF/msf
 REPO=$MSF/MICROROBOTICA
@@ -37,7 +41,7 @@ docker run -it --rm \
     --name "$NAME" \
     --user 0:0 \
     --network host \
-    --gpus all \
+    "${RENDER_ARGS[@]}" \
     --memory=12g \
     --cpus=6 \
     --pids-limit=1024 \

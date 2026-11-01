@@ -1,6 +1,7 @@
 #include "viewport/viewport_widget.h"
 #include "viewport/local_viewport.h"
 #include "viewport/software_viewport.h"
+#include "viewport/gl_requirements.h"
 
 #include "core/stability.h"
 #include <QOpenGLContext>
@@ -53,11 +54,13 @@ void ViewportWidget::setRenderMode(core::RenderMode mode)
     case core::RenderMode::LocalHydra: {
         // Lazily create LocalViewport on first request
         if (!localViewport_) {
-            // Probe for a usable GL 4.6 Compatibility context before creating
-            // QOpenGLWidget. If the driver can't provide it, stay on Software.
-            // This prevents "failed to create drawable" crashes on Mesa/headless.
+            // Probe for a usable GL 4.5 Compatibility context (what Storm needs)
+            // before creating the GL window. If the driver can't provide it, stay
+            // on Software. This prevents "failed to create drawable" crashes on
+            // headless setups. Mesa provides it on the Intel GPU (/dev/dri) and on
+            // its software rasteriser, llvmpipe; no NVIDIA GPU is needed.
             QSurfaceFormat probeFmt;
-            probeFmt.setVersion(4, 6);
+            probeFmt.setVersion(kStormGlMajor, kStormGlMinor);
             probeFmt.setProfile(QSurfaceFormat::CompatibilityProfile);
 
             QOpenGLContext testCtx;
@@ -68,29 +71,30 @@ void ViewportWidget::setRenderMode(core::RenderMode mode)
                 auto actual = testCtx.format();
                 int maj = actual.majorVersion();
                 int min = actual.minorVersion();
-                if (maj < 4 || (maj == 4 && min < 6)) {
+                if (!meetsStormMinimum(maj, min)) {
                     ctxOk = false;
-                    spdlog::warn("ViewportWidget: GL probe got {}.{} {} — need 4.6 Compat",
+                    spdlog::warn("ViewportWidget: GL probe got {}.{} {} — need {} Compat",
                                  maj, min,
                                  actual.profile() == QSurfaceFormat::CompatibilityProfile
-                                     ? "Compatibility" : "Core");
+                                     ? "Compatibility" : "Core",
+                                 stormMinimumText());
                 }
             }
 
             if (!ctxOk) {
-                spdlog::warn("ViewportWidget: No usable GL 4.6 Compatibility context — "
-                             "falling back to Software viewport");
-                softwareViewport_->setStatusMessage(
+                spdlog::warn("ViewportWidget: No usable GL {} Compatibility context — "
+                             "falling back to Software viewport", stormMinimumText());
+                softwareViewport_->setStatusMessage(QString::fromStdString(
                     "3D Viewport — Software Mode\n\n"
-                    "Hydra/Storm requires OpenGL 4.6 (GPU).\n"
+                    "Hydra/Storm needs OpenGL " + stormMinimumText() + " (Compatibility profile).\n"
                     "Scene is loaded and simulation will run — use the\n"
                     "scene hierarchy panel to inspect prims.\n\n"
-                    "For GPU rendering, run with:\n"
-                    "  docker run --gpus all ...");
+                    "Mesa provides it: the Intel GPU (docker run --device /dev/dri),\n"
+                    "or its software rasteriser (LIBGL_ALWAYS_SOFTWARE=1)."));
                 return;
             }
 
-            localViewport_ = new LocalViewport();
+            localViewport_ = new LocalViewport(viewportSamples());
             // LocalViewport is a native QOpenGLWindow — embed it in the widget
             // hierarchy via a window container so it presents directly to the
             // screen instead of through Qt's composited-widget path.
@@ -108,7 +112,7 @@ void ViewportWidget::setRenderMode(core::RenderMode mode)
                     "Hydra/Storm could not initialize on this GL context.\n"
                     "Scene is loaded and simulation will run — use the\n"
                     "scene hierarchy panel to inspect prims.\n\n"
-                    "Try updating your GPU driver or running with --gpus all.");
+                    "Try Mesa's software rasteriser: LIBGL_ALWAYS_SOFTWARE=1.");
                 setCurrentWidget(softwareViewport_);
                 currentMode_ = core::RenderMode::Software;
             });

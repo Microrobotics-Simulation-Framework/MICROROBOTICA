@@ -78,8 +78,8 @@ to create drawable" crashes — even if the widget is never shown. Lazy
 creation avoids this entirely.
 
 **Status**: Implemented. The application starts with SoftwareViewport
-in all environments. Hydra mode can be activated at runtime when a GPU
-is available.
+in all environments. Hydra mode is activated at runtime when an OpenGL 4.5
+Compatibility context is available (D11).
 
 **Files**: `src/viewport/viewport_widget.cpp`
 
@@ -208,3 +208,38 @@ for risk assessment.
 validates schema on every push.
 
 **Files**: `docs/validation/known_anomalies.yaml`, `scripts/check_anomalies.py`
+
+---
+
+## D11: Storm on Mesa at OpenGL 4.5, No NVIDIA Dependency
+
+**Decision**: The viewport asks for OpenGL **4.5** in the Compatibility profile
+(not 4.6), and the run scripts pass the host's GPU render nodes
+(`--device /dev/dri`, never an NVIDIA GPU's) instead of `--gpus all`. Default
+rendering is the Intel GPU through Mesa; Mesa's software rasteriser, llvmpipe,
+is the fallback and what CI draws with.
+
+**Rationale**: Hydra Storm (HgiGL, OpenUSD 24.08) needs 4.5 Compatibility.
+Mesa provides it on llvmpipe (4.5) and on the Intel GPU (4.6). The old 4.6 gate
+admitted only the NVIDIA driver, whose driver deadlocks the maintainer's laptop.
+MIME 0.3's discovery measured Storm on llvmpipe, headless, with no GL errors
+(`plans/microrobotica/DISCOVERY_MIME03.md` §3, §5c).
+
+**Shared render path**: `StormRenderer` holds the engine, the camera matrices
+with clip planes fitted to the stage's bounds, and the lights, with no Qt.
+`LocalViewport` draws through it, and so does the headless screenshot test (an
+EGL surfaceless context on Mesa), so the test checks the app's own drawing.
+
+**Multisampling**: 4x by default. Storm's alpha-to-coverage draws the
+translucent tube and vessel see-through only with a multisample buffer.
+`MICROROBOTICA_MSAA=0` trades that for speed on a large software-rendered window.
+
+**Status**: Implemented. Screenshot tests draw the committed demo recording on
+llvmpipe and compare it with `tests/fixtures/screenshots/` (in CI), and draw A0's
+MIME 0.3 recording when `MICROROBOTICA_A0_RUN` names a run folder
+(`scripts/make_a0_fixtures.sh`). Measured on llvmpipe at 640x480, 4x MSAA: A0's
+repaints 6-12 ms, the demo's 36-43 ms.
+
+**Files**: `src/viewport/gl_requirements.h`, `src/viewport/storm_renderer.cpp`,
+`src/viewport/local_viewport.cpp`, `src/viewport/viewport_widget.cpp`,
+`scripts/render-args.sh`, `tests/screenshot/`
