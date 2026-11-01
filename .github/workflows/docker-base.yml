@@ -32,14 +32,27 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
+      # Every build is tagged base-<commit>, which a branch's CI can pin
+      # (docker/base-image). Only main moves the shared `base` tag, which
+      # main's CI and every developer's container pull.
+      - name: Choose tags
+        id: tags
+        run: |
+          {
+            echo "list<<EOF"
+            echo "${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:base-${{ github.sha }}"
+            if [ "${{ github.ref }}" = "refs/heads/main" ]; then
+              echo "${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:base"
+            fi
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
       - name: Build and push base image
         uses: docker/build-push-action@v5
         with:
           context: .
           file: docker/Dockerfile.base
           push: true
-          tags: |
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:base
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:base-${{ github.sha }}
+          tags: ${{ steps.tags.outputs.list }}
           cache-from: type=gha
           cache-to: type=gha,mode=max

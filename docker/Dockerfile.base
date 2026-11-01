@@ -94,17 +94,19 @@ ENV PATH="${USD_INSTALL}/bin:${PATH}"
 ENV LD_LIBRARY_PATH="${USD_INSTALL}/lib"
 ENV CMAKE_PREFIX_PATH="${USD_INSTALL}"
 
-# ── GPU / OpenGL runtime config ───────────────────────────────────────────────
-# NVIDIA Container Toolkit: these env vars tell nvidia-docker to inject the
-# GPU driver and GL libraries when the container is run with --gpus all.
-# Without --gpus, Mesa software rendering is used as fallback.
-ENV NVIDIA_VISIBLE_DEVICES=all
-ENV NVIDIA_DRIVER_CAPABILITIES=graphics,utility,compute
+# ── Packages added after OpenUSD ───────────────────────────────────────────────
+# In a layer of their own, after the expensive OpenUSD build, so adding one
+# does not rebuild OpenUSD.
+#   qt6-charts-dev: the plots panel (observation outputs over time, flags shaded).
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    qt6-charts-dev \
+    && rm -rf /var/lib/apt/lists/*
 
-# Mesa software rendering fallback: uncomment to force software GL even when
-# a GPU is available (useful for headless CI). To use, pass -e LIBGL_ALWAYS_SOFTWARE=1
-# at docker run time, or uncomment the line below.
-# ENV LIBGL_ALWAYS_SOFTWARE=1
+# ── OpenGL ─────────────────────────────────────────────────────────────────────
+# Hydra Storm needs OpenGL 4.5 Compatibility, which Mesa provides: on the
+# host's GPU when its render nodes are passed in (docker run --device /dev/dri,
+# scripts/render-args.sh), or on its software rasteriser, llvmpipe, otherwise
+# or with -e LIBGL_ALWAYS_SOFTWARE=1. No NVIDIA driver or GPU is used.
 
 # Verify USD installation
 RUN ls ${USD_INSTALL}/include/pxr/usd/usd/api.h && echo "OpenUSD headers OK" \

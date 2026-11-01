@@ -10,11 +10,28 @@ env:
   PXR_ROOT: /opt/usd
 
 jobs:
+  # The base image CI builds in: docker/base-image names it, so a branch that
+  # changes the image can pin its own build (base-<commit>) while main's CI and
+  # everyone else keep the shared `base` until it merges.
+  image:
+    name: Base image
+    runs-on: ubuntu-latest
+    outputs:
+      ref: ${{ steps.read.outputs.ref }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: docker/base-image
+          sparse-checkout-cone-mode: false
+      - id: read
+        run: echo "ref=$(tr -d '[:space:]' < docker/base-image)" >> "$GITHUB_OUTPUT"
+
   build-test:
     name: Build & Test
+    needs: image
     runs-on: ubuntu-latest
     container:
-      image: ghcr.io/microrobotics-simulation-framework/microrobotica:base
+      image: ${{ needs.image.outputs.ref }}
       credentials:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
@@ -54,9 +71,10 @@ jobs:
 
   asan-ubsan:
     name: ASan + UBSan
+    needs: image
     runs-on: ubuntu-latest
     container:
-      image: ghcr.io/microrobotics-simulation-framework/microrobotica:base
+      image: ${{ needs.image.outputs.ref }}
       credentials:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}

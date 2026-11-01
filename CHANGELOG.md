@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Base image**: the NVIDIA container variables are gone (nothing reads them: the viewport draws on Mesa), and Qt
+  Charts (`qt6-charts-dev`, Qt 6.4) is added for the plots panel, in a layer after OpenUSD's. Built images are tagged
+  `base-<commit>`; only main moves the shared `base` tag. CI builds in the image `docker/base-image` names, so a branch
+  that changes the image tests its own build.
 - **Viewport: no NVIDIA dependency.** Hydra Storm needs OpenGL 4.5 Compatibility, not 4.6: the GL gate is lowered,
   so the viewport draws on Mesa, on the Intel GPU (`--device /dev/dri`) or its software rasteriser (llvmpipe). The
   run scripts pass the host's render nodes (never an NVIDIA GPU's) instead of `--gpus all` (`scripts/render-args.sh`;
