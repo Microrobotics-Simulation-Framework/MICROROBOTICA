@@ -10,6 +10,7 @@ add_executable(microbotica_tests
     test_cloud_orchestration.cpp
     test_mime_stub.cpp
     test_ansi_parser.cpp
+    test_mime_error.cpp
     ${CMAKE_SOURCE_DIR}/src/stubs/stub_physics_process.cpp
     ${CMAKE_SOURCE_DIR}/src/connection/connection_manager.cpp
     ${CMAKE_SOURCE_DIR}/src/connection/ssh_tunnel.cpp

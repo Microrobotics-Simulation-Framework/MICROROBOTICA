@@ -91,8 +91,10 @@ This metadata is machine-readable (JSON-serializable) and harvested by
 | MBCA-COMP-011 | ResultsApplicator | `src/scene/results_applicator.h` |
 | MBCA-COMP-020 | SimulationController | `src/simulation/simulation_controller.h` |
 | MBCA-COMP-030 | ViewportWidget | `src/viewport/viewport_widget.h` |
+| MBCA-COMP-032 | StormRenderer | `src/viewport/storm_renderer.h` |
 | MBCA-COMP-040 | microrobotica module | `src/scripting/microbota_module.cpp` |
 | MBCA-COMP-041 | ConsoleWidget | `src/panels/console_widget.h` |
+| MBCA-COMP-042 | MimeConsolePanel | `src/panels/mime_console_panel.h` |
 | MBCA-IMPL-001 | StubPhysicsProcess | `src/stubs/stub_physics_process.h` |
 | MBCA-IMPL-002 | LocalComputeBackend | `src/stubs/local_compute_backend.h` |
 
