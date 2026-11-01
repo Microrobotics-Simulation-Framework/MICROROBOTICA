@@ -88,6 +88,10 @@ TEST_CASE("mime.live/1: A0's hello reads whole", "[unit][live]") {
     REQUIRE(h.visuals.has_value());
     CHECK_FALSE(h.visuals->overlay.has_value());
     CHECK(h.visuals->missing.at("ar4_mk5") == 18);
+    // The set's notice (credit, licence, terms) is there whether its meshes are drawn or missing.
+    const auto notice = h.visuals->noticeLines();
+    REQUIRE(notice.size() == 1);
+    CHECK(notice[0].find("Annin Robotics") != std::string::npos);
     CHECK(h.binding.size() == 31);
     CHECK(h.schema.id == 2645518914u);
     CHECK(h.schema.frameBytes == 900);
@@ -177,6 +181,7 @@ TEST_CASE("mime.live/1: replies, accepted and refused, keep their status and MIM
     CHECK(step.status.state == "paused");
     CHECK(step.status.step == 120);
     CHECK(step.status.frames == 4);
+    CHECK(step.status.stepping == 0);  // no step in hand once a step's reply comes
 
     const Reply refused = parseReply(replies["set_refused"]);
     CHECK_FALSE(refused.ok);
@@ -230,6 +235,12 @@ TEST_CASE("mime.live/1: frame order says a gap and a frame out of order", "[unit
     CHECK(order.see(3).find("out of order") != std::string::npos);
     CHECK(order.dropped() == 2);
     CHECK(order.outOfOrder() == 1);
+
+    // A client that joins a running session counts from the first frame it sees.
+    FrameOrder joined;
+    CHECK(joined.see(120).empty());
+    CHECK(joined.see(121).empty());
+    CHECK(joined.dropped() == 0);
 }
 
 TEST_CASE("Binding frames: poses land on their prims, converted to the stage's units", "[unit][live]") {

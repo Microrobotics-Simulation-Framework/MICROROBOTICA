@@ -995,6 +995,26 @@ bool MainWindow::applyHello(const live::Hello& hello)
                "Open the same saved experiment here (File → Open Saved Experiment), then connect.")
                 .arg(stage));
         return false;
+    } else {
+        // A remote session: the saved experiment open here stands in for the
+        // server's, if it is the same experiment, by its input hash.
+        std::string localInput;
+        std::ifstream lock(experimentDir_ + "/mime.lock");
+        try {
+            const auto j = nlohmann::json::parse(lock);
+            localInput = j.at("hashes").value("input", std::string());
+        } catch (const std::exception&) {}
+        const auto served = hello.hashes.find("input");
+        if (served == hello.hashes.end() || localInput.empty() || served->second != localInput) {
+            QMessageBox::warning(this, tr("Live session"),
+                tr("The session serves %1, and the saved experiment open here is another (or its lock "
+                   "is unreadable):\nserved %2\nhere %3\n\nOpen the saved folder the session serves "
+                   "(or a mime pull of it), then connect.")
+                    .arg(QString::fromStdString(hello.experiment),
+                         QString::fromStdString(served == hello.hashes.end() ? std::string("?") : served->second),
+                         QString::fromStdString(localInput.empty() ? std::string("?") : localInput)));
+            return false;
+        }
     }
 
     // MIME's visuals: the overlay that draws meshes MIME does not ship, or

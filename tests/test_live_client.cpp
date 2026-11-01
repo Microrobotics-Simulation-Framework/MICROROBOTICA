@@ -163,7 +163,7 @@ TEST_CASE("Live session: hello, start, frames through the binding, a refused set
     CHECK(observed.load() == 3);
     const auto stats = client->stats();
     CHECK(stats.framesReceived == 3);
-    CHECK(stats.dropped == 3);  // frames 2 to 4 were not sent: the gap is said
+    CHECK(stats.dropped == 3);  // frames 2 to 4 were not sent: the gap is said (counted from frame 0, the first)
     CHECK(stats.finalSeen);
 
     process.sendParameters({{"gain", 1.0}});    // refused: no such live input

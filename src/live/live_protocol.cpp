@@ -87,6 +87,7 @@ SessionStatus statusOf(const nlohmann::json& message) {
     s.step = number<std::uint64_t>(message, "step", 0);
     s.time = number<double>(message, "time", 0.0);
     s.frames = number<std::uint64_t>(message, "frames", 0);
+    s.stepping = number<std::uint64_t>(message, "stepping", 0);
     if (message.contains("pace") && message["pace"].is_number()) {
         s.pace = message["pace"].get<double>();
     }
@@ -320,6 +321,11 @@ LiveFrame decodeFrame(const std::uint8_t* data, std::size_t size, const FrameSch
 }
 
 std::string FrameOrder::see(std::uint32_t number) {
+    if (!seenAny_) {
+        seenAny_ = true;
+        expected_ = static_cast<std::uint64_t>(number) + 1;
+        return {};
+    }
     std::string problem;
     if (number > expected_) {
         problem = "frames " + std::to_string(expected_) + " to " + std::to_string(number - 1) +

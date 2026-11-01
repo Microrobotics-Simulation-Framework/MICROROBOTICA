@@ -62,6 +62,7 @@ struct SessionStatus {
     std::uint64_t step = 0;            ///< base steps taken
     double time = 0.0;                 ///< simulated seconds
     std::uint64_t frames = 0;          ///< frames sent
+    std::uint64_t stepping = 0;        ///< chunks a step in hand has still to take (0 otherwise)
     std::optional<double> pace;        ///< factor of real time; nullopt when unpaced
     bool recording = false;
     nlohmann::json nonFinite;          ///< null, or what MIME says of a state that is not finite
@@ -152,7 +153,9 @@ LiveFrame decodeJsonFrame(const nlohmann::json& message, const FrameSchema& sche
 LiveFrame decodeFrame(const std::uint8_t* data, std::size_t size, const FrameSchema& schema);
 
 /// What a client checks of the frames it receives, by their numbers: each the one after the last. A gap is a dropped
-/// frame, a number at or below one seen is out of order.
+/// frame, a number at or below one seen is out of order. It counts from the first frame it sees, whatever its number:
+/// a client that joins a running session (or whose subscription lands after the first frames) has missed nothing of
+/// its own.
 class FrameOrder {
 public:
     /// The problem with this frame's place, or empty when it is the next.
@@ -161,6 +164,7 @@ public:
     std::uint64_t outOfOrder() const { return outOfOrder_; }
 
 private:
+    bool seenAny_ = false;
     std::uint64_t expected_ = 0;
     std::uint64_t dropped_ = 0;
     std::uint64_t outOfOrder_ = 0;

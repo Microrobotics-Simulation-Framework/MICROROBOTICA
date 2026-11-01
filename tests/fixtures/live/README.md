@@ -1,7 +1,8 @@
 # mime.live/1 messages captured from MIME 0.3
 
 Captured on 2026-11-01 from a real `mime serve` of A0, MIME's reference experiment, saved with its controller in the
-callback mode (`scripts/make_a0_fixtures.sh`, `a0_callback_saved`), at MIME PR #86's head `3136fb1`. Local paths are
+callback mode (`scripts/make_a0_fixtures.sh`, `a0_callback_saved`), at MIME's `v0.3-phase7n` `578cb0b` (PR #86's
+fix round: the client note's "Changes since the first note"; first captured at `3136fb1`). Local paths are
 replaced by `/data/...`. The tests in `tests/test_live_protocol.cpp` read them.
 
 | File | What it is |
@@ -13,5 +14,5 @@ replaced by `/data/...`. The tests in `tests/test_live_protocol.cpp` read them.
 | `frame_last.bin` | the session's last frame, its final flag set |
 | `frame_1.json` | frame 1 of a second session of the same folder, with `--json-frames` |
 
-When MIME PR #86's client note lists "Changes since the first note", capture these again
-(`scripts/capture_live_fixtures.py`) and update `src/live/live_protocol.*` to match.
+When MIME's protocol changes, capture these again (`scripts/capture_live_fixtures.py`) and update
+`src/live/live_protocol.*` to match.

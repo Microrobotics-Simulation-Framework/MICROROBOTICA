@@ -6,8 +6,8 @@
  "experiment": "script_a0",
  "hashes": {
   "recipe": "mime.hash/1",
-  "document": "sha256:32c169533b5f55f8b424839aecea6f233fbe8316a7aed98b2fddc534d8a9fdd5",
-  "input": "sha256:8c13b870b3f8ec256438f5a9a1496261c116145ae35246de7cdeb66cb5a9b21b",
+  "document": "sha256:2506f27239629c3cf77e3f6467534aea9980a51da59203cc74cffb0dc02b3e91",
+  "input": "sha256:e356360ad10383c751d9323a6968d9f28171cd989aa97f1db9a9a59c9b3932d5",
   "derived": "sha256:21916a3586e9215ae6ac72d93a4c1dfec28bb1d58aaa73378257c80f036ef56e",
   "observations": "sha256:808b9d6b8b5a15d09a192e18b781f70a2161b86276190f90116205651ceffa85"
  },
@@ -33,7 +33,9 @@
   "missing": {
    "ar4_mk5": 18
   },
-  "notice": []
+  "notice": [
+   "the visual meshes of Annin Robotics' AR4 robot arm (mk5)\ncredit: Annin Robotics (anninrobotics.com): the AR4 robot arm and its 3D models, from Annin Robotics' ar4_ros_driver repository\nlicence: LicenseRef-Annin-Robotics-NonCommercial (https://github.com/Annin-Robotics/ar4-hmi/blob/main/LICENSE.txt); tier no-redistribution, role presentation\nThe AR4's 3D models are Annin Robotics' design. Annin Robotics' licence for its CAD files (Annin Robotics Open Source Non-Commercial License Agreement, version 1.1, section 2) allows educational, research and personal non-commercial use, and forbids redistributing or hosting them in any form and commercial use without its written permission. The driver repository they come from is MIT-licensed, and which terms govern the meshes has not been settled; MIME follows the stricter. MIME hosts none of them: this recipe downloads each from Annin Robotics' own repository at the pinned commit, checks its sha256, and converts and decimates it on this machine, into the asset cache only, never into a saved or a run folder. Keep the logos and the names as they are, and do not use the Annin Robotics name to suggest endorsement."
+  ]
  },
  "binding": {
   "format": "mime.binding/1",
@@ -1416,5 +1418,6 @@
  "frames": 0,
  "pace": 1.0,
  "recording": false,
- "non_finite": null
+ "non_finite": null,
+ "stepping": 0
 }
