@@ -10,6 +10,7 @@
 #include "live/live_physics_process.h"
 #include "test_config.h"
 
+#include <algorithm>
 #include <atomic>
 #include <chrono>
 #include <condition_variable>
@@ -318,7 +319,16 @@ TEST_CASE("Live client: commands are posted without waiting, in order; a status 
     CHECK(outcomes[0].second >= 0.55);
     CHECK(status < outcomes[0].second);
     lock.unlock();
-    CHECK(standIn.received() == std::vector<std::string>{"hello", "set", "status", "pause"});
+    // The status went on a socket of its own, so it may reach the server before or after the set; the pause, on the
+    // commands lane, only once the set was answered.
+    const auto received = standIn.received();
+    REQUIRE(received.size() == 4);
+    CHECK(received[0] == "hello");
+    const auto at = [&received](const std::string& command) {
+        return std::find(received.begin(), received.end(), command) - received.begin();
+    };
+    CHECK(at("set") < at("pause"));
+    CHECK(at("status") < at("pause"));
 }
 
 TEST_CASE("Live client: close() ends a request in flight at once, and every later one", "[integration][live]") {
