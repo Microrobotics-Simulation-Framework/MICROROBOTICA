@@ -5,9 +5,11 @@ Run with MIME's Python, from anywhere:
 
     <MIME>/.venv/bin/python scripts/capture_live_fixtures.py <a0_callback_saved> <scratch dir> tests/fixtures/live
 
-It serves the folder twice (binary frames, then JSON frames), records hello, a few frames and the replies to each
-command, and writes them into the fixtures folder with every local path replaced by /data/... . Re-run it when MIME's
-client note lists "Changes since the first note", then update src/live/live_protocol.* to match.
+It serves the folder three times: binary frames, recording hello, a few frames and the replies to each command; again,
+recording the replies a session gives while its first chunk compiles (status, a pause and a stop taken then, both
+pending) and its final frame; then JSON frames. It writes them into the fixtures folder with every local path replaced
+by /data/... . Re-run it when MIME's client note lists "Changes since the first note", then update
+src/live/live_protocol.* to match.
 """
 
 from __future__ import annotations
@@ -80,6 +82,38 @@ for number in (0, 1):
 assert last is not None and is_frame(last)
 (fixtures / "frame_last.bin").write_bytes(last)
 
+# While the first chunk compiles (seconds for A0), status, pause and stop are answered at once; pause and stop act at
+# the chunk's end (pending), and the stop's reply names no run folder: the final frame says the session has stopped.
+process, endpoints = serve("pending")
+client = LiveClient(endpoints["commands"], endpoints["frames"])
+pending = {"start": client.request("start")}
+deadline = time.monotonic() + 30.0
+while True:
+    status = client.request("status")
+    if status.get("activity") == "compiling":
+        break
+    assert time.monotonic() < deadline, status
+    time.sleep(0.01)
+pending["status_compiling"] = status
+pending["pause_pending"] = client.request("pause")
+pending["stop_pending"] = client.request("stop")
+assert pending["stop_pending"].get("taken") is True and "folder" not in pending["stop_pending"], pending
+final = None
+try:
+    while True:
+        data = client.frames.receive()
+        if is_frame(data) and int.from_bytes(data[6:8], "little") & 1:  # the header's flags: bit 0, final
+            final = data
+            break
+except Exception:  # the session closed its sockets
+    pass
+client.close()
+assert final is not None, "no final frame after a pending stop"
+assert process.wait(timeout=120) == 0
+assert (scratch / "run_pending" / "run.json").is_file()
+(fixtures / "replies_pending_a0_callback.json").write_text(
+    json.dumps(json.loads(clean(json.dumps(pending))), indent=1) + "\n")
+
 process, endpoints = serve("json", "--json-frames")
 client = LiveClient(endpoints["commands"], endpoints["frames"])
 client.request("step", chunks=1)
@@ -90,4 +124,5 @@ client.close()
 assert process.wait(timeout=120) == 0
 shutil.rmtree(scratch / "run_bin", ignore_errors=True)
 shutil.rmtree(scratch / "run_json", ignore_errors=True)
+shutil.rmtree(scratch / "run_pending", ignore_errors=True)
 print("captured into", fixtures)

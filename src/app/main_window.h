@@ -4,7 +4,10 @@
 #include <QLabel>
 #include <QByteArray>
 #include <QString>
+#include <cstdint>
 #include <memory>
+#include <string>
+#include <vector>
 
 #include <nlohmann/json.hpp>
 
@@ -129,8 +132,12 @@ private:
     /// graph, the live inputs. False when the session's stage is not here.
     bool applyHello(const live::Hello& hello);
     /// A reply of the session, on the UI thread: a refusal goes to the MIME
-    /// console in its shape; the status to the run panel.
+    /// console in its shape; the status to the run panel. While the first
+    /// chunk compiles or a pause is pending, `status` is polled.
     void onLiveReply(const live::Reply& reply);
+    /// The run panel's status line: the state, what the session is doing and
+    /// what is pending from replies, the step and time from frames.
+    void showLiveLine();
     /// Tear the session down: the client, the panels, the MIME process.
     void endLiveSession(const QString& why);
     /// The `mime serve` process ended (stopped, or crashed).
@@ -178,6 +185,21 @@ private:
     std::shared_ptr<live::LiveClient> liveClient_;
     std::shared_ptr<const live::BindingFrames> liveFrames_;
     nlohmann::json pendingSet_;   // the live inputs sent, until set's reply
+    // The session's status line: state, activity and pending from replies,
+    // step and time from frame headers (MIME's client note, entries 18, 21).
+    struct LiveLine {
+        std::string state;
+        std::string activity;
+        std::vector<std::string> pending;
+        std::uint64_t step = 0;
+        double time = 0.0;
+        bool recording = false;
+    } liveLine_;
+    QTimer* liveStatusPoll_ = nullptr;  // status, while compiling or a pause is pending
+    QString liveLineLogged_;      // the status line's last state, activity and pending, as logged
+    QString liveOut_;             // where `mime serve --out` writes (Local): a pending stop's run folder
+    QString sessionRunFolder_;    // the run folder this session's stop named
+    bool liveStopPending_ = false;  // the stop was taken while a chunk ran
     QString lastRunFolder_;       // the run folder the last session wrote
     QString runFolder_;           // the run folder open (File → Open Run Folder)
     QAction* openLastRunAction_ = nullptr;

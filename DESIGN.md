@@ -278,13 +278,38 @@ the session. The frames socket's handshake is awaited before `hello`, so a
 380 µs a frame.
 
 **Status**: Implemented against MIME PR #86 and its fix round; checked against
-MIME's `v0.3` after #86 merged (`21e98f5`).
+MIME's `v0.3` after #86 merged (`21e98f5`), then after its phase 7n-b (PR #89,
+the client note's entries 16 to 24) merged (`62d7604`).
+
+**It never goes silent** (MIME's 7n-b): the server answers `hello`, `status`,
+`pause` and a stop taken while a chunk runs at once, even while the first
+chunk compiles, and acts on `set`, `record`, `pace`, `start` and `step` at
+the chunk's end. So each command waits as long as MIME may take to answer it
+(`LiveClient::Timeouts`: 5 s at once, 30 s at a chunk's end, 120 s for a stop
+that writes its run folder), and a reply to another command than the one
+sent is refused. A stop taken while a chunk runs is pending: its reply names
+no run folder, and `LivePhysicsProcess::stop` returns once the final frame
+comes or the frames' connection closes; a Local session's run folder is then
+where its ready file said. The run panel's status line takes the state, the
+activity ("compiling") and what is pending from replies, the step and time
+from frames, and polls `status` while the first chunk compiles or a pause is
+pending, never after a stop.
+
+**The build report** (`mime.report/1`, `src/runs/build_report.*`): `hello`
+and a run folder's `report.json` give the validity lines (declared and not
+yet checked, computed at the build, or a capability record's limit), the
+watches, the flags with their meanings, the settings and the profile. The
+claims panel shows them, a declared line never as a verdict; the report's
+flags name the frames' flag fields. A run folder without one (written before
+7n-b) shows its watches and flags alone; a report of a newer format is not
+read, and the panel says so, as MIME's own reader does.
 
 **Server lifetime**: `mime serve` exits when the process that launched it is
 gone, so a session MICROROBOTICA launches (Local) never outlives a crashed
 viewer. A session started by hand for a Manual endpoint (a remote one, over
 SSH) needs `--outlive-launcher` to survive the shell that started it.
 
-**Files**: `src/live/`, `src/app/main_window.cpp`, `src/panels/live_inputs_panel.cpp`,
+**Files**: `src/live/`, `src/runs/build_report.*`, `src/app/main_window.cpp`, `src/panels/live_inputs_panel.cpp`,
+`src/panels/claims_panel.cpp`,
 `tests/test_live_protocol.cpp`, `tests/test_live_client.cpp`, `tests/test_live_mime_serve.cpp`,
 `tests/verification/test_live_stage.cpp`

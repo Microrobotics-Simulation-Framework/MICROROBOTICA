@@ -93,6 +93,14 @@ SessionStatus statusOf(const nlohmann::json& message) {
     }
     s.recording = message.value("recording", false);
     s.nonFinite = message.contains("non_finite") ? message["non_finite"] : nlohmann::json();
+    s.activity = text(message, "activity");
+    if (message.contains("pending") && message["pending"].is_array()) {
+        for (const auto& c : message["pending"]) {
+            if (c.is_string()) {
+                s.pending.push_back(c.get<std::string>());
+            }
+        }
+    }
     return s;
 }
 
@@ -119,7 +127,23 @@ nlohmann::json paceRequest(std::optional<double> rtf) {
     return request("pace", {{"rtf", rtf ? nlohmann::json(*rtf) : nlohmann::json(nullptr)}});
 }
 
+ReplyWait replyWait(const std::string& command) {
+    if (command == "stop") return ReplyWait::RunFolder;
+    if (command == "set" || command == "record" || command == "pace" || command == "start" || command == "step") {
+        return ReplyWait::ChunkEnd;
+    }
+    return ReplyWait::AtOnce;
+}
+
 // ── Replies ──────────────────────────────────────────────────────────────────
+
+bool SessionStatus::isPending(const std::string& command) const {
+    return std::find(pending.begin(), pending.end(), command) != pending.end();
+}
+
+bool Reply::stopPending() const {
+    return ok && command == "stop" && !folder && (taken || status.isPending("stop"));
+}
 
 Reply parseReply(const nlohmann::json& message) {
     if (!message.is_object()) {
@@ -140,6 +164,8 @@ Reply parseReply(const nlohmann::json& message) {
     if (message.contains("folder") && message["folder"].is_string()) {
         reply.folder = message["folder"].get<std::string>();
     }
+    reply.taken = message.contains("taken") && message["taken"].is_boolean() && message["taken"].get<bool>();
+    reply.message = text(message, "message");
     return reply;
 }
 
@@ -384,6 +410,29 @@ std::vector<BindingEntry> parseBinding(const nlohmann::json& binding) {
 
 // ── hello ────────────────────────────────────────────────────────────────────
 
+std::size_t LiveInputSpec::count() const {
+    std::size_t n = 1;
+    for (std::size_t d : shape) {
+        n *= d;
+    }
+    return n;
+}
+
+std::vector<double> LiveInputSpec::defaults() const {
+    std::vector<double> values;
+    if (!defaultValue.is_null()) {
+        try {
+            flatten(defaultValue, values);
+        } catch (const ProtocolError&) {
+            values.clear();
+        }
+    }
+    if (values.size() != count()) {
+        values.assign(count(), 0.0);  // MIME's own default when a controller declares none: zeros
+    }
+    return values;
+}
+
 std::vector<std::string> VisualsInfo::noticeLines() const {
     std::vector<std::string> lines;
     auto add = [&lines](const nlohmann::json& item) {
@@ -446,6 +495,7 @@ Hello parseHello(const nlohmann::json& reply) {
             in.units = text(spec, "units");
             in.shape = shapeOf(spec.is_object() && spec.contains("shape") ? spec["shape"] : nlohmann::json::array());
             in.meaning = text(spec, "meaning");
+            in.defaultValue = spec.is_object() && spec.contains("default") ? spec["default"] : nlohmann::json();
             h.liveInputs.push_back(std::move(in));
         }
     }
@@ -467,6 +517,7 @@ Hello parseHello(const nlohmann::json& reply) {
     }
     h.binding = parseBinding(reply.contains("binding") ? reply["binding"] : nlohmann::json());
     h.topology = reply.contains("topology") ? reply["topology"] : nlohmann::json::object();
+    h.report = runs::parseReport(reply.contains("report") ? reply["report"] : nlohmann::json());
     if (!reply.contains("schema")) {
         throw ProtocolError("hello has no frame schema");
     }

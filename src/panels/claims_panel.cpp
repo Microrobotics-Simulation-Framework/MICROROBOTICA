@@ -10,6 +10,13 @@ const QColor kQuiet(58, 154, 58);
 const QColor kUnknown(144, 144, 144);
 
 QString q(const std::string& s) { return QString::fromStdString(s); }
+
+QString kindText(const std::string& kind) {
+    if (kind == "declared") return QObject::tr("declared, not yet checked");
+    if (kind == "computed") return QObject::tr("computed at the build");
+    if (kind == "record") return QObject::tr("a capability record's limit");
+    return QString::fromStdString(kind);
+}
 } // namespace
 
 ClaimsPanel::ClaimsPanel(QWidget* parent) : QDockWidget(tr("Claims"), parent) {
@@ -19,8 +26,8 @@ ClaimsPanel::ClaimsPanel(QWidget* parent) : QDockWidget(tr("Claims"), parent) {
     tree_->header()->setSectionResizeMode(0, QHeaderView::Stretch);
     tree_->header()->setSectionResizeMode(1, QHeaderView::ResizeToContents);
     tree_->setWordWrap(true);
-    tree_->setToolTip(tr("What MIME says of this run: the validity lines it was watched against, its flags, and what "
-                         "its profile still has pending."));
+    tree_->setToolTip(tr("What MIME says of this run: its build report's validity lines, what it was watched against, "
+                         "its flags, and what its profile still has pending."));
     setWidget(tree_);
     clear();
 }
@@ -32,6 +39,33 @@ QTreeWidgetItem* ClaimsPanel::section(const QString& title) {
     item->setFont(0, f);
     item->setExpanded(true);
     return item;
+}
+
+void ClaimsPanel::addValidity(const runs::ReportRead& read, bool live) {
+    if (!read.report) {
+        auto* note = section(tr("Validity lines"));
+        if (read.unreadable) {
+            new QTreeWidgetItem(note, {tr("The build report is of format %1, which this MICROROBOTICA does not read "
+                                          "(it reads %2).").arg(q(*read.unreadable), q(runs::kReportFormat))});
+        } else if (live) {
+            new QTreeWidgetItem(note, {tr("This MIME's session gives no build report: its run folder states what the "
+                                          "run was watched against when the session stops.")});
+        } else {
+            new QTreeWidgetItem(note, {tr("This run folder has no build report (report.json): a MIME before 0.3's "
+                                          "phase 7n-b wrote it. Its watches and flags follow.")});
+        }
+        return;
+    }
+    const auto& validity = read.report->validity;
+    auto* lines = section(tr("Validity lines (%1)").arg(validity.size()));
+    for (const auto& v : validity) {
+        auto* item = new QTreeWidgetItem(lines, {q(v.line), kindText(v.kind)});
+        item->setToolTip(0, q((v.owner.empty() ? std::string() : v.owner + ": ") + v.line));
+        item->setToolTip(1, v.declaredOnly() ? tr("Declared by its entry and not yet checked: a claim, not a verdict.")
+                                             : kindText(v.kind));
+        if (v.declaredOnly()) item->setForeground(1, kUnknown);
+    }
+    if (validity.empty()) new QTreeWidgetItem(lines, {tr("The build report states no validity line.")});
 }
 
 void ClaimsPanel::clear() {
@@ -58,8 +92,11 @@ void ClaimsPanel::showRun(const runs::RunFolder& run) {
         ++alarms_;
     }
 
+    const runs::ReportRead report = run.report();
+    addValidity(report, false);
+
     const auto watches = run.watches();
-    auto* validity = section(tr("Validity (%1)").arg(watches.size()));
+    auto* validity = section(tr("Watched in this run (%1)").arg(watches.size()));
     for (const auto& w : watches) {
         const std::string status = w.raw.value("status", std::string());
         const bool raised = w.raw.value("raised", false);
@@ -92,6 +129,9 @@ void ClaimsPanel::showRun(const runs::RunFolder& run) {
     const std::string profile = run.profile();
     const auto pending = run.pending();
     auto* stamp = section(tr("Profile: %1").arg(q(profile.empty() ? std::string("(none)") : profile)));
+    if (report.report && report.report->profile && !report.report->profile->stamp.empty()) {
+        stamp->setToolTip(0, q(report.report->profile->stamp));
+    }
     if (pending.empty()) {
         new QTreeWidgetItem(stamp, {tr("Nothing pending.")});
     } else {
@@ -100,21 +140,55 @@ void ClaimsPanel::showRun(const runs::RunFolder& run) {
     }
 }
 
-void ClaimsPanel::beginLive(const std::string& experiment, const std::vector<std::string>& flagPaths) {
+void ClaimsPanel::beginLive(const std::string& experiment, const std::vector<std::string>& flagPaths,
+                            const runs::ReportRead& report) {
     tree_->clear();
     alarms_ = 0;
     liveItems_.clear();
     firstRaised_.clear();
     section(tr("Live session of %1").arg(q(experiment)));
+    addValidity(report, true);
+
+    if (report.report) {
+        const auto& watches = report.report->watches;
+        auto* watched = section(tr("Watched after the run (%1)").arg(watches.size()));
+        for (const auto& w : watches) {
+            auto* item = new QTreeWidgetItem(watched, {q(w), tr("when it stops")});
+            item->setToolTip(0, q(w));
+            item->setToolTip(1, tr("Compared with the run when the session stops: its run folder says the outcome."));
+            item->setForeground(1, kUnknown);
+        }
+        if (watches.empty()) new QTreeWidgetItem(watched, {tr("Nothing is watched after the run.")});
+    }
+
     liveFlags_ = section(tr("Flags (%1)").arg(flagPaths.size()));
     for (const auto& path : flagPaths) {
         auto* item = new QTreeWidgetItem(liveFlags_, {q(path), tr("not raised")});
         item->setForeground(1, kQuiet);
+        if (report.report) {
+            for (const auto& f : report.report->flags) {
+                if (f.path != path) continue;
+                if (!f.entry.empty()) item->setText(0, q(path + "  (" + f.entry + ")"));
+                if (!f.meaning.empty()) {
+                    item->setToolTip(0, q(f.meaning));
+                    new QTreeWidgetItem(item, {q(f.meaning)});
+                }
+            }
+        }
         liveItems_[path] = item;
     }
-    auto* note = section(tr("Validity"));
-    new QTreeWidgetItem(note, {tr("MIME states its validity lines in the run folder the session writes when it "
-                                  "stops: open it to read them.")});
+
+    if (report.report && report.report->profile) {
+        const auto& p = *report.report->profile;
+        auto* stamp = section(tr("Profile: %1").arg(q(p.profile.empty() ? std::string("(none)") : p.profile)));
+        if (!p.stamp.empty()) stamp->setToolTip(0, q(p.stamp));
+        if (p.pending.empty()) {
+            new QTreeWidgetItem(stamp, {tr("Nothing pending.")});
+        } else {
+            auto* list = new QTreeWidgetItem(stamp, {tr("Pending (%1)").arg(p.pending.size())});
+            for (const auto& item : p.pending) new QTreeWidgetItem(list, {q(item)});
+        }
+    }
 }
 
 void ClaimsPanel::liveFlags(double time, const std::map<std::string, double>& values) {

@@ -32,17 +32,21 @@ public:
     static const core::ComponentMeta& meta() {
         static const core::ComponentMeta m{
             .component_id      = "MBCA-IMPL-013",
-            .component_version = "1.0.0",
+            .component_version = "1.1.0",
             .stability         = core::StabilityLevel::Experimental,
             .description       = "A MIME 0.3 live session (mime.live/1, mime serve) as a PhysicsProcess.",
             .preconditions     = {"The client is connected: hello was answered"},
             .postconditions    = {"Every frame received is mapped through the stage binding to a ResultFrame",
-                                  "stop() sends stop, which stops the session in every state"},
+                                  "stop() sends stop, which stops the session in every state",
+                                  "A stop taken while a chunk runs returns once the session's final frame arrives "
+                                  "or its connection closes"},
             .invariants        = {"Positions are converted from metres to the stage's units"},
             .design_rationale  = "Keeps the scene pipeline (SimulationController, ResultsApplicator) as it was; "
                                  "the protocol's shapes stay in live_protocol, its transport in LiveClient.",
             .assumptions       = {"The session's frames are the binding's fields (mime serve's default selection)"},
-            .limitations       = {"A refused command is reported to the observer, not raised"},
+            .limitations       = {"A refused command is reported to the observer, not raised",
+                                  "A stop taken while a chunk runs names no run folder: MIME writes it after the "
+                                  "final frame, where `mime serve --out` said"},
             .validated_regimes = {},
             .hazard_hints      = {
                 "A dropped frame is counted and said; the scene shows the next frame received.",
@@ -71,8 +75,10 @@ public:
     void setFrameObserver(std::function<void(const LiveFrame&)> observer);
     void setStartOnLaunch(bool start) { startOnLaunch_ = start; }
 
-    /// stop's run folder, once the session has stopped.
+    /// stop's run folder, once the session has stopped, when stop's reply named it (a stop between chunks).
     std::optional<std::string> runFolder() const;
+    /// The stop was taken while a chunk ran (pending): its reply named no run folder.
+    bool stoppedPending() const { return stoppedPending_.load(); }
 
 private:
     std::optional<Reply> send(const nlohmann::json& message, int timeoutMs = -1);
@@ -82,6 +88,7 @@ private:
     core::ThreadSafeQueue<std::optional<core::ResultFrame>> queue_;
     std::atomic<core::ProcessStatus> status_{core::ProcessStatus::Idle};
     std::atomic<bool> finished_{false};
+    std::atomic<bool> stoppedPending_{false};
     bool startOnLaunch_ = true;
     mutable std::mutex mutex_;
     std::function<void(const Reply&)> replyObserver_;

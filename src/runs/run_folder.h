@@ -3,8 +3,8 @@
 // A MIME 0.3 run folder (MIME's results/README.md, docs/live.md): what `run_to`, `mime run` or a live session wrote,
 // read for MICROROBOTICA's playback, plots and claims. Its experiment (`experiment/`, a saved folder), its recording
 // (`recording.usdc` over `experiment/scene/scene.usda`), its outputs (`outputs.json`, the manifest, and
-// `outputs.npz`, the arrays), its record (`run.json`), its topology (`topology.json`) and, for a live session, its
-// command log (`commands.jsonl`).
+// `outputs.npz`, the arrays), its record (`run.json`), its topology (`topology.json`), the build report's summary
+// (`report.json`, from MIME 0.3's phase 7n-b on) and, for a live session, its command log (`commands.jsonl`).
 //
 // Free of Qt and USD: the standard library, nlohmann_json and the npz reader.
 
@@ -16,6 +16,7 @@
 #include <nlohmann/json.hpp>
 
 #include "core/component_meta.h"
+#include "runs/build_report.h"
 
 namespace microbotica::runs {
 
@@ -52,18 +53,22 @@ public:
     static const core::ComponentMeta& meta() {
         static const core::ComponentMeta m{
             .component_id      = "MBCA-COMP-070",
-            .component_version = "1.0.0",
+            .component_version = "1.1.0",
             .stability         = core::StabilityLevel::Experimental,
             .description       = "A MIME 0.3 run folder read for playback, plots and claims.",
             .preconditions     = {"The folder holds outputs.json or run.json, as MIME 0.3 writes them"},
             .postconditions    = {"Recorded series come back at their steps' times, in their units",
-                                  "Flags and validity watches come back as MIME states them"},
+                                  "Flags and validity watches come back as MIME states them",
+                                  "The build report's validity lines come back as report.json states them, or why "
+                                  "it was not read"},
             .invariants        = {"The folder is only read"},
             .design_rationale  = "One reader of MIME's run-folder layout (results/README.md), shared by the "
                                  "plots and claims panels and the playback of recordings.",
             .assumptions       = {"outputs.npz holds plain numeric arrays (MIME writes it with allow_pickle=False)"},
             .limitations       = {"A run that recorded no series per step has none to plot (its final state only)",
-                                  "The build report's validity lines are not in a run folder: its watches are"},
+                                  "A run folder written before MIME 0.3's phase 7n-b has no report.json: its "
+                                  "watches and flags are all it says of its claims",
+                                  "A report.json of a newer format than mime.report/1 is not read"},
             .validated_regimes = {},
             .hazard_hints      = {"A layout MIME changes reads as fewer series, not as wrong ones: each is "
                                   "found by the name the manifest gives"},
@@ -90,6 +95,11 @@ public:
     std::string topology() const;             ///< topology.json, or empty
     std::string commandsLog() const;          ///< commands.jsonl, or empty (not a live session's)
     std::string outputsArchive() const;       ///< outputs.npz, or empty
+    std::string reportFile() const;           ///< report.json, or empty
+
+    /// The build report's summary (report.json): its validity lines, watches, flags, settings and profile. Neither a
+    /// report nor a reason when the folder holds none (one written before MIME 0.3's phase 7n-b).
+    ReportRead report() const;
 
     double dt() const;                        ///< the base step (s)
     std::uint64_t steps() const;

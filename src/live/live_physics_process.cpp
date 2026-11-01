@@ -98,10 +98,19 @@ void LivePhysicsProcess::stop() {
     if (status_.load() == core::ProcessStatus::Stopped) {
         return;
     }
-    // stop writes the run folder before it replies: give it time.
-    if (const auto reply = send(stopRequest(), 120000); reply && reply->folder) {
+    // Between chunks, stop writes the run folder before it replies (its timeout allows it). Taken while a chunk runs,
+    // it is answered at once as pending: the session stops at the chunk's end, its final frame (or its connection
+    // closing) says it has, and its run folder is written after that (MIME's client note, entry 23).
+    const auto reply = send(stopRequest());
+    if (reply && reply->folder) {
         std::lock_guard<std::mutex> lock(mutex_);
         runFolder_ = reply->folder;
+    } else if (reply && reply->stopPending()) {
+        stoppedPending_.store(true);
+        if (!client_->waitForEnd(client_->timeouts().chunkEndMs)) {
+            spdlog::warn("LivePhysicsProcess: a pending stop, and no final frame within {} ms",
+                         client_->timeouts().chunkEndMs);
+        }
     }
     client_->stopFrames();
     queue_.push(std::nullopt);  // unblock receiveResult

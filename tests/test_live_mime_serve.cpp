@@ -4,8 +4,9 @@
 //   mime serve <a0_callback_saved> --commands tcp://127.0.0.1:0 --frames tcp://127.0.0.1:0 --ready-file ready.json
 //
 // (scripts/make_a0_fixtures.sh writes the folder). The test drives the session through MICROROBOTICA's own client and
-// live PhysicsProcess: hello, three steps, a live input, recording, running at real time, pause and stop,
-// and checks each frame arrives, in order, mapped onto the stage binding. It stops the session.
+// live PhysicsProcess: hello, three steps (another client's status answered while the first compiles), a live input,
+// recording, running at real time, pause and stop, and checks each frame arrives, in order, mapped onto the stage
+// binding. It stops the session.
 
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
@@ -16,6 +17,7 @@
 #include "live/live_client.h"
 #include "live/live_physics_process.h"
 
+#include <algorithm>
 #include <chrono>
 #include <cstdlib>
 #include <filesystem>
@@ -26,6 +28,7 @@
 using namespace microbotica::live;
 
 TEST_CASE("A real mime serve: hello, step, set, record, run at real time, pause, stop", "[live][mime-serve]") {
+    using Clock = std::chrono::steady_clock;
     const char* readyPath = std::getenv("MICROROBOTICA_LIVE_READY");
     if (readyPath == nullptr) {
         SKIP("MICROROBOTICA_LIVE_READY names no running mime serve's ready file");
@@ -33,10 +36,13 @@ TEST_CASE("A real mime serve: hello, step, set, record, run at real time, pause,
     std::ifstream in(readyPath);
     const ReadyFile ready = parseReadyFile(std::string(std::istreambuf_iterator<char>(in), {}));
 
-    auto client = std::make_shared<LiveClient>(ready.commands, ready.frames, 30000);
+    auto client = std::make_shared<LiveClient>(ready.commands, ready.frames);
     const Hello& hello = client->connect();
     REQUIRE(hello.controller.has_value());
     REQUIRE(hello.controller->takesLiveInputs());
+    CHECK(hello.liveInputs.at(0).defaults() == std::vector<double>{0.0});
+    REQUIRE(hello.report.report.has_value());
+    CHECK_FALSE(hello.report.report->validity.empty());
     auto mapping = std::make_shared<const BindingFrames>(hello.binding, hello.schema, StageUnits{});
     CHECK(mapping->unbound().empty());
 
@@ -48,8 +54,25 @@ TEST_CASE("A real mime serve: hello, step, set, record, run at real time, pause,
     });
     process.launch(microbotica::core::PhysicsConfig{});
 
-    // Three chunks now, from a session not running: frames 0 (the start) to 3.
-    const Reply step = client->request(stepRequest(3));
+    // Three chunks now, from a session not running: frames 0 (the start) to 3. The first compiles the run's programs
+    // (seconds); meanwhile another client's status is answered at once, saying so.
+    Reply step;
+    std::thread stepper([&] { step = client->request(stepRequest(3)); });
+    LiveClient other(ready.commands, ready.frames, LiveClient::Timeouts::all(2000));
+    double slowestStatus = 0.0;
+    bool sawCompiling = false;
+    const auto until = Clock::now() + std::chrono::seconds(20);
+    while (!sawCompiling && Clock::now() < until) {
+        const auto t0 = Clock::now();
+        const Reply status = other.request(statusRequest());
+        slowestStatus = std::max(slowestStatus, std::chrono::duration<double>(Clock::now() - t0).count());
+        sawCompiling = status.status.compiling();
+        std::this_thread::sleep_for(std::chrono::milliseconds(20));
+    }
+    stepper.join();
+    CHECK(sawCompiling);
+    INFO("slowest status while compiling: " << slowestStatus << " s");
+    CHECK(slowestStatus < 1.0);
     REQUIRE(step.ok);
     CHECK(step.status.step == static_cast<std::uint64_t>(3 * hello.chunkSteps));
     std::vector<microbotica::core::ResultFrame> frames;
@@ -95,8 +118,9 @@ TEST_CASE("A real mime serve: hello, step, set, record, run at real time, pause,
     REQUIRE(after.ok);
 
     process.stop();
-    REQUIRE(process.runFolder().has_value());
+    REQUIRE(process.runFolder().has_value());  // between chunks: the stop has taken effect, its folder written
     const std::filesystem::path folder(*process.runFolder());
+    CHECK(std::filesystem::exists(folder / "report.json"));
     CHECK(std::filesystem::exists(folder / "commands.jsonl"));
     CHECK(std::filesystem::exists(folder / "recording.usdc"));
     CHECK(std::filesystem::exists(folder / "topology.json"));

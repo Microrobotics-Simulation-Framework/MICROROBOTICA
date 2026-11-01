@@ -88,6 +88,12 @@ std::string RunFolder::stage() const { return file("experiment/scene/scene.usda"
 std::string RunFolder::topology() const { return file("topology.json"); }
 std::string RunFolder::commandsLog() const { return file("commands.jsonl"); }
 std::string RunFolder::outputsArchive() const { return file("outputs.npz"); }
+std::string RunFolder::reportFile() const { return file("report.json"); }
+
+ReportRead RunFolder::report() const {
+    const std::string path = reportFile();
+    return path.empty() ? ReportRead{} : readReportFile(path);
+}
 
 double RunFolder::dt() const {
     if (outputs_.is_object() && outputs_.contains("dt") && outputs_["dt"].is_number()) {

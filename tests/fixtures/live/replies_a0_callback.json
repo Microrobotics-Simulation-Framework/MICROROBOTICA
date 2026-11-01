@@ -10,7 +10,9 @@
   "pace": 1.0,
   "recording": false,
   "non_finite": null,
-  "stepping": 0
+  "stepping": 0,
+  "activity": "idle",
+  "pending": []
  },
  "step": {
   "protocol": "mime.live/1",
@@ -23,7 +25,9 @@
   "pace": 1.0,
   "recording": false,
   "non_finite": null,
-  "stepping": 0
+  "stepping": 0,
+  "activity": "idle",
+  "pending": []
  },
  "set": {
   "protocol": "mime.live/1",
@@ -36,7 +40,9 @@
   "pace": 1.0,
   "recording": false,
   "non_finite": null,
-  "stepping": 0
+  "stepping": 0,
+  "activity": "idle",
+  "pending": []
  },
  "set_refused": {
   "protocol": "mime.live/1",
@@ -81,7 +87,9 @@
   "pace": 1.0,
   "recording": true,
   "non_finite": null,
-  "stepping": 0
+  "stepping": 0,
+  "activity": "idle",
+  "pending": []
  },
  "start": {
   "protocol": "mime.live/1",
@@ -94,33 +102,39 @@
   "pace": 1.0,
   "recording": true,
   "non_finite": null,
-  "stepping": 0
+  "stepping": 0,
+  "activity": "idle",
+  "pending": []
  },
  "pause": {
   "protocol": "mime.live/1",
   "ok": true,
   "command": "pause",
   "state": "paused",
-  "step": 160,
-  "time": 0.08,
-  "frames": 5,
+  "step": 1120,
+  "time": 0.56,
+  "frames": 29,
   "pace": 1.0,
   "recording": true,
   "non_finite": null,
-  "stepping": 0
+  "stepping": 0,
+  "activity": "idle",
+  "pending": []
  },
  "pace": {
   "protocol": "mime.live/1",
   "ok": true,
   "command": "pace",
   "state": "paused",
-  "step": 160,
-  "time": 0.08,
-  "frames": 5,
+  "step": 1120,
+  "time": 0.56,
+  "frames": 29,
   "pace": null,
   "recording": true,
   "non_finite": null,
-  "stepping": 0
+  "stepping": 0,
+  "activity": "idle",
+  "pending": []
  },
  "stop": {
   "protocol": "mime.live/1",
@@ -128,12 +142,14 @@
   "command": "stop",
   "folder": "/data/runs/script_a0-live",
   "state": "stopped",
-  "step": 160,
-  "time": 0.08,
-  "frames": 6,
+  "step": 1120,
+  "time": 0.56,
+  "frames": 30,
   "pace": null,
   "recording": true,
   "non_finite": null,
-  "stepping": 0
+  "stepping": 0,
+  "activity": "idle",
+  "pending": []
  }
 }

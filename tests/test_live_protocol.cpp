@@ -204,6 +204,75 @@ TEST_CASE("mime.live/1: replies, accepted and refused, keep their status and MIM
     CHECK_THROWS_AS(parseReply(nlohmann::json{{"protocol", "mime.live/2"}, {"ok", true}}), ProtocolError);
 }
 
+TEST_CASE("mime.live/1: hello's live inputs carry their defaults, and its build report reads whole", "[unit][live]") {
+    const Hello& h = a0Hello();
+    REQUIRE(h.liveInputs.size() == 1);
+    CHECK(h.liveInputs[0].defaultValue.is_number());
+    CHECK(h.liveInputs[0].defaults() == std::vector<double>{0.0});  // offset: none until set
+    LiveInputSpec older = h.liveInputs[0];
+    older.defaultValue = nullptr;  // a MIME before 7n-b gives none: zeros of its shape
+    older.shape = {3};
+    CHECK(older.defaults() == std::vector<double>{0.0, 0.0, 0.0});
+
+    CHECK_FALSE(h.report.unreadable.has_value());
+    REQUIRE(h.report.report.has_value());
+    const auto& report = *h.report.report;
+    CHECK(report.experiment == "script_a0");
+    CHECK_FALSE(report.validity.empty());
+    CHECK(report.watches.size() == 1);
+    // Each flag the report names is a scalar field of the frames: the claims panel follows them by these paths.
+    REQUIRE(report.flags.size() == 3);
+    for (const auto& f : report.flags) {
+        INFO(f.path);
+        const FieldSpec* spec = h.schema.find(f.path);
+        REQUIRE(spec != nullptr);
+        CHECK(spec->count() == 1);
+        CHECK_FALSE(f.meaning.empty());
+    }
+    REQUIRE(report.profile.has_value());
+    CHECK(report.profile->profile == "exploratory");
+}
+
+TEST_CASE("mime.live/1: while the first chunk compiles, status, pause and stop are answered at once", "[unit][live]") {
+    const auto pending = json("replies_pending_a0_callback.json");
+    const Reply start = parseReply(pending["start"]);
+    CHECK(start.ok);
+    CHECK(start.status.state == "running");
+
+    const Reply compiling = parseReply(pending["status_compiling"]);
+    CHECK(compiling.status.compiling());
+    CHECK(compiling.status.state == "running");
+    CHECK(compiling.status.pending.empty());
+
+    // A pause taken while the chunk runs: accepted, pending, the session still running until the chunk's end.
+    const Reply pause = parseReply(pending["pause_pending"]);
+    CHECK(pause.ok);
+    CHECK(pause.status.state == "running");
+    CHECK(pause.status.pending == std::vector<std::string>{"pause"});
+
+    // A stop taken then: pending, with no run folder (not written yet); the final frame says it has stopped.
+    const Reply stop = parseReply(pending["stop_pending"]);
+    CHECK(stop.ok);
+    CHECK(stop.taken);
+    CHECK(stop.stopPending());
+    CHECK_FALSE(stop.folder.has_value());
+    CHECK(stop.message.rfind("stop pending", 0) == 0);
+    CHECK(stop.status.pending == std::vector<std::string>{"pause", "stop"});
+    CHECK(stop.status.isPending("stop"));
+
+    // A stop between chunks has taken effect: its reply names the run folder, and nothing is pending.
+    const Reply done = parseReply(json("replies_a0_callback.json")["stop"]);
+    CHECK_FALSE(done.stopPending());
+    CHECK(done.folder.has_value());
+    CHECK(done.status.activity == "idle");
+    CHECK(done.status.pending.empty());
+
+    CHECK(replyWait("status") == ReplyWait::AtOnce);
+    CHECK(replyWait("pause") == ReplyWait::AtOnce);
+    CHECK(replyWait("set") == ReplyWait::ChunkEnd);
+    CHECK(replyWait("stop") == ReplyWait::RunFolder);
+}
+
 TEST_CASE("mime.live/1: requests are JSON objects naming the protocol and the command", "[unit][live]") {
     CHECK(stepRequest(3) == nlohmann::json{{"protocol", "mime.live/1"}, {"command", "step"}, {"chunks", 3}});
     CHECK(setRequest({{"offset", 0.002}}) ==

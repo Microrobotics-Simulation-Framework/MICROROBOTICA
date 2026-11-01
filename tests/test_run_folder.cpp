@@ -1,6 +1,8 @@
 // A MIME 0.3 run folder read for playback, plots and claims: the npz reader against NumPy's own files (stored, as MIME
 // writes outputs.npz, and deflated), and the outputs of a recorded A0 run (tests/fixtures/runs/a0_recorded: its
-// outputs.json, outputs.npz and run.json, from run_to(..., record=["swim_speed:umr.speed"], every=ms(16.5))).
+// outputs.json, outputs.npz, run.json and report.json, from run_to(..., record=["swim_speed:umr.speed"],
+// every=ms(16.5))); the build report's summary (mime.report/1) as a run folder and hello give it, and a run folder
+// without one or with one of a newer format.
 
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
@@ -11,6 +13,9 @@
 #include "test_config.h"
 
 #include <algorithm>
+#include <filesystem>
+#include <fstream>
+#include <unistd.h>
 
 using namespace microbotica::runs;
 
@@ -22,6 +27,17 @@ REGISTER_VERIFICATION_BENCHMARK(
     "A run folder's recorded series and flags read from outputs.npz as MIME wrote them, at their steps' times",
     __FILE__,
     "Run folder: A0's recorded speed and its flags, at their steps' times"
+)
+
+REGISTER_VERIFICATION_BENCHMARK(
+    MBCA_VER_018,
+    "MBCA-VER-018",
+    "MBCA-COMP-070",
+    microbotica::core::BenchmarkType::DataIntegrity,
+    "The build report's validity lines read as MIME states them (declared ones as not yet checked); a run folder "
+    "without a report, or with one of a newer format, still reads, and says why it has none",
+    __FILE__,
+    "Build report: A0's validity lines, watches and flags as report.json states them"
 )
 
 TEST_CASE("npz: NumPy's stored and deflated archives read to the same arrays", "[unit][runs]") {
@@ -96,4 +112,75 @@ TEST_CASE("Run folder: A0's recorded speed and its flags, at their steps' times"
     CHECK(tiltSeries->flag);
     CHECK(tiltSeries->values.size() == 3960);  // every step
     CHECK(tiltSeries->times.back() == Catch::Approx(1.98));
+}
+
+TEST_CASE("Build report: A0's validity lines, watches and flags as report.json states them", "[unit][runs]") {
+    const RunFolder run(microbotica::test::fixturePath("runs/a0_recorded"));
+    const ReportRead read = run.report();
+    CHECK_FALSE(read.unreadable.has_value());
+    REQUIRE(read.report.has_value());
+    const BuildReport& report = *read.report;
+    CHECK(report.experiment == "script_a0");
+    REQUIRE_FALSE(report.validity.empty());
+    for (const auto& v : report.validity) {
+        INFO(v.owner << ": " << v.line);
+        CHECK((v.kind == "declared" || v.kind == "computed" || v.kind == "record"));
+        CHECK_FALSE(v.line.empty());
+        CHECK(v.declaredOnly() == (v.kind == "declared"));
+    }
+    // What the run was watched against, and the flags it may raise: the same as its outputs.json says of the run.
+    CHECK(report.watches.size() == run.watches().size());
+    const auto flags = run.flags();
+    REQUIRE(report.flags.size() == flags.size());
+    for (const auto& f : report.flags) {
+        INFO(f.path);
+        CHECK(std::any_of(flags.begin(), flags.end(), [&f](const RunFlag& r) { return r.path == f.path; }));
+        CHECK_FALSE(f.meaning.empty());
+    }
+    REQUIRE(report.profile.has_value());
+    CHECK(report.profile->profile == run.profile());
+    CHECK(report.profile->pending.size() == run.pending().size());
+    CHECK_FALSE(report.profile->stamp.empty());
+    CHECK_FALSE(report.settings.empty());
+    CHECK_FALSE(report.summary.empty());
+}
+
+TEST_CASE("Build report: none, one of a newer format, and one that is not JSON", "[unit][runs]") {
+    CHECK_FALSE(parseReport(nlohmann::json()).report.has_value());
+    CHECK_FALSE(parseReport(nlohmann::json()).unreadable.has_value());
+    CHECK(parseReport(nlohmann::json{{"format", "mime.report/2"}}).unreadable.value_or("") == "mime.report/2");
+    CHECK(parseReport(nlohmann::json{{"experiment", "x"}}).unreadable.value_or("") == "None");
+    CHECK(parseReport(nlohmann::json::array()).unreadable.value_or("") == "not a JSON object");
+    const auto minimal = parseReport(nlohmann::json{
+        {"format", "mime.report/1"},
+        {"validity", {{{"owner", "drag"}, {"kind", "declared"}, {"line", "Re < 1"}}}},
+        {"profile", nullptr}});
+    REQUIRE(minimal.report.has_value());
+    CHECK(minimal.report->validity.at(0).declaredOnly());
+    CHECK_FALSE(minimal.report->profile.has_value());
+
+    // A copy of A0's run folder: without report.json (a MIME before reports reached run folders), it reads as before;
+    // with one of a newer format, or one that is not JSON, it reads and says why its report was not.
+    namespace fs = std::filesystem;
+    const fs::path source = microbotica::test::fixturePath("runs/a0_recorded");
+    const fs::path copy = fs::temp_directory_path() / ("microrobotica-report-test-" + std::to_string(::getpid()));
+    fs::remove_all(copy);
+    fs::create_directories(copy);
+    for (const char* name : {"outputs.json", "run.json"}) {
+        fs::copy_file(source / name, copy / name);
+    }
+    {
+        const RunFolder older(copy.string());
+        CHECK(older.reportFile().empty());
+        CHECK_FALSE(older.report().report.has_value());
+        CHECK_FALSE(older.report().unreadable.has_value());
+        CHECK(older.flags().size() == 3);  // the watches-and-flags fallback
+        CHECK(older.watches().size() == 1);
+    }
+    std::ofstream(copy / "report.json") << R"({"format": "mime.report/2", "validity": []})";
+    CHECK(RunFolder(copy.string()).report().unreadable.value_or("") == "mime.report/2");
+    std::ofstream(copy / "report.json") << "{not json";
+    CHECK(RunFolder(copy.string()).report().unreadable.value_or("") == "not JSON");
+    CHECK(RunFolder(copy.string()).steps() == 3960);  // the run reads all the same
+    fs::remove_all(copy);
 }

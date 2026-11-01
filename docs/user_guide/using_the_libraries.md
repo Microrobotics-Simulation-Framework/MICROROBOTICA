@@ -56,8 +56,12 @@ own copy of the stage.
 - the **Plots** panel shows what the run recorded per step
   (`record=[...]`, `every=...`), in its units, flags shaded where raised,
   with a cursor that follows playback;
-- the **Claims** panel shows what MIME says of the run: the validity lines
-  it was watched against, its flags and its profile's pending items;
+- the **Claims** panel shows what MIME says of the run: its build report's
+  validity lines (`report.json`; a line its entry declares and MIME has
+  not yet checked is shown as such, not as a verdict), what the run was
+  watched against and the outcome, its flags and its profile's pending
+  items. A run folder from a MIME before the build report reached run
+  folders shows its watches and flags alone;
 - the graph inspector shows the graph it ran; Launch runs its experiment
   again, live; and **Simulation → Replay This Session** replays a live
   session from its command log into a new run folder.
@@ -75,12 +79,21 @@ set `MICROROBOTICA_MIME`.
 - **Pause**, **Start**, **Simulation → Step One Chunk** (F8) and
   **Simulation → Record** act on the session; **Stop** ends it, and the
   status bar names the run folder it wrote (under **Settings → Run
-  folders**): its experiment, command log, outputs and, when recorded,
-  `recording.usdc`.
+  folders**): its experiment, command log, outputs, build report and,
+  when recorded, `recording.usdc`. MIME acts on a command at the end of
+  the chunk in hand, so a pause or a stop sent while one runs is shown
+  as pending until it has.
+- The run panel's status line follows the session: its state from MIME's
+  replies, its step and time from each frame, "compiling" while its first
+  chunk compiles (a few seconds for A0), and a pause or stop pending.
 - The **Live Inputs** panel lists what the controller declares settable
-  live (A0 called back: `offset`, metres along the tube), sent with **Set**;
+  live (A0 called back: `offset`, metres along the tube), each starting at
+  its default (the value at which it changes nothing), sent with **Set**;
   the experiment's settings are shown read-only, since changing one is a
   rebuild.
+- The **Claims** panel shows the build report the session gives: its
+  validity lines, what the run will be watched against when it stops,
+  and each flag with its meaning, marked when a frame first raises it.
 - The **Graph Inspector** shows the built graph (`topology()`), and the
   **MIME Output** panel shows `mime serve`'s output and any refusal in
   MIME's shape.
@@ -91,7 +104,9 @@ set `MICROROBOTICA_MIME`.
   endpoint**. `mime serve` exits when the process that launched it is
   gone; `--outlive-launcher` keeps a session you start by hand running
   after the shell that started it. Sessions MICROROBOTICA launches itself
-  (Local) need no flag: they stop with the viewer.
+  (Local) need no flag: they stop with the viewer. A stop that MIME takes
+  while a chunk runs names no run folder in its reply: a remote session's
+  is where `--out` told it to write.
 
 The AR4's meshes are Annin Robotics' design and are never shipped: the arm
 draws as simple shapes until `mime visuals fetch ar4_mk5` puts them in

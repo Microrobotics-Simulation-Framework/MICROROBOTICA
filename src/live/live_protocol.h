@@ -27,6 +27,7 @@
 #include <nlohmann/json.hpp>
 
 #include "core/mime_error.h"
+#include "runs/build_report.h"
 
 namespace microbotica::live {
 
@@ -54,18 +55,35 @@ nlohmann::json setRequest(const nlohmann::json& values);  ///< live inputs by la
 nlohmann::json recordRequest(bool on);               ///< the recording layer on or off
 nlohmann::json paceRequest(std::optional<double> rtf);    ///< a factor of real time, or unpaced (nullopt)
 
+/// When a command's reply comes (MIME's docs/live.md, "It never goes silent"): the server answers while a chunk runs.
+enum class ReplyWait {
+    AtOnce,     ///< hello, status, pause: at once (a pause taken while a chunk runs is pending, acting at its end)
+    ChunkEnd,   ///< set, record, pace, start, step: at the end of the chunk in hand, where they act (a session's first
+                ///< chunk compiles its programs: seconds)
+    RunFolder,  ///< stop: at once when a chunk runs (pending), else once the run folder it writes is written
+};
+ReplyWait replyWait(const std::string& command);
+
 // ── Replies ──────────────────────────────────────────────────────────────────
 
 /// The session's status, which every accepting reply carries.
 struct SessionStatus {
     std::string state;                 ///< "ready", "running", "paused", "stopped", ...
-    std::uint64_t step = 0;            ///< base steps taken
+    std::uint64_t step = 0;            ///< base steps taken (while a chunk runs: the step it started at)
     double time = 0.0;                 ///< simulated seconds
     std::uint64_t frames = 0;          ///< frames sent
     std::uint64_t stepping = 0;        ///< chunks a step in hand has still to take (0 otherwise)
     std::optional<double> pace;        ///< factor of real time; nullopt when unpaced
     bool recording = false;
     nlohmann::json nonFinite;          ///< null, or what MIME says of a state that is not finite
+    /// What the session is doing: "compiling" (its first chunk runs, compiling the run's programs), "stepping" (a
+    /// later chunk runs) or "idle" (between chunks); empty from a MIME before phase 7n-b.
+    std::string activity;
+    /// The stop and pause commands taken while the chunk in hand runs, to act at its end, in order.
+    std::vector<std::string> pending;
+
+    bool compiling() const { return activity == "compiling"; }
+    bool isPending(const std::string& command) const;
 };
 
 /// A reply: accepted (ok, with the status) or refused (with MIME's coded errors).
@@ -74,8 +92,14 @@ struct Reply {
     std::string command;
     SessionStatus status;
     std::vector<core::MimeRefusal> errors;
-    std::optional<std::string> folder;  ///< stop's run folder
+    std::optional<std::string> folder;  ///< stop's run folder, once written (never in a pending stop's reply)
+    bool taken = false;                 ///< a stop taken while a chunk runs, to act at its end
+    std::string message;                ///< what MIME says of it, e.g. "stop pending: ..."
     nlohmann::json raw;
+
+    /// A stop taken while a chunk ran: the session stops at its end. The run folder does not exist yet; the final
+    /// frame (or the connection closing) says the session has stopped, and no status is answered after it.
+    bool stopPending() const;
 };
 
 /// A reply's text, read. Throws ProtocolError when it is not a JSON object of this protocol.
@@ -201,6 +225,12 @@ struct LiveInputSpec {
     std::string units;
     std::vector<std::size_t> shape;
     std::string meaning;
+    /// The value at which it changes nothing the step does, which the session hands the step until it is set (null
+    /// from a MIME before phase 7n-b).
+    nlohmann::json defaultValue;
+
+    std::size_t count() const;                 ///< numbers it holds (1 for a scalar)
+    std::vector<double> defaults() const;      ///< its default, flattened row-major; zeros when hello gives none
 };
 
 /// The session's controller.
@@ -236,6 +266,7 @@ struct Hello {
     std::optional<VisualsInfo> visuals;
     std::vector<BindingEntry> binding;
     nlohmann::json topology;               ///< mime.topology/1, kept as JSON for the graph inspector
+    runs::ReportRead report;               ///< the build report's summary (mime.report/1), or why there is none
     FrameSchema schema;
     std::vector<std::string> commands;
     SessionStatus status;

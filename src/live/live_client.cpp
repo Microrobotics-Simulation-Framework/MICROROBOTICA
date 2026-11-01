@@ -23,8 +23,17 @@ struct LiveClient::Sockets {
 struct LiveClient::Sockets {};
 #endif
 
-LiveClient::LiveClient(std::string commands, std::string frames, int timeoutMs)
-    : commands_(std::move(commands)), frames_(std::move(frames)), timeoutMs_(timeoutMs),
+int LiveTimeouts::forCommand(const std::string& command) const {
+    switch (replyWait(command)) {
+        case ReplyWait::AtOnce: return atOnceMs;
+        case ReplyWait::ChunkEnd: return chunkEndMs;
+        case ReplyWait::RunFolder: return runFolderMs;
+    }
+    return chunkEndMs;
+}
+
+LiveClient::LiveClient(std::string commands, std::string frames, Timeouts timeouts)
+    : commands_(std::move(commands)), frames_(std::move(frames)), timeouts_(timeouts),
       sockets_(std::make_unique<Sockets>())
 {
 }
@@ -62,6 +71,17 @@ public:
     void on_event_handshake_succeeded(const zmq_event_t&, const char*) override { done = true; }
 };
 
+/// Watches the frames' socket for its connection closing: the server has gone (after a stop, or a crash).
+class DisconnectWatch : public zmq::monitor_t {
+public:
+    bool gone = false;
+    void on_event_disconnected(const zmq_event_t&, const char*) override { gone = true; }
+};
+
+namespace {
+std::atomic<int> monitors{0};  // each monitor's inproc endpoint is its own
+} // namespace
+
 const Hello& LiveClient::connect() {
     if (!sockets_->sub) {
         sockets_->sub = std::make_unique<zmq::socket_t>(sockets_->context, zmq::socket_type::sub);
@@ -74,8 +94,7 @@ const Hello& LiveClient::connect() {
         // after connect() does not lose its frames to a subscription still
         // on its way (ZMQ's "slow joiner").
         HandshakeWatch watch;
-        static std::atomic<int> watches{0};
-        watch.init(*sockets_->sub, "inproc://microrobotica-live-sub-" + std::to_string(++watches),
+        watch.init(*sockets_->sub, "inproc://microrobotica-live-sub-" + std::to_string(++monitors),
                    ZMQ_EVENT_HANDSHAKE_SUCCEEDED);
         sockets_->sub->connect(frames_);
         const auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(2000);
@@ -100,7 +119,8 @@ Reply LiveClient::request(const nlohmann::json& message, int timeoutMs) {
         throw std::runtime_error("mime.live/1 " + message.value("command", std::string("request")) +
                                  ": the session is closed");
     }
-    const int timeout = timeoutMs >= 0 ? timeoutMs : timeoutMs_;
+    const std::string command = message.value("command", std::string());
+    const int timeout = timeoutMs >= 0 ? timeoutMs : timeouts_.forCommand(command);
     const std::string body = message.dump();
     std::lock_guard<std::mutex> lock(requestMutex_);
     if (!sockets_->req) {
@@ -117,7 +137,13 @@ Reply LiveClient::request(const nlohmann::json& message, int timeoutMs) {
         } else {
             zmq::message_t in;
             if (sockets_->req->recv(in, zmq::recv_flags::none)) {
-                return parseReply(std::string(static_cast<const char*>(in.data()), in.size()));
+                Reply reply = parseReply(std::string(static_cast<const char*>(in.data()), in.size()));
+                if (!reply.command.empty() && !command.empty() && reply.command != command) {
+                    // Another client's reply (a MIME before PR #89's fix round could send one): this one's is lost.
+                    throw ProtocolError("mime.live/1 " + command + " to " + commands_ + ": the reply is to " +
+                                        reply.command + ", not to " + command);
+                }
+                return reply;
             }
             failure = "no reply within " + std::to_string(timeout) + " ms";
         }
@@ -150,7 +176,19 @@ void LiveClient::stopFrames() {
 void LiveClient::frameLoop(std::function<void(LiveFrame)> sink) {
     FrameOrder order;
     const FrameSchema& schema = hello_->schema;
+    DisconnectWatch closing;
+    closing.init(*sockets_->sub, "inproc://microrobotica-live-sub-" + std::to_string(++monitors),
+                 ZMQ_EVENT_DISCONNECTED);
     while (receiving_.load()) {
+        while (!closing.gone && closing.check_event(0)) {
+        }
+        if (closing.gone) {
+            std::lock_guard<std::mutex> lock(statsMutex_);
+            if (!stats_.disconnected) {
+                stats_.disconnected = true;
+                ended_.notify_all();
+            }
+        }
         zmq::message_t message;
         zmq::recv_result_t got;
         try {
@@ -184,6 +222,7 @@ void LiveClient::frameLoop(std::function<void(LiveFrame)> sink) {
                 }
                 if (frame.final) {
                     stats_.finalSeen = true;
+                    ended_.notify_all();
                 }
             }
             if (!problem.empty()) {
@@ -219,7 +258,17 @@ void LiveClient::frameLoop(std::function<void(LiveFrame)>) {}
 
 void LiveClient::close() {
     closed_.store(true);
+    {
+        std::lock_guard<std::mutex> lock(statsMutex_);
+        ended_.notify_all();
+    }
     stopFrames();
+}
+
+bool LiveClient::waitForEnd(int timeoutMs) {
+    std::unique_lock<std::mutex> lock(statsMutex_);
+    return ended_.wait_for(lock, std::chrono::milliseconds(timeoutMs),
+                           [this] { return stats_.finalSeen || stats_.disconnected || closed_.load(); });
 }
 
 LiveClient::Stats LiveClient::stats() const {

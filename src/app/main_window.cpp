@@ -724,6 +724,7 @@ void MainWindow::onSimulationStart()
     // Manual endpoint: a session already serving (a remote mime serve
     // through an SSH tunnel, or one started by hand).
     if (mode == connection::ConnectionMode::Manual) {
+        liveOut_.clear();  // its run folder is where it was told to write it
         connectLiveSession(QString::fromStdString(runConfigPanel_->commandsEndpoint()),
                            QString::fromStdString(runConfigPanel_->framesEndpoint()));
         return;
@@ -854,6 +855,7 @@ void MainWindow::startLocalSession()
         if (file.exists() && file.open(QIODevice::ReadOnly)) {
             try {
                 const auto ready = live::parseReadyFile(file.readAll().toStdString());
+                liveOut_ = QString::fromStdString(ready.out);
                 readyTimer_->stop();
                 if (noticeOverlay_) noticeOverlay_->removeNotice(QStringLiteral("mime-serve"));
                 connectLiveSession(QString::fromStdString(ready.commands), QString::fromStdString(ready.frames));
@@ -872,9 +874,12 @@ void MainWindow::startLocalSession()
 
 void MainWindow::connectLiveSession(const QString& commands, const QString& frames)
 {
-    // 30 s a command: MIME's session answers nothing while it compiles (its
-    // first chunk; a live input's first set, measured at 2 to 5 s).
-    auto client = std::make_shared<live::LiveClient>(commands.toStdString(), frames.toStdString(), 30000);
+    // Each command waits as long as MIME may take to answer it: hello, status
+    // and pause at once (a few seconds), even while a chunk compiles; set,
+    // record, pace, start and step at the end of the chunk in hand (30 s, a
+    // first chunk's compile); a stop between chunks once its run folder is
+    // written (LiveClient::Timeouts).
+    auto client = std::make_shared<live::LiveClient>(commands.toStdString(), frames.toStdString());
     try {
         client->connect();
     } catch (const std::exception& e) {
@@ -891,7 +896,7 @@ void MainWindow::connectLiveSession(const QString& commands, const QString& fram
     const live::Hello& hello = client->hello();
     if (!applyHello(hello)) {
         if (serveProcess_ && serveProcess_->isRunning()) {
-            try { client->request(live::stopRequest(), 120000); } catch (const std::exception&) {}
+            try { client->request(live::stopRequest()); } catch (const std::exception&) {}
             serveProcess_->stop();
         }
         runConfigPanel_->setLaunchEnabled(true);
@@ -910,24 +915,41 @@ void MainWindow::connectLiveSession(const QString& commands, const QString& fram
     liveClient_ = client;
 
     // Plots and claims: every scalar a frame carries (observation outputs,
-    // flags), sample by sample, from the frames thread.
+    // flags), sample by sample, from the frames thread. The build report
+    // names the flags; without one (an older MIME), their field names do.
+    std::set<std::string> reportFlags;
+    if (hello.report.report) {
+        for (const auto& f : hello.report.report->flags) reportFlags.insert(f.path);
+    }
     std::vector<panels::PlotsPanel::FieldInfo> fields;
     std::vector<std::string> flagPaths;
     for (const auto& f : hello.schema.fields) {
         if (f.count() != 1) continue;
-        const bool flag = f.field.find("fired") != std::string::npos || f.field.rfind("beyond", 0) == 0;
+        const bool flag = hello.report.report
+            ? reportFlags.count(f.path) > 0
+            : (f.field.find("fired") != std::string::npos || f.field.rfind("beyond", 0) == 0);
         fields.push_back({f.path, f.unit, flag});
         if (flag) flagPaths.push_back(f.path);
     }
     plotsPanel_->beginLive(fields);
-    claimsPanel_->beginLive(hello.experiment, flagPaths);
+    claimsPanel_->beginLive(hello.experiment, flagPaths, hello.report);
     runFolder_.clear();
+    sessionRunFolder_.clear();
+    liveStopPending_ = false;
+    liveLine_ = LiveLine{};
+    liveLineLogged_.clear();
+    liveLine_.state = hello.status.state;
+    liveLine_.step = hello.status.step;
+    liveLine_.time = hello.status.time;
+    liveLine_.recording = hello.status.recording;
     replayAction_->setEnabled(false);
 
     auto backend = std::make_unique<live::LiveComputeBackend>(
         client, liveFrames_, [this, flagPaths](live::LivePhysicsProcess& process) {
+            // Commands are sent from the UI thread, so a reply is shown before
+            // its command returns (stop's run folder included).
             process.setReplyObserver([this](const live::Reply& reply) {
-                QMetaObject::invokeMethod(this, [this, reply]() { onLiveReply(reply); }, Qt::QueuedConnection);
+                QMetaObject::invokeMethod(this, [this, reply]() { onLiveReply(reply); }, Qt::AutoConnection);
             });
             auto reported = std::make_shared<std::set<std::string>>();
             process.setFrameObserver([this, flagPaths, reported](const live::LiveFrame& frame) {
@@ -962,7 +984,7 @@ void MainWindow::connectLiveSession(const QString& commands, const QString& fram
     viewportWidget_->setContinuousRendering(true);
     if (cameraToolbar_) cameraToolbar_->onSimStarted();
     runConfigPanel_->setLaunchEnabled(false);
-    runConfigPanel_->setConnectionStatus(tr("Live: %1").arg(QString::fromStdString(hello.experiment)));
+    showLiveLine();
     statusBar()->showMessage(tr("Live session: %1 (MIME %2, %3 frames of %4 bytes a chunk of %5 steps)")
         .arg(QString::fromStdString(hello.experiment), QString::fromStdString(hello.mimeVersion))
         .arg(hello.schema.fields.size()).arg(hello.schema.frameBytes).arg(hello.chunkSteps));
@@ -1041,6 +1063,19 @@ bool MainWindow::applyHello(const live::Hello& hello)
         }
     }
 
+    if (hello.report.report) {
+        const auto& report = *hello.report.report;
+        long declared = 0;
+        for (const auto& v : report.validity) declared += v.declaredOnly() ? 1 : 0;
+        mimeConsole_->appendStdout(QStringLiteral("[session] build report: %1 validity lines (%2 declared, not yet "
+                                                  "checked), %3 watched after the run, %4 flags\n")
+            .arg(report.validity.size()).arg(declared).arg(report.watches.size()).arg(report.flags.size()).toUtf8());
+    } else if (hello.report.unreadable) {
+        mimeConsole_->appendStdout(QStringLiteral("[session] the build report is of format %1, which this "
+                                                  "MICROROBOTICA does not read\n")
+            .arg(QString::fromStdString(*hello.report.unreadable)).toUtf8());
+    }
+
     if (graphInspector_ && hello.topology.is_object()) {
         graphInspector_->loadFromJson(hello.topology);
     }
@@ -1068,14 +1103,74 @@ void MainWindow::onLiveReply(const live::Reply& reply)
         recordAction_->blockSignals(false);
     }
     if (reply.command == "stop" && reply.folder) {
-        lastRunFolder_ = QString::fromStdString(*reply.folder);
+        sessionRunFolder_ = QString::fromStdString(*reply.folder);
     }
-    if (reply.ok && !reply.status.state.empty() && runConfigPanel_) {
-        runConfigPanel_->setConnectionStatus(tr("Live: %1, step %2, %3 s%4")
-            .arg(QString::fromStdString(reply.status.state)).arg(reply.status.step)
-            .arg(reply.status.time, 0, 'f', 3)
-            .arg(reply.status.recording ? tr(", recording") : QString()));
+    if (reply.stopPending()) {
+        liveStopPending_ = true;
     }
+    if (!reply.ok || reply.status.state.empty()) return;
+
+    // State, activity and pending from the reply; step and time too, unless a
+    // frame has already shown a later step (while a chunk runs, a reply's step
+    // is the one the chunk started at).
+    liveLine_.state = reply.status.state;
+    liveLine_.activity = reply.status.activity;
+    liveLine_.pending = reply.status.pending;
+    liveLine_.recording = reply.status.recording;
+    if (reply.status.step >= liveLine_.step) {
+        liveLine_.step = reply.status.step;
+        liveLine_.time = reply.status.time;
+    }
+    showLiveLine();
+
+    // Poll status while the first chunk compiles, or a pause waits for the
+    // chunk in hand (entry 21); once after start or step, whose first chunk
+    // may compile next. Never after a stop is taken: the server answers no
+    // status once it has stopped (entry 23).
+    const bool stopping = liveStopPending_ || reply.command == "stop" || reply.status.isPending("stop");
+    const bool follow = reply.command == "start" || reply.command == "step";
+    const bool poll = !stopping && (follow || reply.status.compiling() || reply.status.isPending("pause"));
+    if (!liveStatusPoll_) {
+        liveStatusPoll_ = new QTimer(this);
+        liveStatusPoll_->setInterval(250);
+        connect(liveStatusPoll_, &QTimer::timeout, this, [this]() {
+            if (!liveClient_ || liveClient_->closed() || liveStopPending_) {
+                liveStatusPoll_->stop();
+                return;
+            }
+            try {
+                onLiveReply(liveClient_->request(live::statusRequest()));
+            } catch (const std::exception& e) {
+                liveStatusPoll_->stop();
+                statusBar()->showMessage(tr("status: %1").arg(QString::fromUtf8(e.what())));
+            }
+        });
+    }
+    if (poll && !liveStatusPoll_->isActive()) {
+        liveStatusPoll_->start();
+    } else if (!poll) {
+        liveStatusPoll_->stop();
+    }
+}
+
+void MainWindow::showLiveLine()
+{
+    if (!runConfigPanel_ || !liveSessionActive()) return;
+    QString line = tr("Live: %1").arg(QString::fromStdString(liveLine_.state.empty() ? std::string("connected")
+                                                                                     : liveLine_.state));
+    if (liveLine_.activity == "compiling") {
+        line += tr(", compiling");
+    }
+    for (const auto& command : liveLine_.pending) {
+        line += tr(", %1 pending").arg(QString::fromStdString(command));
+    }
+    if (line != liveLineLogged_) {  // the log says each change of state, activity or what is pending
+        liveLineLogged_ = line;
+        spdlog::info("Live session status: {} (step {})", line.toStdString(), liveLine_.step);
+    }
+    line += tr(", step %1, %2 s").arg(liveLine_.step).arg(liveLine_.time, 0, 'f', 3);
+    if (liveLine_.recording) line += tr(", recording");
+    runConfigPanel_->setConnectionStatus(line);
 }
 
 void MainWindow::onStepRequested()
@@ -1105,13 +1200,28 @@ void MainWindow::onRecordToggled(bool on)
 
 void MainWindow::endLiveSession(const QString& why)
 {
+    if (liveStatusPoll_) liveStatusPoll_->stop();
     if (simController_->isRunning()) {
-        simController_->stop();  // a live session: `stop`, which writes its run folder
+        // A live session: `stop`, which writes its run folder. Taken while a
+        // chunk runs, it returns once the final frame has come.
+        simController_->stop();
     }
     if (serveProcess_ && serveProcess_->isRunning()) {
-        serveProcess_->stop();  // it exits on its own after stop; SIGTERM otherwise
+        serveProcess_->stop();  // it exits on its own after stop, its run folder written; SIGTERM otherwise
     }
     mimeConsole_->flush();
+    // A pending stop's reply names no run folder: a Local session's is where
+    // its ready file said it would write, once the process has written it.
+    if (sessionRunFolder_.isEmpty() && !liveOut_.isEmpty()
+        && runs::RunFolder::looksLikeRunFolder(liveOut_.toStdString())) {
+        sessionRunFolder_ = liveOut_;
+    }
+    if (!sessionRunFolder_.isEmpty()) {
+        lastRunFolder_ = sessionRunFolder_;
+    }
+    const bool folderUnknown = sessionRunFolder_.isEmpty() && liveStopPending_;
+    sessionRunFolder_.clear();
+    liveOut_.clear();
     liveClient_.reset();
     liveFrames_.reset();
     paused_ = false;
@@ -1123,7 +1233,10 @@ void MainWindow::endLiveSession(const QString& why)
     runConfigPanel_->setLaunchEnabled(true);
     runConfigPanel_->setConnectionStatus(tr("Idle"));
     QString message = why;
-    if (!lastRunFolder_.isEmpty()) {
+    if (folderUnknown) {
+        message += tr(" It stopped at the end of a chunk; its run folder is the one mime serve was told to write "
+                      "(--out).");
+    } else if (!lastRunFolder_.isEmpty()) {
         openLastRunAction_->setEnabled(true);
         message += tr(" Its run folder: %1 (File → Open Last Session's Run Folder)").arg(lastRunFolder_);
         mimeConsole_->appendStdout(("[session] run folder: " + lastRunFolder_ + QLatin1Char('\n')).toUtf8());
@@ -1394,13 +1507,15 @@ void MainWindow::onFrameReady(const core::ResultFrame& frame)
     const double t = frame.simTime;
     simTimeLabel_->setText(QString("Sim: %1 s").arg(t, 0, 'f', 3));
 
-    // A live session's status, from its frames (each header carries the
-    // step and time): replies come only when a command is sent.
-    if (liveSessionActive() && runConfigPanel_) {
-        runConfigPanel_->setConnectionStatus(tr("Live: %1, step %2, %3 s%4")
-            .arg(paused_ ? tr("paused") : tr("running")).arg(frame.step)
-            .arg(t, 0, 'f', 3)
-            .arg(recordAction_ && recordAction_->isChecked() ? tr(", recording") : QString()));
+    // A live session's step and time, from its frames (each header carries
+    // them); its state and activity come from replies. A frame past the
+    // step shown means a chunk has been stepped, so the first has compiled
+    // (frame 0, the starting state, may come while it compiles).
+    if (liveSessionActive()) {
+        if (frame.step > liveLine_.step && liveLine_.activity == "compiling") liveLine_.activity.clear();
+        liveLine_.step = frame.step;
+        liveLine_.time = t;
+        showLiveLine();
     }
 }
 

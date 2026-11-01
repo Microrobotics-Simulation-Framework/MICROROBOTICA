@@ -23,6 +23,7 @@ add_executable(microbotica_tests
     ${CMAKE_SOURCE_DIR}/src/live/live_client.cpp
     ${CMAKE_SOURCE_DIR}/src/live/live_physics_process.cpp
     ${CMAKE_SOURCE_DIR}/src/runs/npz.cpp
+    ${CMAKE_SOURCE_DIR}/src/runs/build_report.cpp
     ${CMAKE_SOURCE_DIR}/src/runs/run_folder.cpp
     ${CMAKE_SOURCE_DIR}/src/experiment/experiment_runner.cpp
     ${CMAKE_SOURCE_DIR}/src/experiment/cloud_job_launcher.cpp

@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Live sessions follow MIME's phase 7n-b** (MIME PR #89, its client note's entries 16 to 24), checked against
+  MIME's `v0.3` at `62d7604`. MIME answers `hello`, `status`, `pause` and a stop taken while a chunk runs at once, even
+  while the first chunk compiles, and the commands that change the run at the chunk's end: each command now waits as
+  long as MIME may take to answer it (5 s at once, 30 s at a chunk's end, 120 s for a stop writing its run folder)
+  rather than 30 s for all, and a reply to another command than the one sent is refused. A stop taken while a chunk
+  runs is pending: the client waits for the final frame (or the connection closing), and a Local session's run folder
+  is the one its ready file named. The run panel's status line shows "compiling" while the first chunk compiles and a
+  pause or stop pending, from replies (`activity`, `pending`), its step and time from frames, polling `status` while
+  compiling or a pause is pending. The live-inputs panel starts each input at the default `hello` declares.
 - **Base image**: the NVIDIA container variables are gone (nothing reads them: the viewport draws on Mesa), and Qt
   Charts (`qt6-charts-dev`, Qt 6.4) is added for the plots panel, in a layer after OpenUSD's. Built images are tagged
   `base-<commit>`; only main moves the shared `base` tag. CI builds in the image `docker/base-image` names, so a branch
@@ -55,9 +64,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   carry) or from a run folder's `outputs.npz` (what the run recorded per step); flags shaded where raised; a cursor
   following playback. Drawn with Qt Charts when the build has it. `src/runs/` reads `outputs.npz` (stored or deflated
   members) and the run's manifest (RunFolder, MBCA-COMP-070; MBCA-VER-017).
-- **Claims panel**: what MIME says of a run, as it says it: the validity lines it was watched against (A0: its Reynolds
-  number is above Stokes flow's bound), each flag with its meaning and whether it was raised, and the profile with what
-  it has pending; during a live session, each flag at the time it was first raised.
+- **Claims panel**: what MIME says of a run, as it says it: the build report's validity lines (`hello.report`, a run
+  folder's `report.json`; a line declared and not yet checked is shown as such, never as a verdict), what it was
+  watched against (A0: its Reynolds number is above Stokes flow's bound), each flag with its meaning and whether it was
+  raised, and the profile with what it has pending; during a live session, each flag at the time it was first raised.
+  A run folder without `report.json` (from a MIME before its phase 7n-b) shows its watches and flags alone; a report of
+  a newer format than `mime.report/1` is not read, and the panel says so (`src/runs/build_report.*`; MBCA-VER-018).
 - **Replay this session** (Simulation menu): a live session's run folder replayed from its command log
   (`mime run <experiment> --commands commands.jsonl`) into a new run folder, which then opens.
 - **Playback speed**: 0.1x to 4x on the timeline.

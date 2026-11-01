@@ -120,18 +120,22 @@ void LiveInputsPanel::showSession(const std::optional<live::ControllerInfo>& con
         auto* line = new QWidget(inputsBox_);
         auto* h = new QHBoxLayout(line);
         h->setContentsMargins(0, 0, 0, 0);
-        std::size_t count = 1;
-        for (std::size_t d : spec.shape) {
-            count *= d;
+        // The session hands the step each input at its default until it is set (MIME's client note, entry 16).
+        const std::vector<double> defaults = spec.defaults();
+        nlohmann::json shown = spec.defaultValue;
+        if (shown.is_null()) {
+            shown = (spec.shape.empty() && !defaults.empty()) ? nlohmann::json(defaults.front()) : nlohmann::json(defaults);
         }
-        for (std::size_t i = 0; i < count; ++i) {
+        const QString defaultText = QString::fromStdString(shown.dump());
+        for (std::size_t i = 0; i < defaults.size(); ++i) {
             auto* spin = new QDoubleSpinBox(line);
             spin->setRange(-1e9, 1e9);
             spin->setDecimals(6);
             spin->setSingleStep(1e-3);
-            spin->setValue(0.0);
+            spin->setValue(defaults[i]);
             spin->setEnabled(applies);
-            spin->setToolTip(QString::fromStdString(spec.meaning));
+            spin->setToolTip(tr("%1\nDefault: %2, the value at which it changes nothing the step does.")
+                                 .arg(QString::fromStdString(spec.meaning), defaultText));
             h->addWidget(spin, 1);
             row.editors.push_back(spin);
         }
@@ -142,7 +146,7 @@ void LiveInputsPanel::showSession(const std::optional<live::ControllerInfo>& con
         row.send->setEnabled(applies);
         row.send->setToolTip(tr("Send %1 to the session (set)").arg(QString::fromStdString(spec.label)));
         h->addWidget(row.send);
-        row.state = new QLabel(tr("not set"), line);
+        row.state = new QLabel(tr("default %1").arg(defaultText), line);
         row.state->setStyleSheet(QStringLiteral("color:#888888"));
         h->addWidget(row.state);
         const std::string label = spec.label;
