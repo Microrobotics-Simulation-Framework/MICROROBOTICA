@@ -33,8 +33,8 @@ public:
             .preconditions     = {"ConnectionConfig is valid for the selected mode"},
             .postconditions    = {"resolveEndpoint returns a tcp://host:port string or empty on failure",
                                   "probe returns true only if a ZMQ REP socket responds at the endpoint"},
-            .invariants        = {"ZMQ context is owned by the caller (MimePhysicsProcess), not ConnectionManager"},
-            .design_rationale  = "Centralizes endpoint resolution so MimePhysicsProcess only deals with "
+            .invariants        = {"ZMQ context is owned by the caller (the live client), not ConnectionManager"},
+            .design_rationale  = "Centralizes endpoint resolution so the live client only deals with "
                                  "tcp://host:port strings regardless of how the backend was reached.",
             .assumptions       = {"Local mode assumes MIME listens on localhost:5555/5556",
                                   "Cloud mode assumes sky_resolve.py is available at scripts/sky_resolve.py",

@@ -5,8 +5,7 @@ add_executable(microbotica_tests
     test_stub_render_session.cpp
     test_integration_wiring.cpp
     test_scripting_engine.cpp
-    test_mime_adapter.cpp
-    test_binary_decoder.cpp
+    test_connection.cpp
     test_cloud_orchestration.cpp
     test_mime_stub.cpp
     test_ansi_parser.cpp
@@ -17,8 +16,6 @@ add_executable(microbotica_tests
     ${CMAKE_SOURCE_DIR}/src/stubs/stub_physics_process.cpp
     ${CMAKE_SOURCE_DIR}/src/connection/connection_manager.cpp
     ${CMAKE_SOURCE_DIR}/src/connection/ssh_tunnel.cpp
-    ${CMAKE_SOURCE_DIR}/src/mime_adapter/mime_physics_process.cpp
-    ${CMAKE_SOURCE_DIR}/src/mime_adapter/binary_frame_decoder.cpp
     ${CMAKE_SOURCE_DIR}/src/mime_adapter/mime_stub_physics_process.cpp
     ${CMAKE_SOURCE_DIR}/src/live/live_protocol.cpp
     ${CMAKE_SOURCE_DIR}/src/live/binding_frames.cpp
@@ -73,12 +70,6 @@ if(ZMQ_FOUND)
     target_compile_definitions(microbotica_tests PRIVATE MICROBOTICA_HAS_ZMQ=1)
 endif()
 
-if(ZSTD_FOUND)
-    target_link_libraries(microbotica_tests PRIVATE ${ZSTD_TARGET})
-    if(ZSTD_INCLUDE_DIRS)
-        target_include_directories(microbotica_tests SYSTEM PRIVATE ${ZSTD_INCLUDE_DIRS})
-    endif()
-endif()
 
 include(CTest)
 include(Catch)

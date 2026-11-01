@@ -22,6 +22,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 
+- **MIME 0.2's ZMQ adapter** (`MimePhysicsProcess`, `MimeComputeBackend`), its binary `ResultFrame` decoder with the
+  `stream_info` schema handshake, and zstd frame compression: `src/live/` decodes mime.live/1's binary frames (a header
+  and the schema `hello` gives) and its JSON frames, kept for debugging.
 - **The parameter panel** and its `{"command": "params"}`: a MIME 0.3 session changes only its controller's declared
   live inputs (`set`); a physical setting is a rebuild.
 
