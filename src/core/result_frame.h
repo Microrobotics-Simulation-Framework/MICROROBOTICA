@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstdint>
 #include <string>
 #include <vector>
 #include <unordered_map>
@@ -40,10 +41,16 @@ struct MeshData {
 /// PhysicsProcess -> ResultsApplicator -> USD.
 struct ResultFrame {
     double simTime = 0.0;
+    /// Base steps taken at this frame, where the source says (a mime.live/1 frame's header); 0 otherwise.
+    std::uint64_t step = 0;
     std::unordered_map<std::string, Vec3f> positions;
     std::unordered_map<std::string, Quatf> orientations;
     std::unordered_map<std::string, double> scalars;
     std::unordered_map<std::string, MeshData> meshes;
+    /// Uniform scale by actor (a field vector's arrow: its length).
+    std::unordered_map<std::string, double> scales;
+    /// Visibility by actor: true shows the prim (visibility "inherited"), false hides it ("invisible").
+    std::unordered_map<std::string, bool> visibility;
 };
 
 // Custom to_json/from_json for backward-compatible serialization.
@@ -52,15 +59,21 @@ struct ResultFrame {
 inline void to_json(nlohmann::json& j, const ResultFrame& f) {
     j = nlohmann::json{
         {"simTime", f.simTime},
+        {"step", f.step},
         {"positions", f.positions},
         {"orientations", f.orientations},
         {"scalars", f.scalars},
-        {"meshes", f.meshes}
+        {"meshes", f.meshes},
+        {"scales", f.scales},
+        {"visibility", f.visibility}
     };
 }
 
 inline void from_json(const nlohmann::json& j, ResultFrame& f) {
     j.at("simTime").get_to(f.simTime);
+    if (j.contains("step")) {
+        j.at("step").get_to(f.step);
+    }
     j.at("positions").get_to(f.positions);
     j.at("scalars").get_to(f.scalars);
     if (j.contains("orientations")) {
@@ -68,6 +81,12 @@ inline void from_json(const nlohmann::json& j, ResultFrame& f) {
     }
     if (j.contains("meshes")) {
         j.at("meshes").get_to(f.meshes);
+    }
+    if (j.contains("scales")) {
+        j.at("scales").get_to(f.scales);
+    }
+    if (j.contains("visibility")) {
+        j.at("visibility").get_to(f.visibility);
     }
 }
 

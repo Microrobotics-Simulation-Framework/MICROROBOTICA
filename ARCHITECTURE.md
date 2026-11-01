@@ -29,6 +29,8 @@ src/
 ├── stubs/         Stub implementations for testing
 ├── scene/         USD three-layer scene management
 ├── simulation/    SimulationController and async polling
+├── live/          MIME 0.3's live sessions (mime.live/1): protocol, binding, transport
+├── runs/          MIME 0.3's run folders: outputs.npz, the manifest, flags and validity watches
 ├── scripting/     Embedded Python interpreter and microrobotica module
 ├── viewport/      OpenGL/software viewport rendering
 ├── panels/        Qt dock widgets (hierarchy, properties, timeline, console)
@@ -91,10 +93,14 @@ This metadata is machine-readable (JSON-serializable) and harvested by
 | MBCA-COMP-011 | ResultsApplicator | `src/scene/results_applicator.h` |
 | MBCA-COMP-020 | SimulationController | `src/simulation/simulation_controller.h` |
 | MBCA-COMP-030 | ViewportWidget | `src/viewport/viewport_widget.h` |
+| MBCA-COMP-032 | StormRenderer | `src/viewport/storm_renderer.h` |
 | MBCA-COMP-040 | microrobotica module | `src/scripting/microbota_module.cpp` |
 | MBCA-COMP-041 | ConsoleWidget | `src/panels/console_widget.h` |
+| MBCA-COMP-042 | MimeConsolePanel | `src/panels/mime_console_panel.h` |
+| MBCA-COMP-070 | RunFolder | `src/runs/run_folder.h` |
 | MBCA-IMPL-001 | StubPhysicsProcess | `src/stubs/stub_physics_process.h` |
 | MBCA-IMPL-002 | LocalComputeBackend | `src/stubs/local_compute_backend.h` |
+| MBCA-IMPL-013 | LivePhysicsProcess | `src/live/live_physics_process.h` |
 
 ### USD Three-Layer Composition
 
@@ -127,6 +133,29 @@ user overrides are separable from both.
 `SimulationController` bridges the blocking `PhysicsProcess::receiveResult()`
 and the non-blocking Qt event loop using `std::async` + `ThreadSafeQueue`.
 The Qt main thread polls via `requestNextFrame()` driven by a 60 Hz `QTimer`.
+
+### Live Sessions (MIME 0.3, mime.live/1)
+
+```
+mime serve <saved folder>  ──REP (commands, JSON)──  LiveClient ── request()/hello
+   (MIME's own process)    ──PUB (frames, binary)──  LiveClient ── frame thread ─┐
+                                                                                 │ LiveFrame
+                                   BindingFrames (stage binding, stage units) ◄──┘
+                                                │ ResultFrame keyed by prim path
+                                   LivePhysicsProcess (PhysicsProcess) → SimulationController
+                                                │
+                                   ResultsApplicator → results layer
+```
+
+`src/live/live_protocol.*` is the one place the protocol's message shapes live (requests, replies, `hello`, the
+frame schema and header, binary and JSON frames, the stage binding, the ready file): a change of MIME's protocol is
+made there and in `tests/test_live_protocol.cpp`. `LiveClient` only moves messages (ZMQ: REQ for commands, SUB for
+frames on a thread of its own). `BindingFrames` turns a frame into the bound prims' transforms, converting MIME's
+metres to the stage's `metersPerUnit`. `LivePhysicsProcess` presents the session to `SimulationController` as any
+other `PhysicsProcess`: start, pause, stop and live inputs (`set`) are the protocol's commands. The main window spawns
+`mime serve` (Local, through `ExperimentRunner`), or connects to endpoints (Manual: a remote session through an SSH
+tunnel), and shows `hello`: the stage with MIME's visuals overlay, the topology in the graph inspector, the live inputs
+in their panel.
 
 ## Build System
 

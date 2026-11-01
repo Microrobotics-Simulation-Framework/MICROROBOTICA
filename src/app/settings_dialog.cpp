@@ -1,4 +1,6 @@
 #include "app/settings_dialog.h"
+#include "panels/python_highlighter.h"
+
 #include <QTabWidget>
 #include <QVBoxLayout>
 #include <QFormLayout>
@@ -58,16 +60,28 @@ void SettingsDialog::createGeneralTab(QTabWidget* tabs) {
     dirLayout->addWidget(browseBtn);
     form->addRow(tr("Default experiment directory:"), dirLayout);
 
-    // ZMQ ports
-    zmqPubPort_ = new QSpinBox(page);
-    zmqPubPort_->setRange(1024, 65535);
-    zmqPubPort_->setValue(5556);
-    form->addRow(tr("ZMQ PUB port:"), zmqPubPort_);
+    // MIME 0.3: the command that serves a saved experiment live, and where
+    // its sessions' run folders go.
+    mimeCommand_ = new QLineEdit(page);
+    mimeCommand_->setPlaceholderText(QStringLiteral("mime"));
+    mimeCommand_->setToolTip(
+        tr("The `mime` command (MIME 0.3), or its full path, such as\n"
+           "<MIME checkout>/.venv/bin/mime. MICROROBOTICA_MIME overrides it."));
+    form->addRow(tr("MIME command:"), mimeCommand_);
 
-    zmqReqPort_ = new QSpinBox(page);
-    zmqReqPort_->setRange(1024, 65535);
-    zmqReqPort_->setValue(5555);
-    form->addRow(tr("ZMQ REQ port:"), zmqReqPort_);
+    auto* runsLayout = new QHBoxLayout;
+    runsDir_ = new QLineEdit(page);
+    runsLayout->addWidget(runsDir_);
+    auto* runsBrowse = new QPushButton(tr("..."), page);
+    runsBrowse->setFixedWidth(30);
+    connect(runsBrowse, &QPushButton::clicked, this, [this]() {
+        QString dir = QFileDialog::getExistingDirectory(this, tr("Run Folders"), runsDir_->text());
+        if (!dir.isEmpty()) runsDir_->setText(dir);
+    });
+    runsLayout->addWidget(runsBrowse);
+    runsDir_->setToolTip(tr("Where each live session writes its run folder\n"
+                            "(its experiment, command log, outputs, recording)."));
+    form->addRow(tr("Run folders:"), runsLayout);
 
     // ── Notices: viewport overlay shown for long-running background state
     // (waiting on the MIME runner, decode errors, ...). Style is inspired
@@ -99,6 +113,18 @@ void SettingsDialog::createThemeTab(QTabWidget* tabs) {
     themeCombo_->addItem(tr("Light"), "light");
     themeCombo_->addItem(tr("Dark"), "dark");
     form->addRow(tr("Theme:"), themeCombo_);
+
+    // Python syntax-highlighter theme — applies to the script editor and
+    // the embedded console. The preset list lives in PythonHighlighter so
+    // we don't have to keep two enumerations in sync.
+    codeHighlightCombo_ = new QComboBox(page);
+    for (const auto& name : panels::PythonHighlighter::presetNames()) {
+        codeHighlightCombo_->addItem(name, name);
+    }
+    codeHighlightCombo_->setToolTip(
+        tr("Colour scheme for Python files in the script editor and the "
+           "interactive console."));
+    form->addRow(tr("Code highlight:"), codeHighlightCombo_);
 
     auto* note = new QLabel(
         tr("Changes take effect after clicking OK."), page);
@@ -181,8 +207,10 @@ void SettingsDialog::loadSettings() {
     QSettings s;
     s.beginGroup("general");
     defaultExperimentDir_->setText(s.value("default_experiment_dir").toString());
-    zmqPubPort_->setValue(s.value("zmq_pub_port", 5556).toInt());
-    zmqReqPort_->setValue(s.value("zmq_req_port", 5555).toInt());
+    s.endGroup();
+    s.beginGroup("mime");
+    mimeCommand_->setText(s.value("command").toString());
+    runsDir_->setText(s.value("runs_dir", QDir::homePath() + "/MICROROBOTICA/runs").toString());
     s.endGroup();
 
     s.beginGroup("notices");
@@ -194,6 +222,12 @@ void SettingsDialog::loadSettings() {
     QString theme = s.value("mode", "system").toString();
     int idx = themeCombo_->findData(theme);
     if (idx >= 0) themeCombo_->setCurrentIndex(idx);
+    s.endGroup();
+
+    s.beginGroup("code_highlight");
+    QString codeTheme = s.value("theme", "Default").toString();
+    int chIdx = codeHighlightCombo_->findData(codeTheme);
+    codeHighlightCombo_->setCurrentIndex(chIdx >= 0 ? chIdx : 0);
     s.endGroup();
 
     s.beginGroup("cloud");
@@ -222,8 +256,10 @@ void SettingsDialog::saveSettings() {
     QSettings s;
     s.beginGroup("general");
     s.setValue("default_experiment_dir", defaultExperimentDir_->text());
-    s.setValue("zmq_pub_port", zmqPubPort_->value());
-    s.setValue("zmq_req_port", zmqReqPort_->value());
+    s.endGroup();
+    s.beginGroup("mime");
+    s.setValue("command", mimeCommand_->text().trimmed());
+    s.setValue("runs_dir", runsDir_->text().trimmed());
     s.endGroup();
 
     s.beginGroup("notices");
@@ -236,6 +272,11 @@ void SettingsDialog::saveSettings() {
     s.setValue("mode", theme);
     s.endGroup();
 
+    const QString codeTheme = codeHighlightCombo_->currentData().toString();
+    s.beginGroup("code_highlight");
+    s.setValue("theme", codeTheme);
+    s.endGroup();
+
     s.beginGroup("cloud");
     s.setValue("credentials_path", credentialFilePath_->text());
     s.setValue("max_cost_per_hour", maxCostPerHour_->value());
@@ -245,6 +286,7 @@ void SettingsDialog::saveSettings() {
 
     Q_EMIT themeChanged(themeCombo_->currentData().toString());
     Q_EMIT noticesChanged();
+    Q_EMIT codeHighlightThemeChanged(codeHighlightCombo_->currentData().toString());
 }
 
 void SettingsDialog::refreshCredentialStatus() {

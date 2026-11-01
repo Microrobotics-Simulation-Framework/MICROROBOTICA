@@ -1,0 +1,2364 @@
+{
+ "protocol": "mime.live/1",
+ "ok": true,
+ "command": "hello",
+ "mime": "0.3.0.dev0",
+ "experiment": "script_a0",
+ "hashes": {
+  "recipe": "mime.hash/1",
+  "document": "sha256:d5dd907eb5f5422af365fe56133b0a41fbd2f843804fa5593a17480c23699ab7",
+  "input": "sha256:4951c4b0b5984c1194e79e0b84c5071c4befb9acc3a6365f617af36084ae48be",
+  "derived": "sha256:21916a3586e9215ae6ac72d93a4c1dfec28bb1d58aaa73378257c80f036ef56e",
+  "observations": "sha256:808b9d6b8b5a15d09a192e18b781f70a2161b86276190f90116205651ceffa85"
+ },
+ "dt": 0.0005,
+ "chunk_steps": 40,
+ "controller": {
+  "entry": "arm_tracking 0.1.0",
+  "mode": "callback",
+  "every": 20,
+  "latency": 0
+ },
+ "live_inputs": {
+  "offset": {
+   "units": "m",
+   "shape": [],
+   "meaning": "moves the point the magnet is held above along the axis, ahead of the body (towards +axis) or behind it, the point still held within reach",
+   "default": 0.0
+  }
+ },
+ "stage": "/data/a0_callback_saved/scene/scene.usda",
+ "visuals": {
+  "overlay": null,
+  "drawn": 0,
+  "missing": {
+   "ar4_mk5": 18
+  },
+  "notice": [
+   "the visual meshes of Annin Robotics' AR4 robot arm (mk5)\ncredit: Annin Robotics (anninrobotics.com): the AR4 robot arm and its 3D models, from Annin Robotics' ar4_ros_driver repository\nlicence: LicenseRef-Annin-Robotics-NonCommercial (https://github.com/Annin-Robotics/ar4-hmi/blob/main/LICENSE.txt); tier no-redistribution, role presentation\nThe AR4's 3D models are Annin Robotics' design. Annin Robotics' licence for its CAD files (Annin Robotics Open Source Non-Commercial License Agreement, version 1.1, section 2) allows educational, research and personal non-commercial use, and forbids redistributing or hosting them in any form and commercial use without its written permission. The driver repository they come from is MIT-licensed, and which terms govern the meshes has not been settled; MIME follows the stricter. MIME hosts none of them: this recipe downloads each from Annin Robotics' own repository at the pinned commit, checks its sha256, and converts and decimates it on this machine, into the asset cache only, never into a saved or a run folder. Keep the logos and the names as they are, and do not use the Annin Robotics name to suggest endorsement."
+  ]
+ },
+ "binding": {
+  "format": "mime.binding/1",
+  "entries": [
+   {
+    "prim": "/World/umr",
+    "node": "umr",
+    "field": "pose",
+    "index": null,
+    "kind": "pose",
+    "thing": "umr",
+    "name": "umr",
+    "unit": "m; 1",
+    "space": "world"
+   },
+   {
+    "prim": "/World/rpm/arm/world",
+    "node": "rpm.arm",
+    "field": "frame_poses",
+    "index": 0,
+    "kind": "pose",
+    "thing": "rpm",
+    "name": "rpm.arm.world",
+    "unit": "m; 1",
+    "space": "world"
+   },
+   {
+    "prim": "/World/rpm/arm/base_link",
+    "node": "rpm.arm",
+    "field": "frame_poses",
+    "index": 1,
+    "kind": "pose",
+    "thing": "rpm",
+    "name": "rpm.arm.base_link",
+    "unit": "m; 1",
+    "space": "world"
+   },
+   {
+    "prim": "/World/rpm/arm/base_link_aluminum",
+    "node": "rpm.arm",
+    "field": "frame_poses",
+    "index": 2,
+    "kind": "pose",
+    "thing": "rpm",
+    "name": "rpm.arm.base_link_aluminum",
+    "unit": "m; 1",
+    "space": "world"
+   },
+   {
+    "prim": "/World/rpm/arm/base_link_enclosure",
+    "node": "rpm.arm",
+    "field": "frame_poses",
+    "index": 3,
+    "kind": "pose",
+    "thing": "rpm",
+    "name": "rpm.arm.base_link_enclosure",
+    "unit": "m; 1",
+    "space": "world"
+   },
+   {
+    "prim": "/World/rpm/arm/base_link_motor",
+    "node": "rpm.arm",
+    "field": "frame_poses",
+    "index": 4,
+    "kind": "pose",
+    "thing": "rpm",
+    "name": "rpm.arm.base_link_motor",
+    "unit": "m; 1",
+    "space": "world"
+   },
+   {
+    "prim": "/World/rpm/arm/link_1",
+    "node": "rpm.arm",
+    "field": "frame_poses",
+    "index": 5,
+    "kind": "pose",
+    "thing": "rpm",
+    "name": "rpm.arm.link_1",
+    "unit": "m; 1",
+    "space": "world"
+   },
+   {
+    "prim": "/World/rpm/arm/link_1_aluminum",
+    "node": "rpm.arm",
+    "field": "frame_poses",
+    "index": 6,
+    "kind": "pose",
+    "thing": "rpm",
+    "name": "rpm.arm.link_1_aluminum",
+    "unit": "m; 1",
+    "space": "world"
+   },
+   {
+    "prim": "/World/rpm/arm/link_1_motor",
+    "node": "rpm.arm",
+    "field": "frame_poses",
+    "index": 7,
+    "kind": "pose",
+    "thing": "rpm",
+    "name": "rpm.arm.link_1_motor",
+    "unit": "m; 1",
+    "space": "world"
+   },
+   {
+    "prim": "/World/rpm/arm/link_2",
+    "node": "rpm.arm",
+    "field": "frame_poses",
+    "index": 8,
+    "kind": "pose",
+    "thing": "rpm",
+    "name": "rpm.arm.link_2",
+    "unit": "m; 1",
+    "space": "world"
+   },
+   {
+    "prim": "/World/rpm/arm/link_2_aluminum",
+    "node": "rpm.arm",
+    "field": "frame_poses",
+    "index": 9,
+    "kind": "pose",
+    "thing": "rpm",
+    "name": "rpm.arm.link_2_aluminum",
+    "unit": "m; 1",
+    "space": "world"
+   },
+   {
+    "prim": "/World/rpm/arm/link_2_motor",
+    "node": "rpm.arm",
+    "field": "frame_poses",
+    "index": 10,
+    "kind": "pose",
+    "thing": "rpm",
+    "name": "rpm.arm.link_2_motor",
+    "unit": "m; 1",
+    "space": "world"
+   },
+   {
+    "prim": "/World/rpm/arm/link_2_cover",
+    "node": "rpm.arm",
+    "field": "frame_poses",
+    "index": 11,
+    "kind": "pose",
+    "thing": "rpm",
+    "name": "rpm.arm.link_2_cover",
+    "unit": "m; 1",
+    "space": "world"
+   },
+   {
+    "prim": "/World/rpm/arm/link_2_logo",
+    "node": "rpm.arm",
+    "field": "frame_poses",
+    "index": 12,
+    "kind": "pose",
+    "thing": "rpm",
+    "name": "rpm.arm.link_2_logo",
+    "unit": "m; 1",
+    "space": "world"
+   },
+   {
+    "prim": "/World/rpm/arm/link_3",
+    "node": "rpm.arm",
+    "field": "frame_poses",
+    "index": 13,
+    "kind": "pose",
+    "thing": "rpm",
+    "name": "rpm.arm.link_3",
+    "unit": "m; 1",
+    "space": "world"
+   },
+   {
+    "prim": "/World/rpm/arm/link_3_aluminum",
+    "node": "rpm.arm",
+    "field": "frame_poses",
+    "index": 14,
+    "kind": "pose",
+    "thing": "rpm",
+    "name": "rpm.arm.link_3_aluminum",
+    "unit": "m; 1",
+    "space": "world"
+   },
+   {
+    "prim": "/World/rpm/arm/link_3_motor",
+    "node": "rpm.arm",
+    "field": "frame_poses",
+    "index": 15,
+    "kind": "pose",
+    "thing": "rpm",
+    "name": "rpm.arm.link_3_motor",
+    "unit": "m; 1",
+    "space": "world"
+   },
+   {
+    "prim": "/World/rpm/arm/link_4",
+    "node": "rpm.arm",
+    "field": "frame_poses",
+    "index": 16,
+    "kind": "pose",
+    "thing": "rpm",
+    "name": "rpm.arm.link_4",
+    "unit": "m; 1",
+    "space": "world"
+   },
+   {
+    "prim": "/World/rpm/arm/link_4_aluminum",
+    "node": "rpm.arm",
+    "field": "frame_poses",
+    "index": 17,
+    "kind": "pose",
+    "thing": "rpm",
+    "name": "rpm.arm.link_4_aluminum",
+    "unit": "m; 1",
+    "space": "world"
+   },
+   {
+    "prim": "/World/rpm/arm/link_4_motor",
+    "node": "rpm.arm",
+    "field": "frame_poses",
+    "index": 18,
+    "kind": "pose",
+    "thing": "rpm",
+    "name": "rpm.arm.link_4_motor",
+    "unit": "m; 1",
+    "space": "world"
+   },
+   {
+    "prim": "/World/rpm/arm/link_4_cover",
+    "node": "rpm.arm",
+    "field": "frame_poses",
+    "index": 19,
+    "kind": "pose",
+    "thing": "rpm",
+    "name": "rpm.arm.link_4_cover",
+    "unit": "m; 1",
+    "space": "world"
+   },
+   {
+    "prim": "/World/rpm/arm/link_4_logo",
+    "node": "rpm.arm",
+    "field": "frame_poses",
+    "index": 20,
+    "kind": "pose",
+    "thing": "rpm",
+    "name": "rpm.arm.link_4_logo",
+    "unit": "m; 1",
+    "space": "world"
+   },
+   {
+    "prim": "/World/rpm/arm/link_5",
+    "node": "rpm.arm",
+    "field": "frame_poses",
+    "index": 21,
+    "kind": "pose",
+    "thing": "rpm",
+    "name": "rpm.arm.link_5",
+    "unit": "m; 1",
+    "space": "world"
+   },
+   {
+    "prim": "/World/rpm/arm/link_5_aluminum",
+    "node": "rpm.arm",
+    "field": "frame_poses",
+    "index": 22,
+    "kind": "pose",
+    "thing": "rpm",
+    "name": "rpm.arm.link_5_aluminum",
+    "unit": "m; 1",
+    "space": "world"
+   },
+   {
+    "prim": "/World/rpm/arm/link_5_motor",
+    "node": "rpm.arm",
+    "field": "frame_poses",
+    "index": 23,
+    "kind": "pose",
+    "thing": "rpm",
+    "name": "rpm.arm.link_5_motor",
+    "unit": "m; 1",
+    "space": "world"
+   },
+   {
+    "prim": "/World/rpm/arm/link_6",
+    "node": "rpm.arm",
+    "field": "frame_poses",
+    "index": 24,
+    "kind": "pose",
+    "thing": "rpm",
+    "name": "rpm.arm.link_6",
+    "unit": "m; 1",
+    "space": "world"
+   },
+   {
+    "prim": "/World/rpm/arm/link_6_aluminum",
+    "node": "rpm.arm",
+    "field": "frame_poses",
+    "index": 25,
+    "kind": "pose",
+    "thing": "rpm",
+    "name": "rpm.arm.link_6_aluminum",
+    "unit": "m; 1",
+    "space": "world"
+   },
+   {
+    "prim": "/World/rpm/arm/ee_link",
+    "node": "rpm.arm",
+    "field": "frame_poses",
+    "index": 26,
+    "kind": "pose",
+    "thing": "rpm",
+    "name": "rpm.arm.ee_link",
+    "unit": "m; 1",
+    "space": "world"
+   },
+   {
+    "prim": "/World/rpm/motor/base",
+    "node": "rpm.motor",
+    "field": "frame_poses",
+    "index": 0,
+    "kind": "pose",
+    "thing": "rpm",
+    "name": "rpm.motor.base",
+    "unit": "m; 1",
+    "space": "world"
+   },
+   {
+    "prim": "/World/rpm/motor/rotor",
+    "node": "rpm.motor",
+    "field": "frame_poses",
+    "index": 1,
+    "kind": "pose",
+    "thing": "rpm",
+    "name": "rpm.motor.rotor",
+    "unit": "m; 1",
+    "space": "world"
+   },
+   {
+    "prim": "/World/rpm/magnetic/magnetic_torque_umr",
+    "node": "rpm.magnetic",
+    "field": "flux_density_magnetic_torque_umr",
+    "index": null,
+    "kind": "vector",
+    "thing": "rpm",
+    "name": "rpm.magnetic.magnetic_torque_umr",
+    "unit": "T",
+    "space": "world",
+    "at": {
+     "node": "umr",
+     "field": "pose"
+    }
+   }
+  ]
+ },
+ "topology": {
+  "format": "mime.topology/1",
+  "experiment": "script_a0",
+  "dt": 0.0005,
+  "nodes": [
+   {
+    "name": "rpm.magnetic",
+    "type": "PointDipoleNode",
+    "timestep": 0.0005,
+    "every": 1,
+    "owner": "rpm.magnetic",
+    "section": "provider",
+    "entry": {
+     "kind": "field provider",
+     "name": "point_dipole",
+     "version": "0.1.0",
+     "label": "point_dipole 0.1.0"
+    },
+    "thing": "rpm",
+    "params": {
+     "initial_mount_pose": [
+      5.7647783920200535e-05,
+      4.632606928023364e-05,
+      0.14992504759752973,
+      -0.18755478232630143,
+      -0.681994124526133,
+      -0.18691675701536628,
+      -0.681739938455439
+     ],
+     "magnet_radius": 0.020155644370746375,
+     "moment": [
+      18.89,
+      0.0,
+      0.0
+     ],
+     "mount_count": 2,
+     "mount_index": 1,
+     "placement": [
+      0.0,
+      0.0,
+      0.0,
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "slots": [
+      "magnetic_force_umr",
+      "magnetic_torque_umr"
+     ]
+    }
+   },
+   {
+    "name": "drag:umr",
+    "type": "SurrogateDragNode",
+    "timestep": 0.0005,
+    "every": 1,
+    "owner": "drag:umr",
+    "section": "interaction",
+    "entry": {
+     "kind": "interaction",
+     "name": "drag",
+     "version": "0.3.0",
+     "label": "drag 0.3.0 (rung surrogate)"
+    },
+    "thing": null,
+    "params": {
+     "helix_wavenumber": 2.33,
+     "length": 0.00747,
+     "lubrication_epsilon": 0.00015,
+     "outer_radius": 0.0020748000000000003,
+     "radius": 0.0015600000000000002,
+     "reference_point": "centre",
+     "vessel_axis": [
+      1.0,
+      0.0,
+      0.0
+     ],
+     "vessel_centre": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "vessel_radius": 0.00317499996162951,
+     "vessel_shape": "cylinder",
+     "viscosity": 0.001,
+     "weights": "dejongh_mlp_v2",
+     "weights_sha256": "ac1fca5c109fa3e2f27520cbd0ee1c0ce5e85ac31a0b1e93e7b8085c68f0a345"
+    }
+   },
+   {
+    "name": "gravity:umr",
+    "type": "GravityNode",
+    "timestep": 0.0005,
+    "every": 1,
+    "owner": "gravity:umr",
+    "section": "interaction",
+    "entry": {
+     "kind": "interaction",
+     "name": "gravity",
+     "version": "0.1.0",
+     "label": "gravity 0.1.0"
+    },
+    "thing": null,
+    "params": {
+     "buoyant_volume": 6.022068099805108e-08,
+     "centre_of_buoyancy": null,
+     "fluid_density": 1000.0,
+     "gravity": [
+      -0.0,
+      -0.0,
+      -9.81
+     ],
+     "mass": 8.491116020725203e-05
+    }
+   },
+   {
+    "name": "magnetic.force:umr",
+    "type": "MagneticForceNode",
+    "timestep": 0.0005,
+    "every": 1,
+    "owner": "magnetic.force:umr",
+    "section": "interaction",
+    "entry": {
+     "kind": "interaction",
+     "name": "magnetic.force",
+     "version": "0.1.0",
+     "label": "magnetic.force 0.1.0"
+    },
+    "thing": null,
+    "params": {
+     "magnet_centre": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "moment": [
+      0.0,
+      0.00168,
+      0.0
+     ]
+    }
+   },
+   {
+    "name": "magnetic.torque:umr",
+    "type": "MagneticTorqueNode",
+    "timestep": 0.0005,
+    "every": 1,
+    "owner": "magnetic.torque:umr",
+    "section": "interaction",
+    "entry": {
+     "kind": "interaction",
+     "name": "magnetic.torque",
+     "version": "0.1.0",
+     "label": "magnetic.torque 0.1.0"
+    },
+    "thing": null,
+    "params": {
+     "moment": [
+      0.0,
+      0.00168,
+      0.0
+     ]
+    }
+   },
+   {
+    "name": "umr",
+    "type": "RigidInertialNode",
+    "timestep": 0.0005,
+    "every": 1,
+    "owner": "umr",
+    "section": "dynamics",
+    "entry": {
+     "kind": "dynamics",
+     "name": "rigid_inertial",
+     "version": "0.2.0",
+     "label": "rigid_inertial 0.2.0"
+    },
+    "thing": "umr",
+    "params": {
+     "extent": 0.0020748000000000003,
+     "inertia": [
+      1.0331989974018431e-10,
+      1.0331989974018431e-10,
+      1.0331989974018431e-10
+     ],
+     "initial_pose": [
+      0.0,
+      0.0,
+      -0.001,
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "initial_twist": [
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "margin": 0.0001,
+     "mass": 8.491116020725203e-05,
+     "surface_axis": [
+      1.0,
+      0.0,
+      0.0
+     ],
+     "surface_centre": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "surface_radius": 0.003175,
+     "surface_shape": "cylinder",
+     "velocity_rule": "remove_outward"
+    }
+   },
+   {
+    "name": "rpm.arm",
+    "type": "KinematicArmNode",
+    "timestep": 0.0005,
+    "every": 1,
+    "owner": "rpm.arm",
+    "section": "dynamics",
+    "entry": {
+     "kind": "dynamics",
+     "name": "arm",
+     "version": "0.1.0",
+     "label": "arm 0.1.0 (rung kinematic)"
+    },
+    "thing": "rpm",
+    "params": {
+     "axes": [
+      0.0,
+      0.0,
+      1.0,
+      0.0,
+      0.0,
+      -1.0,
+      0.0,
+      0.0,
+      -1.0,
+      0.0,
+      0.0,
+      -1.0,
+      1.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      1.0
+     ],
+     "bounded": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5
+     ],
+     "dof_names": [
+      "joint_1",
+      "joint_2",
+      "joint_3",
+      "joint_4",
+      "joint_5",
+      "joint_6"
+     ],
+     "frame_bodies": [
+      -1,
+      -1,
+      -1,
+      -1,
+      -1,
+      0,
+      0,
+      0,
+      1,
+      1,
+      1,
+      1,
+      1,
+      2,
+      2,
+      2,
+      3,
+      3,
+      3,
+      3,
+      3,
+      4,
+      4,
+      4,
+      5,
+      5,
+      5
+     ],
+     "frame_names": [
+      "world",
+      "base_link",
+      "base_link_aluminum",
+      "base_link_enclosure",
+      "base_link_motor",
+      "link_1",
+      "link_1_aluminum",
+      "link_1_motor",
+      "link_2",
+      "link_2_aluminum",
+      "link_2_motor",
+      "link_2_cover",
+      "link_2_logo",
+      "link_3",
+      "link_3_aluminum",
+      "link_3_motor",
+      "link_4",
+      "link_4_aluminum",
+      "link_4_motor",
+      "link_4_cover",
+      "link_4_logo",
+      "link_5",
+      "link_5_aluminum",
+      "link_5_motor",
+      "link_6",
+      "link_6_aluminum",
+      "ee_link"
+     ],
+     "frame_rotations": [
+      1.0,
+      0.0,
+      0.0,
+      0.0,
+      1.0,
+      0.0,
+      0.0,
+      0.0,
+      1.0,
+      0.0,
+      0.0,
+      0.0,
+      1.0,
+      0.0,
+      0.0,
+      0.0,
+      1.0,
+      0.0,
+      0.0,
+      0.0,
+      1.0,
+      0.0,
+      0.0,
+      0.0,
+      1.0,
+      0.0,
+      0.0,
+      0.0,
+      1.0,
+      0.0,
+      0.0,
+      0.0,
+      1.0,
+      0.0,
+      0.0,
+      0.0,
+      1.0,
+      0.0,
+      0.0,
+      0.0,
+      1.0,
+      0.0,
+      0.0,
+      0.0,
+      1.0,
+      0.0,
+      0.0,
+      0.0,
+      1.0,
+      0.0,
+      0.0,
+      0.0,
+      1.0,
+      0.0,
+      0.0,
+      0.0,
+      1.0,
+      0.0,
+      0.0,
+      0.0,
+      1.0,
+      0.0,
+      0.0,
+      0.0,
+      1.0,
+      0.0,
+      0.0,
+      0.0,
+      1.0,
+      0.0,
+      0.0,
+      0.0,
+      1.0,
+      0.0,
+      0.0,
+      0.0,
+      1.0,
+      0.0,
+      0.0,
+      0.0,
+      1.0,
+      0.0,
+      0.0,
+      0.0,
+      1.0,
+      0.0,
+      0.0,
+      0.0,
+      1.0,
+      0.0,
+      0.0,
+      0.0,
+      1.0,
+      0.0,
+      0.0,
+      0.0,
+      1.0,
+      0.0,
+      0.0,
+      0.0,
+      1.0,
+      0.0,
+      0.0,
+      0.0,
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "frame_translations": [
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "initial_joint_positions": [
+      -0.02761,
+      0.23896,
+      -0.77475,
+      1.55611,
+      1.54628,
+      0.0
+     ],
+     "initial_mount_pose": [
+      0.0,
+      0.0,
+      0.0,
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "initial_mount_rate": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "lower": [
+      -2.792526803190927,
+      -0.7330382858376184,
+      -1.5533430342749532,
+      -3.141592653589793,
+      -1.8325957145940461,
+      -3.141592653589793
+     ],
+     "mount_count": 0,
+     "mount_index": -1,
+     "origin_rotations": [
+      6.123233995736766e-17,
+      1.0,
+      0.0,
+      0.0,
+      0.49999816339744835,
+      0.4999999999966269,
+      -0.5000018366025517,
+      -0.4999999999966269,
+      -3.6732051033465744e-06,
+      0.0,
+      0.0,
+      0.9999999999932538,
+      0.49999816339744835,
+      0.4999999999966269,
+      -0.5000018366025517,
+      -0.4999999999966269,
+      4.3297723290846517e-17,
+      0.7071054825112364,
+      -0.7071080798594737,
+      -4.3297882332556774e-17,
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "origin_translations": [
+      0.0,
+      0.0,
+      0.092,
+      0.0,
+      0.06415,
+      -0.07778,
+      0.0,
+      -0.305,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      -0.22294,
+      0.0,
+      0.0,
+      0.041
+     ],
+     "parents": [
+      -1,
+      0,
+      1,
+      2,
+      3,
+      4
+     ],
+     "placement": [
+      -0.05,
+      0.328,
+      -0.43,
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rates": false,
+     "revolute": [
+      true,
+      true,
+      true,
+      true,
+      true,
+      true
+     ],
+     "servo_time_constant": null,
+     "upper": [
+      2.792526803190927,
+      1.5707963267948966,
+      0.9075712110370514,
+      3.141592653589793,
+      1.8325957145940461,
+      3.141592653589793
+     ]
+    }
+   },
+   {
+    "name": "rpm.motor",
+    "type": "KinematicMotorNode",
+    "timestep": 0.0005,
+    "every": 1,
+    "owner": "rpm.motor",
+    "section": "dynamics",
+    "entry": {
+     "kind": "dynamics",
+     "name": "motor",
+     "version": "0.2.0",
+     "label": "motor 0.2.0 (rung kinematic)"
+    },
+    "thing": "rpm",
+    "params": {
+     "axis": [
+      0.0,
+      0.0,
+      1.0
+     ],
+     "initial_angle": 0.0,
+     "initial_mount_pose": [
+      5.7647783920200535e-05,
+      4.632606928023364e-05,
+      0.14992504759752973,
+      -0.18755478232630143,
+      -0.681994124526133,
+      -0.18691675701536628,
+      -0.681739938455439
+     ],
+     "initial_mount_rate": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "mount_count": 27,
+     "mount_index": 24,
+     "placement": [
+      0.0,
+      0.0,
+      0.0,
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "prescribed": "velocity",
+     "rates": false
+    }
+   },
+   {
+    "name": "swim_speed:umr",
+    "type": "SwimSpeedNode",
+    "timestep": 0.0005,
+    "every": 1,
+    "owner": "swim_speed:umr",
+    "section": "observation",
+    "entry": {
+     "kind": "observation",
+     "name": "swim_speed",
+     "version": "0.1.0",
+     "label": "swim_speed 0.1.0"
+    },
+    "thing": null,
+    "params": {
+     "after": 0.0,
+     "along": [
+      1.0,
+      0.0,
+      0.0
+     ]
+    }
+   },
+   {
+    "name": "drive:rpm.motor.velocity",
+    "type": "ConstantNode",
+    "timestep": 0.0005,
+    "every": 1,
+    "owner": "drive:rpm.motor.velocity",
+    "section": "drive",
+    "entry": {
+     "kind": "drive",
+     "name": "drive.constant",
+     "version": "0.1.0",
+     "label": "drive.constant 0.1.0"
+    },
+    "thing": "rpm",
+    "params": {
+     "value": 18.84955592153876
+    }
+   }
+  ],
+  "edges": [
+   {
+    "source_node": "rpm.motor",
+    "source_field": "frame_poses",
+    "target_node": "rpm.magnetic",
+    "target_field": "mount_poses",
+    "additive": false,
+    "source_units": "m; 1",
+    "target_units": "m; 1",
+    "reads": "this step"
+   },
+   {
+    "source_node": "umr",
+    "source_field": "pose",
+    "target_node": "rpm.magnetic",
+    "target_field": "points_magnetic_force_umr",
+    "additive": false,
+    "source_units": "m; 1",
+    "target_units": "m; 1",
+    "reads": "previous step"
+   },
+   {
+    "source_node": "umr",
+    "source_field": "pose",
+    "target_node": "rpm.magnetic",
+    "target_field": "points_magnetic_torque_umr",
+    "additive": false,
+    "source_units": "m; 1",
+    "target_units": "m; 1",
+    "reads": "previous step"
+   },
+   {
+    "source_node": "umr",
+    "source_field": "pose",
+    "target_node": "drag:umr",
+    "target_field": "pose",
+    "additive": false,
+    "source_units": "m; 1",
+    "target_units": "m; 1",
+    "reads": "previous step"
+   },
+   {
+    "source_node": "rpm.magnetic",
+    "source_field": "gradient_magnetic_force_umr",
+    "target_node": "magnetic.force:umr",
+    "target_field": "gradient",
+    "additive": false,
+    "source_units": "T/m",
+    "target_units": "T/m",
+    "reads": "this step"
+   },
+   {
+    "source_node": "umr",
+    "source_field": "pose",
+    "target_node": "magnetic.force:umr",
+    "target_field": "pose",
+    "additive": false,
+    "source_units": "m; 1",
+    "target_units": "m; 1",
+    "reads": "previous step"
+   },
+   {
+    "source_node": "rpm.magnetic",
+    "source_field": "flux_density_magnetic_torque_umr",
+    "target_node": "magnetic.torque:umr",
+    "target_field": "flux_density",
+    "additive": false,
+    "source_units": "T",
+    "target_units": "T",
+    "reads": "this step"
+   },
+   {
+    "source_node": "umr",
+    "source_field": "pose",
+    "target_node": "magnetic.torque:umr",
+    "target_field": "pose",
+    "additive": false,
+    "source_units": "m; 1",
+    "target_units": "m; 1",
+    "reads": "previous step"
+   },
+   {
+    "source_node": "gravity:umr",
+    "source_field": "wrench",
+    "target_node": "umr",
+    "target_field": "applied_wrench",
+    "additive": true,
+    "source_units": "N; N m",
+    "target_units": "N; N m",
+    "reads": "this step"
+   },
+   {
+    "source_node": "magnetic.force:umr",
+    "source_field": "wrench",
+    "target_node": "umr",
+    "target_field": "applied_wrench",
+    "additive": true,
+    "source_units": "N; N m",
+    "target_units": "N; N m",
+    "reads": "this step"
+   },
+   {
+    "source_node": "magnetic.torque:umr",
+    "source_field": "wrench",
+    "target_node": "umr",
+    "target_field": "applied_wrench",
+    "additive": true,
+    "source_units": "N; N m",
+    "target_units": "N; N m",
+    "reads": "this step"
+   },
+   {
+    "source_node": "drag:umr",
+    "source_field": "background_load",
+    "target_node": "umr",
+    "target_field": "background_load",
+    "additive": true,
+    "source_units": "N; N m",
+    "target_units": "N; N m",
+    "reads": "this step"
+   },
+   {
+    "source_node": "drag:umr",
+    "source_field": "resistance",
+    "target_node": "umr",
+    "target_field": "resistance",
+    "additive": true,
+    "source_units": "N s/m; N s; N m s",
+    "target_units": "N s/m; N s; N m s",
+    "reads": "this step"
+   },
+   {
+    "source_node": "rpm.arm",
+    "source_field": "frame_poses",
+    "target_node": "rpm.motor",
+    "target_field": "mount_poses",
+    "additive": false,
+    "source_units": "m; 1",
+    "target_units": "m; 1",
+    "reads": "this step"
+   },
+   {
+    "source_node": "drive:rpm.motor.velocity",
+    "source_field": "value",
+    "target_node": "rpm.motor",
+    "target_field": "velocity",
+    "additive": false,
+    "source_units": "Hz",
+    "target_units": "Hz",
+    "reads": "this step"
+   },
+   {
+    "source_node": "umr",
+    "source_field": "twist",
+    "target_node": "swim_speed:umr",
+    "target_field": "twist",
+    "additive": false,
+    "source_units": "m/s; rad/s",
+    "target_units": "m/s; rad/s",
+    "reads": "this step"
+   }
+  ],
+  "coupling_groups": [],
+  "external_inputs": [
+   {
+    "node": "rpm.arm",
+    "field": "joint_positions",
+    "shape": [
+     6
+    ],
+    "dtype": "float32"
+   }
+  ],
+  "controller": {
+   "entry": "arm_tracking 0.1.0",
+   "mode": "callback",
+   "every": 20,
+   "latency": 0,
+   "reads": {
+    "body_pose": "umr.pose",
+    "body_twist": "umr.twist",
+    "joint_positions": "rpm.arm.joint_positions"
+   },
+   "writes": {
+    "joint_positions": "rpm.arm.joint_positions"
+   },
+   "live": {
+    "offset": {
+     "units": "m",
+     "shape": [],
+     "meaning": "moves the point the magnet is held above along the axis, ahead of the body (towards +axis) or behind it, the point still held within reach"
+    }
+   }
+  }
+ },
+ "report": {
+  "format": "mime.report/1",
+  "experiment": "script_a0",
+  "profile": {
+   "profile": "exploratory",
+   "stamp": "profile exploratory: 7 items pending, not sealed: controller.damping (a numerical default); controller.gain (a numerical default); controller.iterations (a numerical default); controller.lookahead (a numerical default); controller.reach (a numerical default); controller.smoothing (a numerical default); controller.standoff (a numerical default)",
+   "pending": [
+    "controller.damping (a numerical default)",
+    "controller.gain (a numerical default)",
+    "controller.iterations (a numerical default)",
+    "controller.lookahead (a numerical default)",
+    "controller.reach (a numerical default)",
+    "controller.smoothing (a numerical default)",
+    "controller.standoff (a numerical default)"
+   ],
+   "measured": [],
+   "listed": [],
+   "defaults": [
+    "contact:umr.rule = 'remove_outward', a convention default (the setting's written default; a frictionless contact that does not bounce: the projection removes the velocity into the surface, a physical model of the contact, not a solver's choice)",
+    "controller.acknowledged = (), a convention default (the setting's written default; no element of the description is read past unless acknowledged with its reason)",
+    "controller.damping = 0.05, a numerical default (the value the earlier line's controller ran with; the frozen reference of the arm's experiment was run with it; no study of it is recorded)",
+    "controller.gain = 1.0, a numerical default (the value the earlier line's controller ran with; a design value of the controller (where and how it holds the arm), held as a numerical default so that A0's frozen declarations stand: the frozen reference of the arm's experiment was run with it, and no study of it is recorded)",
+    "controller.iterations = 5, a numerical default (the value the earlier line's controller ran with; the frozen reference of the arm's experiment was run with it; no study of it is recorded)",
+    "controller.lookahead = 0.01 s, a numerical default (the value the earlier line's controller ran with; a design value of the controller (where and how it holds the arm), held as a numerical default so that A0's frozen declarations stand: the frozen reference of the arm's experiment was run with it, and no study of it is recorded)",
+    "controller.orientation_feedback = False, a convention default (the setting's written default; the target is not turned to follow the body unless asked)",
+    "controller.reach = (-0.05, 0.05) m, a numerical default (the value the earlier line's controller ran with; a design value of the controller (where and how it holds the arm), held as a numerical default so that A0's frozen declarations stand: the frozen reference of the arm's experiment was run with it, and no study of it is recorded)",
+    "controller.smoothing = 0.005, a numerical default (the value the earlier line's controller ran with; a design value of the controller (where and how it holds the arm), held as a numerical default so that A0's frozen declarations stand: the frozen reference of the arm's experiment was run with it, and no study of it is recorded)",
+    "controller.standoff = 0.15 m, a numerical default (the value the earlier line's controller ran with; a design value of the controller (where and how it holds the arm), held as a numerical default so that A0's frozen declarations stand: the frozen reference of the arm's experiment was run with it, and no study of it is recorded)",
+    "rpm.arm.acknowledged = (), a convention default (the setting's written default; no element of the description is read past unless acknowledged with its reason)",
+    "rpm.arm.actuators = (), a convention default (the setting's written default; a transmission whose actuator's rotor is not given reflects nothing onto its joint)",
+    "rpm.arm.armature = (), a convention default (the setting's written default; a joint whose armature is not declared, and whose transmission's actuator is not given, has none: the URDF's own meaning, no geared drive's rotor reflected onto it)",
+    "swim_speed:umr.after = 0.0 s, a convention default (the setting's written default; the window starts at the run's start unless a later start is given)",
+    "tube.centre = (0.0, 0.0, 0.0) m, a convention default (the setting's written default; a tube is centred on the world's origin unless placed)"
+   ]
+  },
+  "validity": [
+   {
+    "owner": "drag:umr",
+    "kind": "declared",
+    "line": "surrogate: quasi-steady Stokes flow (the limit of vanishing Reynolds number), as its training resistances were computed; the Reynolds number, by the body's translation and by its turning, is computed after each run (the post-run watch) and flagged past the bound the entry declares"
+   },
+   {
+    "owner": "drag:umr",
+    "kind": "declared",
+    "line": "surrogate: de Jongh screw bodies (cross-section modulation 0.33, two starts) in a straight tube; nu, kappa and L/R checked against the training data at plan time; the offset declared up to 0.3 of the tube's radius and clamped beyond 0.95 of the room to the wall; its accuracy against the MRS it was checked against is MIME-ANO-114's, up to 16% in swim speed between 0.2 and 0.3 of the radius"
+   },
+   {
+    "owner": "drag:umr",
+    "kind": "declared",
+    "line": "surrogate: the resistance is moved from the end of the body's axis, about which it was trained, to the centre of mass, half the body's length along its x axis taken as the helix's, which the surrogate takes to lie along the tube's; it cannot see a tilt (away from the axis its resistance is a function of the body's centre and of which way the body's axis points along the tube, and of nothing else about the orientation)"
+   },
+   {
+    "owner": "drag:umr",
+    "kind": "declared",
+    "line": "surrogate: valid for a body whose axis lies within 5 degrees of the tube's, a limit declared (mime.nodes.hydro.TILT_VALIDITY), not fitted, from one MRS measurement of FL-9 on the axis (docs/data/tilt_validity.json, scripts/tilt_validity.py): at that tilt the force-free swim speed differs from the aligned body's by less than the 16% this entry states for the surrogate against the boundary element, and at the next tilt measured, in one of two directions, it does not; one spacing, one offset, one body, and the MRS itself not converged at that spacing; tilt_fired is raised at the step the tilt passes the limit, and bore_fired at the step the body, as the cylinder of its length and outer radius with its centre on the axis, no longer fits the bore"
+   },
+   {
+    "owner": "magnetic.force:umr",
+    "kind": "declared",
+    "line": "a point dipole in a field read at the body's centre of mass: valid while the gradient varies little across the body, and outside a point dipole's near field (MIME-ANO-100); a validity line that checks the distance is a1's"
+   },
+   {
+    "owner": "magnetic.torque:umr",
+    "kind": "declared",
+    "line": "a permanent moment in a field that varies in space, read at the body's centre of mass: valid while the field varies little across the body, and outside a point dipole's near field (MIME-ANO-100)"
+   },
+   {
+    "owner": "rpm.magnetic",
+    "kind": "declared",
+    "line": "evaluated outside the magnet: the field is singular at its centroid, and a point dipole is faithful only far from the magnet, against its radius (MIME-ANO-100); a validity line that checks the distance is a1's"
+   },
+   {
+    "owner": "rpm.arm",
+    "kind": "record",
+    "line": "rigid joints and links, with no joint flexibility, backlash or structural mode, and no contact between links (MIME-ANO-101)"
+   },
+   {
+    "owner": "rpm.arm",
+    "kind": "record",
+    "line": "a prescribed motion: a load on it is not applied, the reaction of a field on a magnet mounted on it and a mounted motor's reaction torque among them (MIME-ANO-103), and no mass mounted on it changes it: every mounted mass is accepted, tilted, unbalanced or articulated, and none is carried"
+   },
+   {
+    "owner": "rpm.motor",
+    "kind": "record",
+    "line": "an ideal source of the prescribed motion, with no cogging, imbalance or thermal terms (MIME-ANO-102, as it applies to a prescribed motion)"
+   },
+   {
+    "owner": "rpm.motor",
+    "kind": "record",
+    "line": "a prescribed motion: a load on it is not applied, and its reaction torque on the link it is mounted on is not delivered (MIME-ANO-103); mass on its rotor is an articulated payload, refused on a dynamic segment"
+   }
+  ],
+  "watches": [
+   "drag:umr: the Reynolds number after each run for drag 0.3.0 (rung surrogate) of umr in water, compared with the 0.1 its rung is declared up to"
+  ],
+  "flags": [
+   {
+    "path": "drag:umr.clamp_fired",
+    "owner": "drag:umr",
+    "entry": "drag 0.3.0",
+    "node": "drag:umr",
+    "meaning": "the body's offset from the tube's axis lay beyond the clamp near the wall, so the surrogate read the resistance at the clamp, not at the offset",
+    "limits": null
+   },
+   {
+    "path": "drag:umr.tilt_fired",
+    "owner": "drag:umr",
+    "entry": "drag 0.3.0",
+    "node": "drag:umr",
+    "meaning": "the body's axis lay further from the tube's than the tilt the surrogate is declared valid to (see the rung's validity line): it was trained for a helix along the tube's axis and cannot see a tilt, so its resistance is that of the body along the axis",
+    "limits": null
+   },
+   {
+    "path": "drag:umr.bore_fired",
+    "owner": "drag:umr",
+    "entry": "drag 0.3.0",
+    "node": "drag:umr",
+    "meaning": "the body's axis lay so far from the tube's that the body, as the cylinder of its length and outer radius, no longer fits the tube's bore: the geometric limit, beyond the declared tilt's, past which a body longer than the bore has gone through the wall",
+    "limits": null
+   }
+  ],
+  "settings": [
+   {
+    "path": "contact:umr.margin",
+    "role": "numerical",
+    "default": "none",
+    "taken": null,
+    "source": null,
+    "pending": [],
+    "listed": []
+   },
+   {
+    "path": "contact:umr.rule",
+    "role": "physical",
+    "default": "convention",
+    "taken": "contact:umr.rule = 'remove_outward', a convention default (the setting's written default; a frictionless contact that does not bounce: the projection removes the velocity into the surface, a physical model of the contact, not a solver's choice)",
+    "source": null,
+    "pending": [],
+    "listed": []
+   },
+   {
+    "path": "contact:umr.rung",
+    "role": "design",
+    "default": "none",
+    "taken": null,
+    "source": null,
+    "pending": [],
+    "listed": []
+   },
+   {
+    "path": "controller.acknowledged",
+    "role": "design",
+    "default": "convention",
+    "taken": "controller.acknowledged = (), a convention default (the setting's written default; no element of the description is read past unless acknowledged with its reason)",
+    "source": null,
+    "pending": [],
+    "listed": []
+   },
+   {
+    "path": "controller.at",
+    "role": "physical",
+    "default": "convention",
+    "taken": null,
+    "source": null,
+    "pending": [],
+    "listed": []
+   },
+   {
+    "path": "controller.axis",
+    "role": "design",
+    "default": "none",
+    "taken": null,
+    "source": null,
+    "pending": [],
+    "listed": []
+   },
+   {
+    "path": "controller.damping",
+    "role": "numerical",
+    "default": "numerical",
+    "taken": "controller.damping = 0.05, a numerical default (the value the earlier line's controller ran with; the frozen reference of the arm's experiment was run with it; no study of it is recorded)",
+    "source": null,
+    "pending": [
+     "controller.damping (a numerical default)"
+    ],
+    "listed": []
+   },
+   {
+    "path": "controller.description",
+    "role": "physical",
+    "default": "none",
+    "taken": null,
+    "source": null,
+    "pending": [],
+    "listed": []
+   },
+   {
+    "path": "controller.end_effector",
+    "role": "design",
+    "default": "none",
+    "taken": null,
+    "source": null,
+    "pending": [],
+    "listed": []
+   },
+   {
+    "path": "controller.gain",
+    "role": "numerical",
+    "default": "numerical",
+    "taken": "controller.gain = 1.0, a numerical default (the value the earlier line's controller ran with; a design value of the controller (where and how it holds the arm), held as a numerical default so that A0's frozen declarations stand: the frozen reference of the arm's experiment was run with it, and no study of it is recorded)",
+    "source": null,
+    "pending": [
+     "controller.gain (a numerical default)"
+    ],
+    "listed": []
+   },
+   {
+    "path": "controller.home",
+    "role": "design",
+    "default": "none",
+    "taken": null,
+    "source": null,
+    "pending": [],
+    "listed": []
+   },
+   {
+    "path": "controller.iterations",
+    "role": "numerical",
+    "default": "numerical",
+    "taken": "controller.iterations = 5, a numerical default (the value the earlier line's controller ran with; the frozen reference of the arm's experiment was run with it; no study of it is recorded)",
+    "source": null,
+    "pending": [
+     "controller.iterations (a numerical default)"
+    ],
+    "listed": []
+   },
+   {
+    "path": "controller.latency",
+    "role": "physical",
+    "default": "none",
+    "taken": null,
+    "source": null,
+    "pending": [],
+    "listed": []
+   },
+   {
+    "path": "controller.lookahead",
+    "role": "numerical",
+    "default": "numerical",
+    "taken": "controller.lookahead = 0.01 s, a numerical default (the value the earlier line's controller ran with; a design value of the controller (where and how it holds the arm), held as a numerical default so that A0's frozen declarations stand: the frozen reference of the arm's experiment was run with it, and no study of it is recorded)",
+    "source": null,
+    "pending": [
+     "controller.lookahead (a numerical default)"
+    ],
+    "listed": []
+   },
+   {
+    "path": "controller.orientation",
+    "role": "physical",
+    "default": "convention",
+    "taken": null,
+    "source": null,
+    "pending": [],
+    "listed": []
+   },
+   {
+    "path": "controller.orientation_feedback",
+    "role": "design",
+    "default": "convention",
+    "taken": "controller.orientation_feedback = False, a convention default (the setting's written default; the target is not turned to follow the body unless asked)",
+    "source": null,
+    "pending": [],
+    "listed": []
+   },
+   {
+    "path": "controller.rate",
+    "role": "design",
+    "default": "none",
+    "taken": null,
+    "source": null,
+    "pending": [],
+    "listed": []
+   },
+   {
+    "path": "controller.reach",
+    "role": "numerical",
+    "default": "numerical",
+    "taken": "controller.reach = (-0.05, 0.05) m, a numerical default (the value the earlier line's controller ran with; a design value of the controller (where and how it holds the arm), held as a numerical default so that A0's frozen declarations stand: the frozen reference of the arm's experiment was run with it, and no study of it is recorded)",
+    "source": null,
+    "pending": [
+     "controller.reach (a numerical default)"
+    ],
+    "listed": []
+   },
+   {
+    "path": "controller.smoothing",
+    "role": "numerical",
+    "default": "numerical",
+    "taken": "controller.smoothing = 0.005, a numerical default (the value the earlier line's controller ran with; a design value of the controller (where and how it holds the arm), held as a numerical default so that A0's frozen declarations stand: the frozen reference of the arm's experiment was run with it, and no study of it is recorded)",
+    "source": null,
+    "pending": [
+     "controller.smoothing (a numerical default)"
+    ],
+    "listed": []
+   },
+   {
+    "path": "controller.standoff",
+    "role": "numerical",
+    "default": "numerical",
+    "taken": "controller.standoff = 0.15 m, a numerical default (the value the earlier line's controller ran with; a design value of the controller (where and how it holds the arm), held as a numerical default so that A0's frozen declarations stand: the frozen reference of the arm's experiment was run with it, and no study of it is recorded)",
+    "source": null,
+    "pending": [
+     "controller.standoff (a numerical default)"
+    ],
+    "listed": []
+   },
+   {
+    "path": "controller.up",
+    "role": "design",
+    "default": "none",
+    "taken": null,
+    "source": null,
+    "pending": [],
+    "listed": []
+   },
+   {
+    "path": "drag:umr.blob",
+    "role": "numerical",
+    "default": "numerical",
+    "taken": null,
+    "source": null,
+    "pending": [],
+    "listed": []
+   },
+   {
+    "path": "drag:umr.lubrication",
+    "role": "design",
+    "default": "convention",
+    "taken": null,
+    "source": null,
+    "pending": [],
+    "listed": []
+   },
+   {
+    "path": "drag:umr.lubrication.epsilon",
+    "role": "numerical",
+    "default": "none",
+    "taken": null,
+    "source": null,
+    "pending": [],
+    "listed": []
+   },
+   {
+    "path": "drag:umr.patches",
+    "role": "numerical",
+    "default": "convention",
+    "taken": null,
+    "source": null,
+    "pending": [],
+    "listed": []
+   },
+   {
+    "path": "drag:umr.rung",
+    "role": "design",
+    "default": "none",
+    "taken": null,
+    "source": null,
+    "pending": [],
+    "listed": []
+   },
+   {
+    "path": "drag:umr.spacing",
+    "role": "numerical",
+    "default": "numerical",
+    "taken": null,
+    "source": null,
+    "pending": [],
+    "listed": []
+   },
+   {
+    "path": "drag:umr.wall_kind",
+    "role": "physical",
+    "default": "determined",
+    "taken": null,
+    "source": null,
+    "pending": [],
+    "listed": []
+   },
+   {
+    "path": "drag:umr.weights",
+    "role": "design",
+    "default": "none",
+    "taken": null,
+    "source": null,
+    "pending": [],
+    "listed": []
+   },
+   {
+    "path": "dt",
+    "role": "numerical",
+    "default": "none",
+    "taken": null,
+    "source": null,
+    "pending": [],
+    "listed": []
+   },
+   {
+    "path": "gravity",
+    "role": "physical",
+    "default": "none",
+    "taken": null,
+    "source": null,
+    "pending": [],
+    "listed": []
+   },
+   {
+    "path": "rpm.arm.acknowledged",
+    "role": "design",
+    "default": "convention",
+    "taken": "rpm.arm.acknowledged = (), a convention default (the setting's written default; no element of the description is read past unless acknowledged with its reason)",
+    "source": null,
+    "pending": [],
+    "listed": []
+   },
+   {
+    "path": "rpm.arm.actuators",
+    "role": "physical",
+    "default": "convention",
+    "taken": "rpm.arm.actuators = (), a convention default (the setting's written default; a transmission whose actuator's rotor is not given reflects nothing onto its joint)",
+    "source": null,
+    "pending": [],
+    "listed": []
+   },
+   {
+    "path": "rpm.arm.armature",
+    "role": "physical",
+    "default": "convention",
+    "taken": "rpm.arm.armature = (), a convention default (the setting's written default; a joint whose armature is not declared, and whose transmission's actuator is not given, has none: the URDF's own meaning, no geared drive's rotor reflected onto it)",
+    "source": null,
+    "pending": [],
+    "listed": []
+   },
+   {
+    "path": "rpm.arm.at",
+    "role": "physical",
+    "default": "convention",
+    "taken": null,
+    "source": null,
+    "pending": [],
+    "listed": []
+   },
+   {
+    "path": "rpm.arm.description",
+    "role": "physical",
+    "default": "none",
+    "taken": null,
+    "source": null,
+    "pending": [],
+    "listed": []
+   },
+   {
+    "path": "rpm.arm.initial_positions",
+    "role": "design",
+    "default": "none",
+    "taken": null,
+    "source": null,
+    "pending": [],
+    "listed": []
+   },
+   {
+    "path": "rpm.arm.initial_velocities",
+    "role": "design",
+    "default": "convention",
+    "taken": null,
+    "source": null,
+    "pending": [],
+    "listed": []
+   },
+   {
+    "path": "rpm.arm.mount",
+    "role": "physical",
+    "default": "none",
+    "taken": null,
+    "source": null,
+    "pending": [],
+    "listed": []
+   },
+   {
+    "path": "rpm.arm.orientation",
+    "role": "physical",
+    "default": "convention",
+    "taken": null,
+    "source": null,
+    "pending": [],
+    "listed": []
+   },
+   {
+    "path": "rpm.arm.rate",
+    "role": "numerical",
+    "default": "convention",
+    "taken": null,
+    "source": null,
+    "pending": [],
+    "listed": []
+   },
+   {
+    "path": "rpm.arm.rung",
+    "role": "design",
+    "default": "none",
+    "taken": null,
+    "source": null,
+    "pending": [],
+    "listed": []
+   },
+   {
+    "path": "rpm.arm.servo",
+    "role": "physical",
+    "default": "convention",
+    "taken": null,
+    "source": null,
+    "pending": [],
+    "listed": []
+   },
+   {
+    "path": "rpm.magnetic.part",
+    "role": "physical",
+    "default": "none",
+    "taken": null,
+    "source": null,
+    "pending": [],
+    "listed": []
+   },
+   {
+    "path": "rpm.motor.at",
+    "role": "physical",
+    "default": "convention",
+    "taken": null,
+    "source": null,
+    "pending": [],
+    "listed": []
+   },
+   {
+    "path": "rpm.motor.axis",
+    "role": "physical",
+    "default": "none",
+    "taken": null,
+    "source": null,
+    "pending": [],
+    "listed": []
+   },
+   {
+    "path": "rpm.motor.damping",
+    "role": "physical",
+    "default": "none",
+    "taken": null,
+    "source": null,
+    "pending": [],
+    "listed": []
+   },
+   {
+    "path": "rpm.motor.inertia",
+    "role": "physical",
+    "default": "none",
+    "taken": null,
+    "source": null,
+    "pending": [],
+    "listed": []
+   },
+   {
+    "path": "rpm.motor.initial_angle",
+    "role": "design",
+    "default": "none",
+    "taken": null,
+    "source": null,
+    "pending": [],
+    "listed": []
+   },
+   {
+    "path": "rpm.motor.initial_velocity",
+    "role": "design",
+    "default": "convention",
+    "taken": null,
+    "source": null,
+    "pending": [],
+    "listed": []
+   },
+   {
+    "path": "rpm.motor.mount",
+    "role": "physical",
+    "default": "none",
+    "taken": null,
+    "source": null,
+    "pending": [],
+    "listed": []
+   },
+   {
+    "path": "rpm.motor.orientation",
+    "role": "physical",
+    "default": "convention",
+    "taken": null,
+    "source": null,
+    "pending": [],
+    "listed": []
+   },
+   {
+    "path": "rpm.motor.prescribed",
+    "role": "design",
+    "default": "none",
+    "taken": null,
+    "source": null,
+    "pending": [],
+    "listed": []
+   },
+   {
+    "path": "rpm.motor.rate",
+    "role": "numerical",
+    "default": "convention",
+    "taken": null,
+    "source": null,
+    "pending": [],
+    "listed": []
+   },
+   {
+    "path": "rpm.motor.rung",
+    "role": "design",
+    "default": "none",
+    "taken": null,
+    "source": null,
+    "pending": [],
+    "listed": []
+   },
+   {
+    "path": "rpm.motor.top_speed",
+    "role": "design",
+    "default": "none",
+    "taken": null,
+    "source": null,
+    "pending": [],
+    "listed": []
+   },
+   {
+    "path": "rpm.motor.velocity",
+    "role": "design",
+    "default": "none",
+    "taken": null,
+    "source": null,
+    "pending": [],
+    "listed": []
+   },
+   {
+    "path": "rpm.parts.rotor_magnet.at",
+    "role": "physical",
+    "default": "none",
+    "taken": null,
+    "source": null,
+    "pending": [],
+    "listed": []
+   },
+   {
+    "path": "rpm.parts.rotor_magnet.axis",
+    "role": "physical",
+    "default": "none",
+    "taken": null,
+    "source": null,
+    "pending": [],
+    "listed": []
+   },
+   {
+    "path": "rpm.parts.rotor_magnet.length",
+    "role": "physical",
+    "default": "none",
+    "taken": null,
+    "source": null,
+    "pending": [],
+    "listed": []
+   },
+   {
+    "path": "rpm.parts.rotor_magnet.radius",
+    "role": "physical",
+    "default": "none",
+    "taken": null,
+    "source": null,
+    "pending": [],
+    "listed": []
+   },
+   {
+    "path": "seed",
+    "role": "design",
+    "default": "none",
+    "taken": null,
+    "source": null,
+    "pending": [],
+    "listed": []
+   },
+   {
+    "path": "swim_speed:umr.after",
+    "role": "design",
+    "default": "convention",
+    "taken": "swim_speed:umr.after = 0.0 s, a convention default (the setting's written default; the window starts at the run's start unless a later start is given)",
+    "source": null,
+    "pending": [],
+    "listed": []
+   },
+   {
+    "path": "swim_speed:umr.along",
+    "role": "design",
+    "default": "none",
+    "taken": null,
+    "source": null,
+    "pending": [],
+    "listed": []
+   },
+   {
+    "path": "swim_speed:umr.rate",
+    "role": "numerical",
+    "default": "convention",
+    "taken": null,
+    "source": null,
+    "pending": [],
+    "listed": []
+   },
+   {
+    "path": "tube.axis",
+    "role": "physical",
+    "default": "none",
+    "taken": null,
+    "source": null,
+    "pending": [],
+    "listed": []
+   },
+   {
+    "path": "tube.centre",
+    "role": "physical",
+    "default": "convention",
+    "taken": "tube.centre = (0.0, 0.0, 0.0) m, a convention default (the setting's written default; a tube is centred on the world's origin unless placed)",
+    "source": null,
+    "pending": [],
+    "listed": []
+   },
+   {
+    "path": "tube.inner_radius",
+    "role": "physical",
+    "default": "none",
+    "taken": null,
+    "source": null,
+    "pending": [],
+    "listed": []
+   },
+   {
+    "path": "tube.length",
+    "role": "physical",
+    "default": "none",
+    "taken": null,
+    "source": null,
+    "pending": [],
+    "listed": []
+   },
+   {
+    "path": "tube.wall",
+    "role": "physical",
+    "default": "none",
+    "taken": null,
+    "source": null,
+    "pending": [],
+    "listed": []
+   },
+   {
+    "path": "umr.initial.angular_velocity",
+    "role": "design",
+    "default": "none",
+    "taken": null,
+    "source": null,
+    "pending": [],
+    "listed": []
+   },
+   {
+    "path": "umr.initial.orientation",
+    "role": "design",
+    "default": "none",
+    "taken": null,
+    "source": null,
+    "pending": [],
+    "listed": []
+   },
+   {
+    "path": "umr.initial.position",
+    "role": "design",
+    "default": "none",
+    "taken": null,
+    "source": null,
+    "pending": [],
+    "listed": []
+   },
+   {
+    "path": "umr.initial.velocity",
+    "role": "design",
+    "default": "none",
+    "taken": null,
+    "source": null,
+    "pending": [],
+    "listed": []
+   },
+   {
+    "path": "umr.motion.rate",
+    "role": "numerical",
+    "default": "convention",
+    "taken": null,
+    "source": null,
+    "pending": [],
+    "listed": []
+   },
+   {
+    "path": "umr.parts.shell.at",
+    "role": "physical",
+    "default": "none",
+    "taken": null,
+    "source": null,
+    "pending": [],
+    "listed": []
+   },
+   {
+    "path": "umr.parts.shell.length",
+    "role": "physical",
+    "default": "none",
+    "taken": null,
+    "source": null,
+    "pending": [],
+    "listed": []
+   },
+   {
+    "path": "umr.parts.shell.modulation",
+    "role": "physical",
+    "default": "none",
+    "taken": null,
+    "source": null,
+    "pending": [],
+    "listed": []
+   },
+   {
+    "path": "umr.parts.shell.radius",
+    "role": "physical",
+    "default": "none",
+    "taken": null,
+    "source": null,
+    "pending": [],
+    "listed": []
+   },
+   {
+    "path": "umr.parts.shell.starts",
+    "role": "physical",
+    "default": "none",
+    "taken": null,
+    "source": null,
+    "pending": [],
+    "listed": []
+   },
+   {
+    "path": "umr.parts.shell.wavenumber",
+    "role": "physical",
+    "default": "none",
+    "taken": null,
+    "source": null,
+    "pending": [],
+    "listed": []
+   }
+  ],
+  "summary": [
+   "build report: experiment 'script_a0', base step 0.0005 s, run as compiled chunks of 20 steps, with these between them: the controller arm_tracking 0.1.0 (mode 2, a callback on the host, between compiled chunks)",
+   "profile exploratory: 7 items pending, not sealed: controller.damping (a numerical default); controller.gain (a numerical default); controller.iterations (a numerical default); controller.lookahead (a numerical default); controller.reach (a numerical default); controller.smoothing (a numerical default); controller.standoff (a numerical default)",
+   "  pending: controller.damping (a numerical default)",
+   "  pending: controller.gain (a numerical default)",
+   "  pending: controller.iterations (a numerical default)",
+   "  pending: controller.lookahead (a numerical default)",
+   "  pending: controller.reach (a numerical default)",
+   "  pending: controller.smoothing (a numerical default)",
+   "  pending: controller.standoff (a numerical default)",
+   "  default: contact:umr.rule = 'remove_outward', a convention default (the setting's written default; a frictionless contact that does not bounce: the projection removes the velocity into the surface, a physical model of the contact, not a solver's choice)",
+   "  default: controller.acknowledged = (), a convention default (the setting's written default; no element of the description is read past unless acknowledged with its reason)",
+   "  default: controller.damping = 0.05, a numerical default (the value the earlier line's controller ran with; the frozen reference of the arm's experiment was run with it; no study of it is recorded)",
+   "  default: controller.gain = 1.0, a numerical default (the value the earlier line's controller ran with; a design value of the controller (where and how it holds the arm), held as a numerical default so that A0's frozen declarations stand: the frozen reference of the arm's experiment was run with it, and no study of it is recorded)",
+   "  default: controller.iterations = 5, a numerical default (the value the earlier line's controller ran with; the frozen reference of the arm's experiment was run with it; no study of it is recorded)",
+   "  default: controller.lookahead = 0.01 s, a numerical default (the value the earlier line's controller ran with; a design value of the controller (where and how it holds the arm), held as a numerical default so that A0's frozen declarations stand: the frozen reference of the arm's experiment was run with it, and no study of it is recorded)",
+   "  default: controller.orientation_feedback = False, a convention default (the setting's written default; the target is not turned to follow the body unless asked)",
+   "  default: controller.reach = (-0.05, 0.05) m, a numerical default (the value the earlier line's controller ran with; a design value of the controller (where and how it holds the arm), held as a numerical default so that A0's frozen declarations stand: the frozen reference of the arm's experiment was run with it, and no study of it is recorded)",
+   "  default: controller.smoothing = 0.005, a numerical default (the value the earlier line's controller ran with; a design value of the controller (where and how it holds the arm), held as a numerical default so that A0's frozen declarations stand: the frozen reference of the arm's experiment was run with it, and no study of it is recorded)",
+   "  default: controller.standoff = 0.15 m, a numerical default (the value the earlier line's controller ran with; a design value of the controller (where and how it holds the arm), held as a numerical default so that A0's frozen declarations stand: the frozen reference of the arm's experiment was run with it, and no study of it is recorded)",
+   "  default: rpm.arm.acknowledged = (), a convention default (the setting's written default; no element of the description is read past unless acknowledged with its reason)",
+   "  default: rpm.arm.actuators = (), a convention default (the setting's written default; a transmission whose actuator's rotor is not given reflects nothing onto its joint)",
+   "  default: rpm.arm.armature = (), a convention default (the setting's written default; a joint whose armature is not declared, and whose transmission's actuator is not given, has none: the URDF's own meaning, no geared drive's rotor reflected onto it)",
+   "  default: swim_speed:umr.after = 0.0 s, a convention default (the setting's written default; the window starts at the run's start unless a later start is given)",
+   "  default: tube.centre = (0.0, 0.0, 0.0) m, a convention default (the setting's written default; a tube is centred on the world's origin unless placed)",
+   "  built.report.pending() prints each with the lines to paste",
+   "entries (10):",
+   "  rpm.magnetic: point_dipole 0.1.0",
+   "  drag:umr: drag 0.3.0 (rung surrogate)",
+   "  gravity:umr: gravity 0.1.0",
+   "  magnetic.force:umr: magnetic.force 0.1.0",
+   "  magnetic.torque:umr: magnetic.torque 0.1.0",
+   "  umr: rigid_inertial 0.2.0",
+   "  rpm.arm: arm 0.1.0 (rung kinematic)",
+   "  rpm.motor: motor 0.2.0 (rung kinematic)",
+   "  swim_speed:umr: swim_speed 0.1.0",
+   "  drive:rpm.motor.velocity: drive.constant 0.1.0",
+   "values read (10):",
+   "  rpm.magnetic_moment = (18.89, 0.0, 0.0) A m^2  [declared in the experiment (its magnitude), along the magnet rotor_magnet's direction, from decla...]",
+   "  umr.buoyant_volume = 6.022068099805108e-08 m^3  [declared in the experiment, in place of the value its parts give, 6.022068099805107e-08 m^3]",
+   "  umr.centre_of_buoyancy = (0.0, 0.0, 0.0) m  [declared in the experiment, in place of the value its parts give, (0, 0, 0) m]",
+   "  umr.extent = 0.0020748000000000003 m  [derived from its parts]",
+   "  umr.inertia = (1.0331989974018431e-10, 1.0331989974018431e-10, 1.0331989974018431e-10) kg m^2  [declared in the experiment, in place of the value its parts would give (none: body umr's mass and...]",
+   "  umr.magnet_centre = (0.0, 0.0, 0.0) m  [declared in the experiment, in place of the value its parts would give (none: body 'umr' has part...]",
+   "  umr.magnetic_moment = (0.0, 0.00168, 0.0) A m^2  [declared in the experiment, in place of the value its parts would give (none: body 'umr' has part...]",
+   "  umr.mass = 8.491116020725203e-05 kg  [declared in the experiment, in place of the value its parts would give (none: body umr's mass and...]",
+   "  water.density = 1000.0 kg/m^3  [declared in the experiment]",
+   "  water.viscosity = 0.001 Pa s  [declared in the experiment]",
+   "controller: arm_tracking 0.1.0, mode 2 (a callback on the host, between compiled chunks), every 20 steps (0.01 s), latency 0 steps (0.0 s): a tick at time t reads the state as it stands at t, before the step that starts there; its writes act on every step from the one that starts at t + latency until the next tick's writes do, and the writes it holds before its first act on the steps before them",
+   "descriptions, each chain segment's as read:",
+   "  rpm.arm: urdf 851d2f4ba29f4a49-ar4.urdf, sha256 851d2f4ba29f4a49709f0f286c91eabb3fa2d84af59624ff3581d322309ddbc4: 171 read and used, 22 recognised and not used, 0 refused",
+   "    851d2f4ba29f4a49-ar4.urdf: 18 <visual> elements not used (link[base_link_aluminum]/visual, link[base_link_enclosure]/visual, link[base_link_motor]/visual, link[link_1_aluminum]/visual, link[link_1_motor]/visual, link[link_2_aluminum]/visual, link[link_2_motor]/visual, link[link_2_cover]/visual, link[link_2_logo]/visual, link[link_3_aluminum]/visual, link[link_3_motor]/visual, link[link_4_aluminum]/visual, link[link_4_motor]/visual, link[link_4_cover]/visual, link[link_4_logo]/visual, link[link_5_aluminum]/visual, link[link_5_motor]/visual, link[link_6_aluminum]/visual). MIME simulates no link's appearance; the stage draws it on each link's frame (mime.viz): a box, cylinder or sphere as its USD primitive, a mesh from the asset cache where a visual set bakes it (`mime visuals fetch <set>`), and simple shapes from the link's frames where it has neither.",
+   "    851d2f4ba29f4a49-ar4.urdf: 4 <collision> elements not used (link[link_1_aluminum]/collision, link[link_2_aluminum]/collision, link[link_3_aluminum]/collision, link[link_4_aluminum]/collision). MIME simulates no collision between a chain's links: contact is an interaction an experiment attaches between named things (mime.interactions.Contact). To ask for link collisions: https://github.com/Microrobotics-Simulation-Framework/MIME/issues.",
+   "    851d2f4ba29f4a49-ar4.urdf: 18 links with geometry and no <inertial>, read as massless: base_link_aluminum, base_link_enclosure, base_link_motor, link_1_aluminum, link_1_motor, link_2_aluminum, link_2_motor, link_2_cover, link_2_logo, link_3_aluminum, link_3_motor, link_4_aluminum, link_4_motor, link_4_cover, link_4_logo, link_5_aluminum, link_5_motor, link_6_aluminum. URDF reads a link with no <inertial> as massless, and MIME infers no mass from geometry. A dynamic chain refuses a moving body with geometry none of whose links declares an <inertial>: add one, from CAD or a measurement, or ask for inference from geometry at https://github.com/Microrobotics-Simulation-Framework/MIME/issues.",
+   "validity of drag:umr (declared, not yet checked): surrogate: quasi-steady Stokes flow (the limit of vanishing Reynolds number), as its training resistances were computed; the Reynolds number, by the body's translation and by its turning, is computed after each run (the post-run watch) and flagged past the bound the entry declares",
+   "validity of drag:umr (declared, not yet checked): surrogate: de Jongh screw bodies (cross-section modulation 0.33, two starts) in a straight tube; nu, kappa and L/R checked against the training data at plan time; the offset declared up to 0.3 of the tube's radius and clamped beyond 0.95 of the room to the wall; its accuracy against the MRS it was checked against is MIME-ANO-114's, up to 16% in swim speed between 0.2 and 0.3 of the radius",
+   "validity of drag:umr (declared, not yet checked): surrogate: the resistance is moved from the end of the body's axis, about which it was trained, to the centre of mass, half the body's length along its x axis taken as the helix's, which the surrogate takes to lie along the tube's; it cannot see a tilt (away from the axis its resistance is a function of the body's centre and of which way the body's axis points along the tube, and of nothing else about the orientation)",
+   "validity of drag:umr (declared, not yet checked): surrogate: valid for a body whose axis lies within 5 degrees of the tube's, a limit declared (mime.nodes.hydro.TILT_VALIDITY), not fitted, from one MRS measurement of FL-9 on the axis (docs/data/tilt_validity.json, scripts/tilt_validity.py): at that tilt the force-free swim speed differs from the aligned body's by less than the 16% this entry states for the surrogate against the boundary element, and at the next tilt measured, in one of two directions, it does not; one spacing, one offset, one body, and the MRS itself not converged at that spacing; tilt_fired is raised at the step the tilt passes the limit, and bore_fired at the step the body, as the cylinder of its length and outer radius with its centre on the axis, no longer fits the bore",
+   "validity of magnetic.force:umr (declared, not yet checked): a point dipole in a field read at the body's centre of mass: valid while the gradient varies little across the body, and outside a point dipole's near field (MIME-ANO-100); a validity line that checks the distance is a1's",
+   "validity of magnetic.torque:umr (declared, not yet checked): a permanent moment in a field that varies in space, read at the body's centre of mass: valid while the field varies little across the body, and outside a point dipole's near field (MIME-ANO-100)",
+   "validity of rpm.magnetic (declared, not yet checked): evaluated outside the magnet: the field is singular at its centroid, and a point dipole is faithful only far from the magnet, against its radius (MIME-ANO-100); a validity line that checks the distance is a1's",
+   "limits of rpm.arm (stated by its record): rigid joints and links, with no joint flexibility, backlash or structural mode, and no contact between links (MIME-ANO-101)",
+   "limits of rpm.arm (stated by its record): a prescribed motion: a load on it is not applied, the reaction of a field on a magnet mounted on it and a mounted motor's reaction torque among them (MIME-ANO-103), and no mass mounted on it changes it: every mounted mass is accepted, tilted, unbalanced or articulated, and none is carried",
+   "limits of rpm.motor (stated by its record): an ideal source of the prescribed motion, with no cogging, imbalance or thermal terms (MIME-ANO-102, as it applies to a prescribed motion)",
+   "limits of rpm.motor (stated by its record): a prescribed motion: a load on it is not applied, and its reaction torque on the link it is mounted on is not delivered (MIME-ANO-103); mass on its rotor is an articulated payload, refused on a dynamic segment",
+   "post-run watches (computed after each run; a flag on the result, never a refusal, and no part of the graph):",
+   "  drag:umr: the Reynolds number after each run for drag 0.3.0 (rung surrogate) of umr in water, compared with the 0.1 its rung is declared up to",
+   "MADDENING's warnings: none",
+   "refusals: none",
+   "derived hash: sha256:21916a3586e9215ae6ac72d93a4c1dfec28bb1d58aaa73378257c80f036ef56e"
+  ]
+ },
+ "schema": {
+  "id": 2645518914,
+  "frame_bytes": 900,
+  "header_bytes": 32,
+  "byte_order": "little",
+  "fields": [
+   {
+    "path": "umr.pose",
+    "node": "umr",
+    "field": "pose",
+    "shape": [
+     7
+    ],
+    "dtype": "<f4",
+    "unit": "m; 1",
+    "offset": 0
+   },
+   {
+    "path": "rpm.arm.frame_poses",
+    "node": "rpm.arm",
+    "field": "frame_poses",
+    "shape": [
+     27,
+     7
+    ],
+    "dtype": "<f4",
+    "unit": "m; 1",
+    "offset": 28
+   },
+   {
+    "path": "rpm.motor.frame_poses",
+    "node": "rpm.motor",
+    "field": "frame_poses",
+    "shape": [
+     2,
+     7
+    ],
+    "dtype": "<f4",
+    "unit": "m; 1",
+    "offset": 784
+   },
+   {
+    "path": "rpm.magnetic.flux_density_magnetic_torque_umr",
+    "node": "rpm.magnetic",
+    "field": "flux_density_magnetic_torque_umr",
+    "shape": [
+     3
+    ],
+    "dtype": "<f4",
+    "unit": "T",
+    "offset": 840
+   },
+   {
+    "path": "swim_speed:umr.speed",
+    "node": "swim_speed:umr",
+    "field": "speed",
+    "shape": [],
+    "dtype": "<f4",
+    "unit": "m/s",
+    "offset": 852
+   },
+   {
+    "path": "drag:umr.clamp_fired",
+    "node": "drag:umr",
+    "field": "clamp_fired",
+    "shape": [],
+    "dtype": "<f4",
+    "unit": "1",
+    "offset": 856
+   },
+   {
+    "path": "drag:umr.tilt_fired",
+    "node": "drag:umr",
+    "field": "tilt_fired",
+    "shape": [],
+    "dtype": "<f4",
+    "unit": "1",
+    "offset": 860
+   },
+   {
+    "path": "drag:umr.bore_fired",
+    "node": "drag:umr",
+    "field": "bore_fired",
+    "shape": [],
+    "dtype": "<f4",
+    "unit": "1",
+    "offset": 864
+   }
+  ]
+ },
+ "commands": [
+  "hello",
+  "status",
+  "start",
+  "pause",
+  "step",
+  "stop",
+  "set",
+  "record",
+  "pace"
+ ],
+ "state": "ready",
+ "step": 0,
+ "time": 0.0,
+ "frames": 0,
+ "pace": 1.0,
+ "recording": false,
+ "non_finite": null,
+ "stepping": 0,
+ "activity": "idle",
+ "pending": []
+}

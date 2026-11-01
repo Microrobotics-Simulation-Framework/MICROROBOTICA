@@ -12,83 +12,128 @@ simulation work itself runs in two Python libraries:
   as the `mime` package and provides rigid-body, magnetic-response,
   {term}`Stokeslet` BEM, {term}`IB-LBM`, FVM-IBM, robot-arm, and actuation nodes.
 
-The IDE spawns MIME's runner as a subprocess and exchanges state over
-{term}`ZMQ`; you don't import either library from C++ directly.
+MICROROBOTICA draws MIME's experiments and their runs; you write and run
+experiments in Python with MIME, and never import either library from C++.
 
 ## Install both libraries
 
 ```bash
-# CPU only
 pip install mime-engine
-
-# GPU (CUDA 12)
-pip install "mime-engine" "jax[cuda12]"
 ```
 
 `mime-engine` declares `maddening` as a dependency, so installing one
-gets you both.
+gets you both. MIME 0.3 runs on the CPU by default.
 
-## Open an experiment from the IDE
+## Open a saved experiment
 
-The IDE locates MIME's runner via the `PYTHONPATH` of its embedded
-interpreter. After `pip install mime-engine` is complete:
+A MIME 0.3 experiment is written in Python and saved as a folder
+(`Experiment.save(folder)`, or `mime pull`): `experiment.mime.yaml`, its
+lock `mime.lock`, and its stage `scene/scene.usda`, which MIME writes from
+the experiment's declarations.
 
 1. Launch `microrobotica`.
-2. **File → Open Experiment** → pick any `experiment.yaml` from a
-   MIME experiment directory (e.g.
-   `MIME/experiments/dejongh_confined/experiment.yaml`).
-3. The IDE spawns the runner, waits for its ZMQ endpoint, and starts
-   streaming results into the viewport.
-4. **Simulation → Start** — drag parameter sliders live; the IDE
-   forwards them to the runner without rebuilding the graph.
-5. The timeline scrubber walks the USDC recording produced by the
-   runner.
+2. **File → Open Saved Experiment** → pick the folder. The viewport draws
+   its stage with Hydra Storm.
 
-## Writing your own MIME experiment
+MIME 0.2's experiment folders (`experiment.yaml`, `physics/params.py`, a
+hand-made `world.usda`) and its runner (`python -m mime.runner`) are
+retired: MICROROBOTICA no longer opens or runs them.
 
-A MIME experiment is a directory with three files: `experiment.yaml`,
-`physics/setup.py`, and `scene/world.usda`. The runner imports
-`physics.setup.build_graph(params)` and feeds the returned
-`GraphManager` to the IDE.
+## Open a run folder
 
-```python
-# physics/setup.py
-from maddening import GraphManager
-from mime.nodes.environment.external_magnetic_field import ExternalMagneticFieldNode
-from mime.nodes.robot.permanent_magnet_response import PermanentMagnetResponseNode
-from mime.nodes.robot.rigid_body import RigidBodyNode
+A run folder is what `run_to(...)`, `mime run` or a live session wrote:
+its experiment (`experiment/`), its outputs (`outputs.json`,
+`outputs.npz`), its record (`run.json`), its topology and, when the run
+recorded its stage (`stage_every=...`, `--stage-every`, or **Record**
+during a session), `recording.usdc`: time samples over the run folder's
+own copy of the stage.
 
+**File → Open Run Folder** (or `microbotica <run folder>`) opens it whole:
 
-def build_graph(params: dict) -> GraphManager:
-    dt = params["DT_PHYS"]
+- the recording plays on the timeline (scrub, play, pause, loop, and a
+  speed from 0.1x to 4x), or the experiment's stage is shown when there
+  is none;
+- the **Plots** panel shows what the run recorded per step
+  (`record=[...]`, `every=...`), in its units, flags shaded where raised,
+  with a cursor that follows playback;
+- the **Claims** panel shows what MIME says of the run: its build report's
+  validity lines (`report.json`; a line its entry declares and MIME has
+  not yet checked is shown as such, not as a verdict), what the run was
+  watched against and the outcome, its flags and its profile's pending
+  items. A run folder from a MIME before the build report reached run
+  folders shows its watches and flags alone;
+- the graph inspector shows the graph it ran; Launch runs its experiment
+  again, live; and **Simulation → Replay This Session** replays a live
+  session from its command log into a new run folder.
 
-    gm = GraphManager()
-    gm.add_node(ExternalMagneticFieldNode(name="field", timestep=dt))
-    gm.add_node(PermanentMagnetResponseNode(name="magnet", timestep=dt))
-    gm.add_node(RigidBodyNode(name="body", timestep=dt, **params["body"]))
+## Run a saved experiment live
 
-    gm.add_edge("field", "magnet", "field_vector",   "field_vector")
-    gm.add_edge("magnet", "body",  "magnetic_torque", "magnetic_torque")
+With a saved experiment open, **Launch** (Run Configuration, mode Local)
+runs `mime serve <folder>` and connects to it (MIME's `mime.live/1`
+protocol). Name the `mime` command in **File → Settings → MIME command**
+when it is not on `PATH` (for example `<MIME checkout>/.venv/bin/mime`), or
+set `MICROROBOTICA_MIME`.
 
-    gm.compile()
-    return gm
-```
+- The viewport moves the stage's prims as MIME's stage binding says, in the
+  stage's units; a field vector draws as an arrow at the body.
+- **Pause**, **Start**, **Simulation → Step One Chunk** (F8) and
+  **Simulation → Record** act on the session; **Stop** ends it, and the
+  status bar names the run folder it wrote (under **Settings → Run
+  folders**): its experiment, command log, outputs, build report and,
+  when recorded, `recording.usdc`. MIME acts on a command at the end of
+  the chunk in hand, so a pause or a stop sent while one runs is shown
+  as pending until it has.
+- The run panel's status line follows the session: its state from MIME's
+  replies, its step and time from each frame, "compiling" while its first
+  chunk compiles (a few seconds for A0), and a pause or stop pending.
+- The window never waits for MIME: commands go out in the order you give
+  them and their replies are shown as they come. Closing the window during
+  a session stops the session first (its run folder written), then closes;
+  closing it again stops waiting.
+- The **Live Inputs** panel lists what the controller declares settable
+  live (A0 called back: `offset`, metres along the tube), each starting at
+  its default (the value at which it changes nothing), sent with **Set**;
+  the experiment's settings are shown read-only, since changing one is a
+  rebuild.
+- The **Claims** panel shows the build report the session gives: its
+  validity lines, what the run will be watched against when it stops,
+  and each flag with its meaning, marked when a frame first raises it.
+- The **Graph Inspector** shows the built graph (`topology()`), and the
+  **MIME Output** panel shows `mime serve`'s output and any refusal in
+  MIME's shape.
+- A remote session: run `mime serve <folder> --outlive-launcher` there,
+  open an SSH tunnel (`ssh -L 5555:localhost:5555 -L 5556:localhost:5556
+  <host>`), open the same saved experiment here (MICROROBOTICA checks it
+  is the same by its input hash), and connect with mode **Manual
+  endpoint**. `mime serve` exits when the process that launched it is
+  gone; `--outlive-launcher` keeps a session you start by hand running
+  after the shell that started it. Sessions MICROROBOTICA launches itself
+  (Local) need no flag: they stop with the viewer. A stop that MIME takes
+  while a chunk runs names no run folder in its reply: a remote session's
+  is where `--out` told it to write.
 
-See [`MIME/experiments/`](https://github.com/Microrobotics-Simulation-Framework/MIME/tree/main/experiments)
-for fully worked examples — both the
-[`dejongh_confined`](https://github.com/Microrobotics-Simulation-Framework/MIME/tree/main/experiments/dejongh_confined)
-benchmark and the
-[`ar4_helical_drive`](https://github.com/Microrobotics-Simulation-Framework/MIME/tree/main/experiments/ar4_helical_drive)
-closed-loop demo.
+The AR4's meshes are Annin Robotics' design and are never shipped: the arm
+draws as simple shapes until `mime visuals fetch ar4_mk5` puts them in
+MIME's asset cache, from which the session's overlay draws them.
+
+## The viewport needs no NVIDIA GPU
+
+Storm draws with OpenGL 4.5 in the Compatibility profile, which Mesa
+provides on the Intel GPU (`docker run --device /dev/dri`) and on its
+software rasteriser, llvmpipe (`LIBGL_ALWAYS_SOFTWARE=1`).
+`scripts/run-dev.sh` passes the host's render nodes and never an NVIDIA
+GPU's; `MICROROBOTICA_RENDER=llvmpipe` forces the software rasteriser.
 
 ## Running MIME on its own
 
-You don't have to go through the IDE — MIME is a regular Python
-library. Build a `GraphManager`, call `compile()`, and drive it from
-Python:
+You don't have to go through the IDE: MIME is a regular Python library.
+Build an experiment, run it, and save it or its run folder for
+MICROROBOTICA:
 
 ```python
-final, history = gm.run_scan_with_history(n_steps=10_000)
+built = experiment.build()
+written = built.run_to("my_run", s(2), stage_every=ms(16.5))  # my_run/recording.usdc
+experiment.save("my_experiment")
 ```
 
 Full library reference: <https://microrobotica.org/mime/>.

@@ -11,7 +11,7 @@ namespace microbotica::panels {
 
 /// Run configuration dock panel.
 ///
-/// Mode selector (Local/Manual/Cloud), experiment directory picker,
+/// Mode selector (Local/Manual endpoint), saved-experiment folder picker,
 /// launch/stop buttons, connection status indicator.
 class RunConfigPanel : public QDockWidget {
     Q_OBJECT
@@ -27,14 +27,15 @@ public:
 
     /// Set the experiment directory text. Does NOT emit
     /// experimentDirChanged — call this from code paths that already know
-    /// the experiment is loaded (e.g. File → Open Experiment) to mirror
+    /// the experiment is loaded (e.g. File → Open Saved Experiment) to mirror
     /// the path into the panel without re-triggering initExperiment.
     void setExperimentDir(const std::string& path);
 
-    /// Get the requested ResultFrame stream format (MIME v0.2 fit-up §8):
-    /// "" (Auto — runner default), "json", or "binary". Passed to the
-    /// MIME runner as MIME_STREAM_FORMAT when non-empty.
-    std::string streamFormat() const;
+    /// Manual endpoint: the session's commands (REP) and frames (PUB)
+    /// endpoints, e.g. tcp://127.0.0.1:5555 and tcp://127.0.0.1:5556 (a
+    /// remote `mime serve` reached through an SSH tunnel).
+    std::string commandsEndpoint() const;
+    std::string framesEndpoint() const;
 
     /// Update connection status display.
     void setConnectionStatus(const QString& status);
@@ -49,8 +50,11 @@ Q_SIGNALS:
 
 private:
     QComboBox* modeCombo_ = nullptr;
-    QComboBox* streamFormatCombo_ = nullptr;
     QLineEdit* experimentDirEdit_ = nullptr;
+    QLabel* commandsLabel_ = nullptr;
+    QLineEdit* commandsEdit_ = nullptr;
+    QLabel* framesLabel_ = nullptr;
+    QLineEdit* framesEdit_ = nullptr;
     QPushButton* launchButton_ = nullptr;
     QPushButton* stopButton_ = nullptr;
     QLabel* statusLabel_ = nullptr;

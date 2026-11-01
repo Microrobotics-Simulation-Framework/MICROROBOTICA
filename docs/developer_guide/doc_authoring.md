@@ -114,9 +114,9 @@ $ pytest tests/ -x -q
 
 ### YAML configuration
 
-This is the shape of `experiment.yaml` files MIME experiments expose
-to MICROROBOTICA's runner (see `MIME/experiments/dejongh_confined/`
-for the live version):
+An example YAML block: the shape of MIME 0.2's `experiment.yaml`
+(retired with 0.2's runner; MIME 0.3 saves `experiment.mime.yaml`,
+written by `Experiment.save`):
 
 ```yaml
 schema_version: "1.0"

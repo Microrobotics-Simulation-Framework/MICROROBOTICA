@@ -1,6 +1,7 @@
 #pragma once
 
 #include <string>
+#include <unordered_map>
 #include <memory>
 #include <functional>
 #include <QObject>
@@ -98,6 +99,27 @@ public:
     /// Scene generation counter — incremented on load/close.
     uint64_t sceneGeneration() const { return sceneGeneration_; }
 
+    /// Add a layer over the base stage, under the user's overrides: MIME's
+    /// visuals overlay (hello's `visuals.overlay`, a layer in MIME's asset
+    /// cache that draws meshes MIME does not ship). The stack becomes
+    /// [results, override, overlay, base]. Replaces an earlier overlay.
+    /// Returns false when no scene is loaded or the layer cannot be opened.
+    bool setOverlayLayer(const std::string& path);
+
+    /// The overlay added by setOverlayLayer, or empty.
+    const std::string& overlayLayerPath() const { return overlayPath_; }
+
+    /// The stage's metersPerUnit (1 when no scene is loaded): MIME's
+    /// positions are in metres and are divided by it.
+    double metersPerUnit() const;
+
+    /// Every prim carrying `mime:vector:metres_per_unit` (a field vector's
+    /// arrow), with its value: the arrow's metres per unit of its field.
+    std::unordered_map<std::string, double> vectorMetresPerUnit() const;
+
+    /// The file the scene was opened from (its base layer), or empty.
+    const std::string& filePath() const { return filePath_; }
+
     // --- Animation metadata (from time-sampled USD recordings) ---
 
     /// True if the loaded stage has authored time-code range
@@ -126,6 +148,8 @@ private:
     double startTimeCode_ = 0.0;
     double endTimeCode_ = 0.0;
     double timeCodesPerSecond_ = 24.0;
+    std::string overlayPath_;
+    std::string filePath_;
     std::unique_ptr<ResultsApplicator> applicator_;
 
 #ifdef MICROBOTICA_HAS_USD

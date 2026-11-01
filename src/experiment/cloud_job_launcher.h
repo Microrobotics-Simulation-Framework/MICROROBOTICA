@@ -59,9 +59,28 @@ public:
                 const std::string& job_config,
                 const std::string& cluster_name);
 
-    /// Cancel a running SkyPilot job.
+    /// Build the `sky launch ...` argv that launch() would invoke. Pure
+    /// function, no side effects — exposed so tests can verify the CLI
+    /// contract without spawning the SkyPilot process.
+    static QStringList buildLaunchArgs(const std::string& experiment_dir,
+                                        const std::string& job_config,
+                                        const std::string& cluster_name);
+
+    /// Cancel a running SkyPilot job, optionally tearing the cluster
+    /// down afterwards.
+    ///
+    /// Always issues `sky cancel -a -y <cluster>` first so mime.runner's
+    /// SIGTERM handler has time to flush its PERFORMANCE SUMMARY out to
+    /// `sky logs --follow` (and from there into MimeConsolePanel).  If
+    /// `downCluster` is true, follows up with `sky down -y <cluster>`
+    /// after an 8-second drain delay.  Implemented as a detached `bash
+    /// -c` chain so the UI thread doesn't block on the seconds-long
+    /// teardown.
+    ///
     /// @param cluster_name  SkyPilot cluster name to cancel
-    void cancel(const std::string& cluster_name);
+    /// @param downCluster   if true, also `sky down` the cluster after
+    ///                       the cancel completes (8 s delay).
+    void cancel(const std::string& cluster_name, bool downCluster = true);
 
     /// @return true if a launch is in progress
     bool isLaunching() const;

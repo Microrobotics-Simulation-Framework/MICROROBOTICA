@@ -6,11 +6,8 @@
 #include "core/stability.h"
 
 #ifdef MICROBOTICA_HAS_USD
-#include <pxr/base/gf/vec3d.h>
 #include <pxr/usd/usd/stage.h>
-#include <pxr/usdImaging/usdImagingGL/engine.h>
-#include <pxr/imaging/glf/simpleLight.h>
-#include <pxr/imaging/glf/simpleMaterial.h>
+#include "viewport/storm_renderer.h"
 PXR_NAMESPACE_USING_DIRECTIVE
 #endif
 
@@ -29,7 +26,8 @@ class LocalViewport : public QOpenGLWindow {
     Q_OBJECT
 
 public:
-    explicit LocalViewport(QWindow* parent = nullptr);
+    /// @param samples  multisample count for the window (viewportSamples(): 4 unless MICROROBOTICA_MSAA says)
+    explicit LocalViewport(int samples = 4, QWindow* parent = nullptr);
     ~LocalViewport() override;
 
 #ifdef MICROBOTICA_HAS_USD
@@ -70,19 +68,8 @@ private:
     int convergencePumpsLeft_ = 0;
 
 #ifdef MICROBOTICA_HAS_USD
-    UsdStageRefPtr stage_;
-    std::unique_ptr<UsdImagingGLEngine> engine_;
-
-    // Cached lighting state — only key light position updated per frame.
-    bool lightingInitialized_ = false;
-    GlfSimpleLightVector lights_;
-    GlfSimpleMaterial material_;
-    GfVec4f sceneAmbient_;
-
-    // Scene bounds (world space), computed once when the stage is set. Used to
-    // fit the near/far clip planes snugly so depth-buffer precision stays high.
-    GfVec3d sceneCenter_ = GfVec3d(0.0);
-    double sceneRadius_ = 0.0;
+    // The stage, the engine, the lights and the fitted clip planes: shared with the headless screenshot test.
+    StormRenderer storm_;
 #endif
 };
 

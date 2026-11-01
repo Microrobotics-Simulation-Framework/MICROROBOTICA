@@ -4,6 +4,7 @@
 #include <spdlog/spdlog.h>
 
 #include <algorithm>
+#include <chrono>
 #include <ctime>
 #include <filesystem>
 #include <fstream>
@@ -28,9 +29,10 @@ void appendBenchmarkCsv(const core::StreamStats& s, int applied) {
         return;
     }
     if (!existed) {
-        out << "timestamp,format,compression,frames_received,applied,"
-               "dropped,total_bytes,avg_frame_bytes,decode_avg_us,"
-               "decode_max_us,decode_errors,wire_fps\n";
+        out << "timestamp,format,compression,frames_received,frames_skipped,"
+               "applied,dropped,total_bytes,avg_frame_bytes,decode_avg_us,"
+               "decode_max_us,apply_avg_us,apply_max_us,decode_errors,"
+               "wire_fps\n";
     }
 
     const std::time_t now = std::time(nullptr);
@@ -45,10 +47,11 @@ void appendBenchmarkCsv(const core::StreamStats& s, int applied) {
         : 0.0;
 
     out << ts << ',' << s.format << ',' << s.compression << ','
-        << s.framesReceived << ',' << applied << ',' << dropped << ','
+        << s.framesReceived << ',' << s.framesSkipped << ','
+        << applied << ',' << dropped << ','
         << s.bytesReceived << ',' << avg_frame << ',' << s.decodeAvgUs << ','
-        << s.decodeMaxUs << ',' << s.decodeErrors << ',' << s.receivedFps
-        << '\n';
+        << s.decodeMaxUs << ',' << s.applyAvgUs << ',' << s.applyMaxUs << ','
+        << s.decodeErrors << ',' << s.receivedFps << '\n';
 
     spdlog::info("SimulationController: stream benchmark row appended to {}",
                  fs::absolute(path, ec).string());
@@ -98,6 +101,9 @@ void SimulationController::launchPhysics(const core::PhysicsConfig& config) {
     running_.store(true);
     errorFlag_.store(false);
     frameCount_ = 0;
+    applyCount_ = 0;
+    applyAvgUs_ = 0.0;
+    applyMaxUs_ = 0.0;
     currentTime_.store(0.0);
 
     // Launch async worker that reads from physics and pushes to queue
@@ -130,8 +136,18 @@ void SimulationController::requestNextFrame() {
         currentTime_.store(latest->simTime);
         frameCount_++;
 
-        // Apply only the latest frame to the scene
+        // Apply only the latest frame to the scene — and time it. Scene
+        // apply is on the UI thread, so its cost is what determines
+        // perceived smoothness once decode is no longer the bottleneck.
+        const auto applyStart = std::chrono::steady_clock::now();
         sceneMgr_.applyResultFrame(*latest, config_);
+        const double apply_us = std::chrono::duration<double, std::micro>(
+            std::chrono::steady_clock::now() - applyStart).count();
+        ++applyCount_;
+        applyAvgUs_ += (apply_us - applyAvgUs_)
+                       / static_cast<double>(applyCount_);
+        if (apply_us > applyMaxUs_) applyMaxUs_ = apply_us;
+
         logger_->logResultFrame(frameCount_, latest->simTime, false);
 
         Q_EMIT frameReady(*latest);
@@ -139,24 +155,29 @@ void SimulationController::requestNextFrame() {
 }
 
 void SimulationController::stop() {
-    if (!running_.load()) return;
+    // A stream that ended on its own (a live session stopped, its last frame
+    // received) has left its worker to join and its summary to log; its
+    // physics needs no stop.
+    const bool wasRunning = running_.exchange(false);
+    if (!wasRunning && !workerFuture_.valid()) return;
 
-    running_.store(false);
-    if (physics_) {
+    if (physics_ && wasRunning) {
         physics_->stop();
     }
 
     if (workerFuture_.valid()) {
-        workerFuture_.wait();
+        workerFuture_.get();  // the worker catches its own errors; get() leaves no future to join twice
     }
 
     spdlog::info("SimulationController: Stopped after {} frames", frameCount_);
     logger_->logEvent("simulation_stop", {{"frames", frameCount_}});
 
     // Stream benchmark summary (fit-up §8). The worker has joined, so the
-    // backend's stats are final and stable.
+    // backend's stats are final and stable. Use our own streamStats() so
+    // the snapshot includes the UI-thread apply_avg/max metrics — the
+    // backend-only snapshot would record them as zero.
     if (physics_) {
-        const core::StreamStats s = physics_->streamStats();
+        const core::StreamStats s = streamStats();
         if (s.framesReceived > 0) {
             const long long dropped = std::max<long long>(
                 0, static_cast<long long>(s.framesReceived) - frameCount_);
@@ -165,12 +186,14 @@ void SimulationController::stop() {
                 / static_cast<double>(s.framesReceived);
             spdlog::info(
                 "SimulationController: stream benchmark — format={} "
-                "compression={} received={} applied={} dropped={} "
+                "compression={} received={} skipped={} applied={} dropped={} "
                 "total_bytes={} avg_frame={:.0f}B decode_avg={:.1f}us "
-                "decode_max={:.1f}us decode_errors={} wire_fps={:.1f}",
-                s.format, s.compression, s.framesReceived, frameCount_,
-                dropped, s.bytesReceived, avg_frame, s.decodeAvgUs,
-                s.decodeMaxUs, s.decodeErrors, s.receivedFps);
+                "decode_max={:.1f}us apply_avg={:.1f}us apply_max={:.1f}us "
+                "decode_errors={} wire_fps={:.1f}",
+                s.format, s.compression, s.framesReceived, s.framesSkipped,
+                frameCount_, dropped, s.bytesReceived, avg_frame,
+                s.decodeAvgUs, s.decodeMaxUs, s.applyAvgUs, s.applyMaxUs,
+                s.decodeErrors, s.receivedFps);
             appendBenchmarkCsv(s, frameCount_);
         }
     }
@@ -179,7 +202,11 @@ void SimulationController::stop() {
 }
 
 core::StreamStats SimulationController::streamStats() const {
-    return physics_ ? physics_->streamStats() : core::StreamStats{};
+    core::StreamStats s = physics_ ? physics_->streamStats()
+                                    : core::StreamStats{};
+    s.applyAvgUs = applyAvgUs_;
+    s.applyMaxUs = applyMaxUs_;
+    return s;
 }
 
 void SimulationController::setPaused(bool paused) {
@@ -207,7 +234,7 @@ void SimulationController::workerFunction() {
             // When paused, sleep instead of producing frames.
             // This freezes sim time because the physics process
             // isn't called and no frames are generated.
-            if (paused_.load()) {
+            if (paused_.load() && !physics_->pausesItself()) {
                 std::this_thread::sleep_for(std::chrono::milliseconds(50));
                 continue;
             }

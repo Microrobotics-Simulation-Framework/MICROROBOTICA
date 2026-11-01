@@ -176,6 +176,9 @@ void GraphInspectorPanel::layoutGraph(const nlohmann::json& graph) {
     struct NodeInfo {
         std::string name;
         std::string type;
+        std::string kind;   // MIME 0.3 topology: entry.kind (dynamics, interaction, field provider, ...)
+        std::string label;  // entry.label, e.g. "drag 0.3.0 (rung surrogate)"
+        nlohmann::json node;
         nlohmann::json params;
         int depth = 0;
         int row = 0;
@@ -190,6 +193,11 @@ void GraphInspectorPanel::layoutGraph(const nlohmann::json& graph) {
             NodeInfo ni;
             ni.name = n.value("name", "");
             ni.type = n.value("type", "");
+            ni.node = n;
+            if (n.contains("entry") && n["entry"].is_object()) {
+                ni.kind = n["entry"].value("kind", std::string());
+                ni.label = n["entry"].value("label", std::string());
+            }
             if (n.contains("params")) ni.params = n["params"];
             nodeIndex[ni.name] = nodes.size();
             nodes.push_back(std::move(ni));
@@ -207,6 +215,7 @@ void GraphInspectorPanel::layoutGraph(const nlohmann::json& graph) {
         std::string field;
         std::string target_field;
         bool back = false;
+        nlohmann::json edge;
     };
     std::vector<EdgeInfo> edges;
     if (graph.contains("edges") && graph["edges"].is_array()) {
@@ -221,7 +230,7 @@ void GraphInspectorPanel::layoutGraph(const nlohmann::json& graph) {
             auto si = nodeIndex.find(src);
             auto ti = nodeIndex.find(tgt);
             if (si == nodeIndex.end() || ti == nodeIndex.end()) continue;
-            edges.push_back({si->second, ti->second, field, tfield, false});
+            edges.push_back({si->second, ti->second, field, tfield, false, e});
         }
     }
 
@@ -337,6 +346,19 @@ void GraphInspectorPanel::layoutGraph(const nlohmann::json& graph) {
                   QString::fromStdString(tgt.name),
                   QString::fromStdString(e.target_field.empty()
                                           ? e.field : e.target_field));
+        // MIME 0.3's topology says each end's units and when the target reads.
+        const std::string su = e.edge.value("source_units", std::string());
+        const std::string tu = e.edge.value("target_units", std::string());
+        if (!su.empty() || !tu.empty()) {
+            tip += QString("<br>units: %1 → %2").arg(QString::fromStdString(su).toHtmlEscaped(),
+                                                     QString::fromStdString(tu).toHtmlEscaped());
+        }
+        if (e.edge.contains("reads") && e.edge["reads"].is_string()) {
+            tip += QString("<br>reads: %1").arg(QString::fromStdString(e.edge["reads"].get<std::string>()));
+        }
+        if (e.edge.value("additive", false)) {
+            tip += QStringLiteral("<br>additive");
+        }
         edge->setToolTip(tip);
 
         // Arrowhead at p2.
@@ -374,19 +396,29 @@ void GraphInspectorPanel::layoutGraph(const nlohmann::json& graph) {
     for (auto& ni : nodes) {
         QColor body(56, 60, 78);
         QColor border(120, 140, 200);
-        if (ni.type.find("Resistance") != std::string::npos
-            || ni.type.find("MLP") != std::string::npos) {
-            body = QColor(60, 80, 95);   border = QColor(100, 200, 220);
-        } else if (ni.type.find("Field") != std::string::npos
-                    || ni.type.find("Magnet") != std::string::npos) {
-            body = QColor(80, 60, 90);   border = QColor(220, 140, 220);
-        } else if (ni.type.find("RigidBody") != std::string::npos) {
+        // MIME 0.3: colour by the registered kind of the node's entry.
+        if (ni.kind == "dynamics") {
             body = QColor(60, 80, 60);   border = QColor(140, 220, 140);
-        } else if (ni.type.find("Lubrication") != std::string::npos
-                    || ni.type.find("Friction") != std::string::npos) {
+        } else if (ni.kind == "interaction") {
             body = QColor(90, 70, 50);   border = QColor(220, 170, 100);
-        } else if (ni.type.find("Gravity") != std::string::npos) {
-            body = QColor(70, 70, 70);   border = QColor(180, 180, 180);
+        } else if (ni.kind == "field provider" || ni.kind == "field") {
+            body = QColor(80, 60, 90);   border = QColor(220, 140, 220);
+        } else if (ni.kind == "observation") {
+            body = QColor(60, 80, 95);   border = QColor(100, 200, 220);
+        } else if (ni.kind == "drive" || ni.kind == "controller") {
+            body = QColor(70, 70, 80);   border = QColor(180, 180, 200);
+        } else if (ni.kind.empty()) {
+            // A graph without MIME's entries (MADDENING's own to_dict):
+            // the class name is all there is to go by.
+            if (ni.type.find("Resistance") != std::string::npos
+                || ni.type.find("MLP") != std::string::npos) {
+                body = QColor(60, 80, 95);   border = QColor(100, 200, 220);
+            } else if (ni.type.find("Field") != std::string::npos
+                        || ni.type.find("Magnet") != std::string::npos) {
+                body = QColor(80, 60, 90);   border = QColor(220, 140, 220);
+            } else if (ni.type.find("RigidBody") != std::string::npos) {
+                body = QColor(60, 80, 60);   border = QColor(140, 220, 140);
+            }
         }
 
         auto* rect = scene_->addRect(
@@ -397,14 +429,29 @@ void GraphInspectorPanel::layoutGraph(const nlohmann::json& graph) {
 
         // Tooltip: type + each param on its own line.
         QString tip = QString("<b>%1</b><br><i>%2</i>")
-            .arg(QString::fromStdString(ni.name),
-                  QString::fromStdString(ni.type));
+            .arg(QString::fromStdString(ni.name).toHtmlEscaped(),
+                  QString::fromStdString(ni.label.empty() ? ni.type : ni.label).toHtmlEscaped());
+        if (!ni.kind.empty()) {
+            tip += QString("<br>%1 · %2").arg(QString::fromStdString(ni.kind).toHtmlEscaped(),
+                                              QString::fromStdString(ni.type).toHtmlEscaped());
+            const std::string thing = ni.node.value("thing", nlohmann::json()).is_string()
+                ? ni.node["thing"].get<std::string>() : std::string();
+            if (!thing.empty()) {
+                tip += QString("<br>thing: %1").arg(QString::fromStdString(thing).toHtmlEscaped());
+            }
+            if (ni.node.contains("timestep") && ni.node["timestep"].is_number()) {
+                tip += QString("<br>step: %1 s × every %2")
+                    .arg(ni.node["timestep"].get<double>())
+                    .arg(ni.node.value("every", 1));
+            }
+        }
         if (ni.params.is_object() && !ni.params.empty()) {
             tip += "<hr>";
             for (auto& [k, v] : ni.params.items()) {
+                QString value = QString::fromStdString(v.dump());
+                if (value.size() > 120) value = value.left(117) + "...";
                 tip += QString("%1 = %2<br>")
-                    .arg(QString::fromStdString(k),
-                          QString::fromStdString(v.dump()));
+                    .arg(QString::fromStdString(k).toHtmlEscaped(), value.toHtmlEscaped());
             }
         }
         rect->setToolTip(tip);
@@ -415,8 +462,8 @@ void GraphInspectorPanel::layoutGraph(const nlohmann::json& graph) {
         nameText->setPos(ni.x + 10, ni.y + 4);
         nameText->setToolTip(tip);
 
-        auto* typeText = scene_->addText(QString::fromStdString(ni.type),
-                                          typeFont);
+        auto* typeText = scene_->addText(
+            QString::fromStdString(ni.label.empty() ? ni.type : ni.label), typeFont);
         typeText->setDefaultTextColor(QColor(180, 200, 220));
         typeText->setPos(ni.x + 10, ni.y + 28);
         typeText->setToolTip(tip);

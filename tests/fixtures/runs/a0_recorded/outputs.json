@@ -1,0 +1,190 @@
+{
+  "clock": "float32",
+  "dt": 0.0005,
+  "end": 1.98,
+  "every": 33,
+  "experiment": "script_a0",
+  "flags": [
+    {
+      "array": "flags/drag:umr.clamp_fired",
+      "entry": "drag:umr",
+      "field": "clamp_fired",
+      "label": "drag 0.3.0",
+      "limits": null,
+      "meaning": "the body's offset from the tube's axis lay beyond the clamp near the wall, so the surrogate read the resistance at the clamp, not at the offset",
+      "name": null,
+      "node": "drag:umr",
+      "path": "drag:umr.clamp_fired",
+      "raised_at_last_step": false,
+      "recorded": "every step",
+      "was_raised": false
+    },
+    {
+      "array": "flags/drag:umr.tilt_fired",
+      "entry": "drag:umr",
+      "field": "tilt_fired",
+      "label": "drag 0.3.0",
+      "limits": null,
+      "meaning": "the body's axis lay further from the tube's than the tilt the surrogate is declared valid to (see the rung's validity line): it was trained for a helix along the tube's axis and cannot see a tilt, so its resistance is that of the body along the axis",
+      "name": null,
+      "node": "drag:umr",
+      "path": "drag:umr.tilt_fired",
+      "raised_at_last_step": false,
+      "recorded": "every step",
+      "was_raised": false
+    },
+    {
+      "array": "flags/drag:umr.bore_fired",
+      "entry": "drag:umr",
+      "field": "bore_fired",
+      "label": "drag 0.3.0",
+      "limits": null,
+      "meaning": "the body's axis lay so far from the tube's that the body, as the cylinder of its length and outer radius, no longer fits the tube's bore: the geometric limit, beyond the declared tilt's, past which a body longer than the bore has gone through the wall",
+      "name": null,
+      "node": "drag:umr",
+      "path": "drag:umr.bore_fired",
+      "raised_at_last_step": false,
+      "recorded": "every step",
+      "was_raised": false
+    }
+  ],
+  "format": "mime-run-outputs",
+  "history": false,
+  "observations": [
+    {
+      "entry": "swim_speed 0.1.0",
+      "id": "swim_speed:umr",
+      "outputs": [
+        {
+          "after": null,
+          "description": "the body's velocity along the direction, each step",
+          "dimension": "velocity (m/s)",
+          "field": "speed",
+          "kind": "per_step",
+          "name": "speed",
+          "node": "swim_speed:umr",
+          "path": "swim_speed:umr.speed",
+          "recorded": true,
+          "reduces": null,
+          "rule": null,
+          "shape": [],
+          "steps": "series/swim_speed:umr.speed/steps",
+          "unit": "m/s",
+          "values": "series/swim_speed:umr.speed/values"
+        },
+        {
+          "after": 0.0,
+          "array": "final/swim_speed:umr/mean_speed",
+          "description": "the mean of the speed over the steps that end after the setting after",
+          "dimension": "velocity (m/s)",
+          "field": "mean_speed",
+          "flags": [],
+          "kind": "at_end",
+          "name": "mean_speed",
+          "node": "swim_speed:umr",
+          "path": "swim_speed:umr.mean_speed",
+          "reduces": "speed",
+          "rule": "mean",
+          "shape": [],
+          "unit": "m/s",
+          "value": -0.000828220450785011,
+          "window": [
+            0.0,
+            1.98
+          ]
+        },
+        {
+          "after": 0.0,
+          "array": "final/swim_speed:umr/distance",
+          "description": "the distance travelled along the direction over the steps that end after the setting after: the speed's integral over them",
+          "dimension": "length (m)",
+          "field": "distance",
+          "flags": [],
+          "kind": "at_end",
+          "name": "distance",
+          "node": "swim_speed:umr",
+          "path": "swim_speed:umr.distance",
+          "reduces": "speed",
+          "rule": "integral",
+          "shape": [],
+          "unit": "m",
+          "value": -0.0016398332081735134,
+          "window": [
+            0.0,
+            1.98
+          ]
+        },
+        {
+          "after": 0.0,
+          "array": "final/swim_speed:umr/observed",
+          "description": "the time observed: the length of the steps that end after the setting after",
+          "dimension": "time (s)",
+          "field": "observed",
+          "flags": [],
+          "kind": "at_end",
+          "name": "observed",
+          "node": "swim_speed:umr",
+          "path": "swim_speed:umr.observed",
+          "reduces": null,
+          "rule": null,
+          "shape": [],
+          "unit": "s",
+          "value": 1.9799476861953735,
+          "window": [
+            0.0,
+            1.98
+          ]
+        }
+      ]
+    }
+  ],
+  "reading": "steps count base steps from the graph's start; a sample at step k is the state at the end of step k, at time k dt; a window (start, end] holds the steps whose end lies after start and not after end; values are in SI, in each output's unit",
+  "recorded": [
+    "swim_speed:umr.speed"
+  ],
+  "run_flags": [],
+  "stamp": {
+    "measured": [],
+    "pending": [
+      "controller.damping (a numerical default)",
+      "controller.gain (a numerical default)",
+      "controller.iterations (a numerical default)",
+      "controller.lookahead (a numerical default)",
+      "controller.reach (a numerical default)",
+      "controller.smoothing (a numerical default)",
+      "controller.standoff (a numerical default)"
+    ],
+    "profile": "exploratory"
+  },
+  "start": 0.0,
+  "start_step": 0,
+  "steps": 3960,
+  "version": 2,
+  "watches": [
+    {
+      "basis": "Stokes flow is the limit of vanishing Reynolds number, and its error grows with it. The bound is a convention taken from a sphere sedimenting in a still fluid, whose drag the first correction of Oseen's expansion raises by three sixteenths of the Reynolds number, about a fiftieth at the bound. That correction is a sedimenting sphere's, and a force-free swimmer, which has no net force, does not have it; no correction of the neglected inertia has been measured for any body of MIME's. The bound is declared for every body the rung serves from the sphere alone, and says how far a run is from Stokes flow, not how much its answer is off",
+      "body": "umr",
+      "density": 1000.0,
+      "diameter": 0.004149600000000001,
+      "entry": "drag 0.3.0",
+      "medium": "water",
+      "missing": [],
+      "neglected_inertia": null,
+      "neglected_inertia_text": "The size of the neglected inertia is not estimated: no correction is known for a screw hull.",
+      "owner": "drag:umr",
+      "peak_over_run": false,
+      "raised": true,
+      "reynolds": 74.21548535333541,
+      "reynolds_translation": 12.610530839183088,
+      "reynolds_turning": 74.21548535333541,
+      "rung": "surrogate",
+      "speed": 0.0030389750431808094,
+      "status": "above",
+      "surface_speed": 0.017884973335583046,
+      "text": "reynolds:drag:umr (drag 0.3.0, rung surrogate): Reynolds number 74.2 (translation 12.6, turning 74.2), from the last step only, which says nothing of the steps before it; ABOVE the 0.1 the entry is declared up to: the answer leaves out inertia of the fluid that this flow has. The size of the neglected inertia is not estimated: no correction is known for a screw hull.",
+      "upper": 0.1,
+      "viscosity": 0.001,
+      "watch": "reynolds:drag:umr"
+    }
+  ]
+}

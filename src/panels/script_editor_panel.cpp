@@ -70,9 +70,12 @@ void ScriptEditorPanel::openFile(const std::string& path) {
         QFontMetricsF(editor->font()).horizontalAdvance(' ') * 4);
     editor->setPlainText(content);
 
-    // Syntax highlighting for .py files
+    // Syntax highlighting for .py files. PythonHighlighter reads its own
+    // theme from QSettings on construction, so the new tab matches the
+    // current preset without any extra wiring.
+    PythonHighlighter* highlighter = nullptr;
     if (QString::fromStdString(path).endsWith(".py")) {
-        new PythonHighlighter(editor->document());
+        highlighter = new PythonHighlighter(editor->document());
     }
 
     connect(editor->document(), &QTextDocument::modificationChanged,
@@ -87,6 +90,7 @@ void ScriptEditorPanel::openFile(const std::string& path) {
     info.editor = editor;
     info.filePath = path;
     info.modified = false;
+    info.highlighter = highlighter;
     tabInfos_.push_back(std::move(info));
 
     // Watch for external changes
@@ -215,6 +219,14 @@ void ScriptEditorPanel::updateTabTitle(int index) {
     QString title = fi.fileName();
     if (info.modified) title += " *";
     tabs_->setTabText(index, title);
+}
+
+void ScriptEditorPanel::setHighlightTheme(const QString& themeName) {
+    for (auto& info : tabInfos_) {
+        if (info.highlighter) {
+            info.highlighter->setThemeByName(themeName);
+        }
+    }
 }
 
 } // namespace microbotica::panels

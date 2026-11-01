@@ -58,7 +58,9 @@ docker run -it --rm \
 > - `-v $(pwd):/workspace/microbotica` — mounts your source code into the container
 > - `-e PXR_ROOT=/opt/usd` — tells CMake where OpenUSD is installed
 > - `-e DISPLAY=$DISPLAY` — forwards your X11 display number
-> - `-e LIBGL_ALWAYS_SOFTWARE=1` — uses Mesa software rendering (no GPU passthrough needed)
+> - `-e LIBGL_ALWAYS_SOFTWARE=1` — uses Mesa's software rasteriser, llvmpipe (no GPU passthrough needed). For the
+>   Intel GPU through Mesa instead, drop it and pass the GPU's render nodes, `--device /dev/dri`
+>   (`scripts/run-dev.sh` does this, and never passes an NVIDIA GPU)
 > - `-v /tmp/.X11-unix:/tmp/.X11-unix` — shares the X11 socket
 > - `xhost +local:docker` — allows Docker containers to connect to your X server (run once per session, resets on logout)
 
@@ -81,6 +83,13 @@ cd build/debug && ctest --output-on-failure && cd ../..
 
 # Run the application (requires GUI flags from Step 2)
 ./build/debug/microbotica
+
+# The viewport draws with Hydra Storm on OpenGL 4.5 Compatibility, which Mesa
+# provides on the Intel GPU and on llvmpipe alike: no NVIDIA GPU is needed.
+# The screenshot tests draw recordings on llvmpipe and compare the committed
+# pictures (tests/fixtures/screenshots/); after a deliberate change to the
+# picture, rewrite them with:
+MICROROBOTICA_UPDATE_SCREENSHOTS=1 ./build/debug/tests/microbotica_screenshot_tests
 
 # Run headless (no window, just verifies it starts)
 QT_QPA_PLATFORM=offscreen ./build/debug/microbotica &

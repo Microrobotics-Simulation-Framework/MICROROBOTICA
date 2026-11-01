@@ -1,0 +1,939 @@
+{
+  "experiment": "script_a0",
+  "flags": [
+    {
+      "entry": "drag 0.3.0",
+      "limits": null,
+      "meaning": "the body's offset from the tube's axis lay beyond the clamp near the wall, so the surrogate read the resistance at the clamp, not at the offset",
+      "node": "drag:umr",
+      "owner": "drag:umr",
+      "path": "drag:umr.clamp_fired"
+    },
+    {
+      "entry": "drag 0.3.0",
+      "limits": null,
+      "meaning": "the body's axis lay further from the tube's than the tilt the surrogate is declared valid to (see the rung's validity line): it was trained for a helix along the tube's axis and cannot see a tilt, so its resistance is that of the body along the axis",
+      "node": "drag:umr",
+      "owner": "drag:umr",
+      "path": "drag:umr.tilt_fired"
+    },
+    {
+      "entry": "drag 0.3.0",
+      "limits": null,
+      "meaning": "the body's axis lay so far from the tube's that the body, as the cylinder of its length and outer radius, no longer fits the tube's bore: the geometric limit, beyond the declared tilt's, past which a body longer than the bore has gone through the wall",
+      "node": "drag:umr",
+      "owner": "drag:umr",
+      "path": "drag:umr.bore_fired"
+    }
+  ],
+  "format": "mime.report/1",
+  "profile": {
+    "defaults": [
+      "contact:umr.rule = 'remove_outward', a convention default (the setting's written default; a frictionless contact that does not bounce: the projection removes the velocity into the surface, a physical model of the contact, not a solver's choice)",
+      "controller.acknowledged = (), a convention default (the setting's written default; no element of the description is read past unless acknowledged with its reason)",
+      "controller.damping = 0.05, a numerical default (the value the earlier line's controller ran with; the frozen reference of the arm's experiment was run with it; no study of it is recorded)",
+      "controller.gain = 1.0, a numerical default (the value the earlier line's controller ran with; a design value of the controller (where and how it holds the arm), held as a numerical default so that A0's frozen declarations stand: the frozen reference of the arm's experiment was run with it, and no study of it is recorded)",
+      "controller.iterations = 5, a numerical default (the value the earlier line's controller ran with; the frozen reference of the arm's experiment was run with it; no study of it is recorded)",
+      "controller.lookahead = 0.01 s, a numerical default (the value the earlier line's controller ran with; a design value of the controller (where and how it holds the arm), held as a numerical default so that A0's frozen declarations stand: the frozen reference of the arm's experiment was run with it, and no study of it is recorded)",
+      "controller.orientation_feedback = False, a convention default (the setting's written default; the target is not turned to follow the body unless asked)",
+      "controller.reach = (-0.05, 0.05) m, a numerical default (the value the earlier line's controller ran with; a design value of the controller (where and how it holds the arm), held as a numerical default so that A0's frozen declarations stand: the frozen reference of the arm's experiment was run with it, and no study of it is recorded)",
+      "controller.smoothing = 0.005, a numerical default (the value the earlier line's controller ran with; a design value of the controller (where and how it holds the arm), held as a numerical default so that A0's frozen declarations stand: the frozen reference of the arm's experiment was run with it, and no study of it is recorded)",
+      "controller.standoff = 0.15 m, a numerical default (the value the earlier line's controller ran with; a design value of the controller (where and how it holds the arm), held as a numerical default so that A0's frozen declarations stand: the frozen reference of the arm's experiment was run with it, and no study of it is recorded)",
+      "rpm.arm.acknowledged = (), a convention default (the setting's written default; no element of the description is read past unless acknowledged with its reason)",
+      "rpm.arm.actuators = (), a convention default (the setting's written default; a transmission whose actuator's rotor is not given reflects nothing onto its joint)",
+      "rpm.arm.armature = (), a convention default (the setting's written default; a joint whose armature is not declared, and whose transmission's actuator is not given, has none: the URDF's own meaning, no geared drive's rotor reflected onto it)",
+      "swim_speed:umr.after = 0.0 s, a convention default (the setting's written default; the window starts at the run's start unless a later start is given)",
+      "tube.centre = (0.0, 0.0, 0.0) m, a convention default (the setting's written default; a tube is centred on the world's origin unless placed)"
+    ],
+    "listed": [],
+    "measured": [],
+    "pending": [
+      "controller.damping (a numerical default)",
+      "controller.gain (a numerical default)",
+      "controller.iterations (a numerical default)",
+      "controller.lookahead (a numerical default)",
+      "controller.reach (a numerical default)",
+      "controller.smoothing (a numerical default)",
+      "controller.standoff (a numerical default)"
+    ],
+    "profile": "exploratory",
+    "stamp": "profile exploratory: 7 items pending, not sealed: controller.damping (a numerical default); controller.gain (a numerical default); controller.iterations (a numerical default); controller.lookahead (a numerical default); controller.reach (a numerical default); controller.smoothing (a numerical default); controller.standoff (a numerical default)"
+  },
+  "settings": [
+    {
+      "default": "none",
+      "listed": [],
+      "path": "contact:umr.margin",
+      "pending": [],
+      "role": "numerical",
+      "source": null,
+      "taken": null
+    },
+    {
+      "default": "convention",
+      "listed": [],
+      "path": "contact:umr.rule",
+      "pending": [],
+      "role": "physical",
+      "source": null,
+      "taken": "contact:umr.rule = 'remove_outward', a convention default (the setting's written default; a frictionless contact that does not bounce: the projection removes the velocity into the surface, a physical model of the contact, not a solver's choice)"
+    },
+    {
+      "default": "none",
+      "listed": [],
+      "path": "contact:umr.rung",
+      "pending": [],
+      "role": "design",
+      "source": null,
+      "taken": null
+    },
+    {
+      "default": "convention",
+      "listed": [],
+      "path": "controller.acknowledged",
+      "pending": [],
+      "role": "design",
+      "source": null,
+      "taken": "controller.acknowledged = (), a convention default (the setting's written default; no element of the description is read past unless acknowledged with its reason)"
+    },
+    {
+      "default": "convention",
+      "listed": [],
+      "path": "controller.at",
+      "pending": [],
+      "role": "physical",
+      "source": null,
+      "taken": null
+    },
+    {
+      "default": "none",
+      "listed": [],
+      "path": "controller.axis",
+      "pending": [],
+      "role": "design",
+      "source": null,
+      "taken": null
+    },
+    {
+      "default": "numerical",
+      "listed": [],
+      "path": "controller.damping",
+      "pending": [
+        "controller.damping (a numerical default)"
+      ],
+      "role": "numerical",
+      "source": null,
+      "taken": "controller.damping = 0.05, a numerical default (the value the earlier line's controller ran with; the frozen reference of the arm's experiment was run with it; no study of it is recorded)"
+    },
+    {
+      "default": "none",
+      "listed": [],
+      "path": "controller.description",
+      "pending": [],
+      "role": "physical",
+      "source": null,
+      "taken": null
+    },
+    {
+      "default": "none",
+      "listed": [],
+      "path": "controller.end_effector",
+      "pending": [],
+      "role": "design",
+      "source": null,
+      "taken": null
+    },
+    {
+      "default": "numerical",
+      "listed": [],
+      "path": "controller.gain",
+      "pending": [
+        "controller.gain (a numerical default)"
+      ],
+      "role": "numerical",
+      "source": null,
+      "taken": "controller.gain = 1.0, a numerical default (the value the earlier line's controller ran with; a design value of the controller (where and how it holds the arm), held as a numerical default so that A0's frozen declarations stand: the frozen reference of the arm's experiment was run with it, and no study of it is recorded)"
+    },
+    {
+      "default": "none",
+      "listed": [],
+      "path": "controller.home",
+      "pending": [],
+      "role": "design",
+      "source": null,
+      "taken": null
+    },
+    {
+      "default": "numerical",
+      "listed": [],
+      "path": "controller.iterations",
+      "pending": [
+        "controller.iterations (a numerical default)"
+      ],
+      "role": "numerical",
+      "source": null,
+      "taken": "controller.iterations = 5, a numerical default (the value the earlier line's controller ran with; the frozen reference of the arm's experiment was run with it; no study of it is recorded)"
+    },
+    {
+      "default": "none",
+      "listed": [],
+      "path": "controller.latency",
+      "pending": [],
+      "role": "physical",
+      "source": null,
+      "taken": null
+    },
+    {
+      "default": "numerical",
+      "listed": [],
+      "path": "controller.lookahead",
+      "pending": [
+        "controller.lookahead (a numerical default)"
+      ],
+      "role": "numerical",
+      "source": null,
+      "taken": "controller.lookahead = 0.01 s, a numerical default (the value the earlier line's controller ran with; a design value of the controller (where and how it holds the arm), held as a numerical default so that A0's frozen declarations stand: the frozen reference of the arm's experiment was run with it, and no study of it is recorded)"
+    },
+    {
+      "default": "convention",
+      "listed": [],
+      "path": "controller.orientation",
+      "pending": [],
+      "role": "physical",
+      "source": null,
+      "taken": null
+    },
+    {
+      "default": "convention",
+      "listed": [],
+      "path": "controller.orientation_feedback",
+      "pending": [],
+      "role": "design",
+      "source": null,
+      "taken": "controller.orientation_feedback = False, a convention default (the setting's written default; the target is not turned to follow the body unless asked)"
+    },
+    {
+      "default": "none",
+      "listed": [],
+      "path": "controller.rate",
+      "pending": [],
+      "role": "design",
+      "source": null,
+      "taken": null
+    },
+    {
+      "default": "numerical",
+      "listed": [],
+      "path": "controller.reach",
+      "pending": [
+        "controller.reach (a numerical default)"
+      ],
+      "role": "numerical",
+      "source": null,
+      "taken": "controller.reach = (-0.05, 0.05) m, a numerical default (the value the earlier line's controller ran with; a design value of the controller (where and how it holds the arm), held as a numerical default so that A0's frozen declarations stand: the frozen reference of the arm's experiment was run with it, and no study of it is recorded)"
+    },
+    {
+      "default": "numerical",
+      "listed": [],
+      "path": "controller.smoothing",
+      "pending": [
+        "controller.smoothing (a numerical default)"
+      ],
+      "role": "numerical",
+      "source": null,
+      "taken": "controller.smoothing = 0.005, a numerical default (the value the earlier line's controller ran with; a design value of the controller (where and how it holds the arm), held as a numerical default so that A0's frozen declarations stand: the frozen reference of the arm's experiment was run with it, and no study of it is recorded)"
+    },
+    {
+      "default": "numerical",
+      "listed": [],
+      "path": "controller.standoff",
+      "pending": [
+        "controller.standoff (a numerical default)"
+      ],
+      "role": "numerical",
+      "source": null,
+      "taken": "controller.standoff = 0.15 m, a numerical default (the value the earlier line's controller ran with; a design value of the controller (where and how it holds the arm), held as a numerical default so that A0's frozen declarations stand: the frozen reference of the arm's experiment was run with it, and no study of it is recorded)"
+    },
+    {
+      "default": "none",
+      "listed": [],
+      "path": "controller.up",
+      "pending": [],
+      "role": "design",
+      "source": null,
+      "taken": null
+    },
+    {
+      "default": "numerical",
+      "listed": [],
+      "path": "drag:umr.blob",
+      "pending": [],
+      "role": "numerical",
+      "source": null,
+      "taken": null
+    },
+    {
+      "default": "convention",
+      "listed": [],
+      "path": "drag:umr.lubrication",
+      "pending": [],
+      "role": "design",
+      "source": null,
+      "taken": null
+    },
+    {
+      "default": "none",
+      "listed": [],
+      "path": "drag:umr.lubrication.epsilon",
+      "pending": [],
+      "role": "numerical",
+      "source": null,
+      "taken": null
+    },
+    {
+      "default": "convention",
+      "listed": [],
+      "path": "drag:umr.patches",
+      "pending": [],
+      "role": "numerical",
+      "source": null,
+      "taken": null
+    },
+    {
+      "default": "none",
+      "listed": [],
+      "path": "drag:umr.rung",
+      "pending": [],
+      "role": "design",
+      "source": null,
+      "taken": null
+    },
+    {
+      "default": "numerical",
+      "listed": [],
+      "path": "drag:umr.spacing",
+      "pending": [],
+      "role": "numerical",
+      "source": null,
+      "taken": null
+    },
+    {
+      "default": "determined",
+      "listed": [],
+      "path": "drag:umr.wall_kind",
+      "pending": [],
+      "role": "physical",
+      "source": null,
+      "taken": null
+    },
+    {
+      "default": "none",
+      "listed": [],
+      "path": "drag:umr.weights",
+      "pending": [],
+      "role": "design",
+      "source": null,
+      "taken": null
+    },
+    {
+      "default": "none",
+      "listed": [],
+      "path": "dt",
+      "pending": [],
+      "role": "numerical",
+      "source": null,
+      "taken": null
+    },
+    {
+      "default": "none",
+      "listed": [],
+      "path": "gravity",
+      "pending": [],
+      "role": "physical",
+      "source": null,
+      "taken": null
+    },
+    {
+      "default": "convention",
+      "listed": [],
+      "path": "rpm.arm.acknowledged",
+      "pending": [],
+      "role": "design",
+      "source": null,
+      "taken": "rpm.arm.acknowledged = (), a convention default (the setting's written default; no element of the description is read past unless acknowledged with its reason)"
+    },
+    {
+      "default": "convention",
+      "listed": [],
+      "path": "rpm.arm.actuators",
+      "pending": [],
+      "role": "physical",
+      "source": null,
+      "taken": "rpm.arm.actuators = (), a convention default (the setting's written default; a transmission whose actuator's rotor is not given reflects nothing onto its joint)"
+    },
+    {
+      "default": "convention",
+      "listed": [],
+      "path": "rpm.arm.armature",
+      "pending": [],
+      "role": "physical",
+      "source": null,
+      "taken": "rpm.arm.armature = (), a convention default (the setting's written default; a joint whose armature is not declared, and whose transmission's actuator is not given, has none: the URDF's own meaning, no geared drive's rotor reflected onto it)"
+    },
+    {
+      "default": "convention",
+      "listed": [],
+      "path": "rpm.arm.at",
+      "pending": [],
+      "role": "physical",
+      "source": null,
+      "taken": null
+    },
+    {
+      "default": "none",
+      "listed": [],
+      "path": "rpm.arm.description",
+      "pending": [],
+      "role": "physical",
+      "source": null,
+      "taken": null
+    },
+    {
+      "default": "none",
+      "listed": [],
+      "path": "rpm.arm.initial_positions",
+      "pending": [],
+      "role": "design",
+      "source": null,
+      "taken": null
+    },
+    {
+      "default": "convention",
+      "listed": [],
+      "path": "rpm.arm.initial_velocities",
+      "pending": [],
+      "role": "design",
+      "source": null,
+      "taken": null
+    },
+    {
+      "default": "none",
+      "listed": [],
+      "path": "rpm.arm.mount",
+      "pending": [],
+      "role": "physical",
+      "source": null,
+      "taken": null
+    },
+    {
+      "default": "convention",
+      "listed": [],
+      "path": "rpm.arm.orientation",
+      "pending": [],
+      "role": "physical",
+      "source": null,
+      "taken": null
+    },
+    {
+      "default": "convention",
+      "listed": [],
+      "path": "rpm.arm.rate",
+      "pending": [],
+      "role": "numerical",
+      "source": null,
+      "taken": null
+    },
+    {
+      "default": "none",
+      "listed": [],
+      "path": "rpm.arm.rung",
+      "pending": [],
+      "role": "design",
+      "source": null,
+      "taken": null
+    },
+    {
+      "default": "convention",
+      "listed": [],
+      "path": "rpm.arm.servo",
+      "pending": [],
+      "role": "physical",
+      "source": null,
+      "taken": null
+    },
+    {
+      "default": "none",
+      "listed": [],
+      "path": "rpm.magnetic.part",
+      "pending": [],
+      "role": "physical",
+      "source": null,
+      "taken": null
+    },
+    {
+      "default": "convention",
+      "listed": [],
+      "path": "rpm.motor.at",
+      "pending": [],
+      "role": "physical",
+      "source": null,
+      "taken": null
+    },
+    {
+      "default": "none",
+      "listed": [],
+      "path": "rpm.motor.axis",
+      "pending": [],
+      "role": "physical",
+      "source": null,
+      "taken": null
+    },
+    {
+      "default": "none",
+      "listed": [],
+      "path": "rpm.motor.damping",
+      "pending": [],
+      "role": "physical",
+      "source": null,
+      "taken": null
+    },
+    {
+      "default": "none",
+      "listed": [],
+      "path": "rpm.motor.inertia",
+      "pending": [],
+      "role": "physical",
+      "source": null,
+      "taken": null
+    },
+    {
+      "default": "none",
+      "listed": [],
+      "path": "rpm.motor.initial_angle",
+      "pending": [],
+      "role": "design",
+      "source": null,
+      "taken": null
+    },
+    {
+      "default": "convention",
+      "listed": [],
+      "path": "rpm.motor.initial_velocity",
+      "pending": [],
+      "role": "design",
+      "source": null,
+      "taken": null
+    },
+    {
+      "default": "none",
+      "listed": [],
+      "path": "rpm.motor.mount",
+      "pending": [],
+      "role": "physical",
+      "source": null,
+      "taken": null
+    },
+    {
+      "default": "convention",
+      "listed": [],
+      "path": "rpm.motor.orientation",
+      "pending": [],
+      "role": "physical",
+      "source": null,
+      "taken": null
+    },
+    {
+      "default": "none",
+      "listed": [],
+      "path": "rpm.motor.prescribed",
+      "pending": [],
+      "role": "design",
+      "source": null,
+      "taken": null
+    },
+    {
+      "default": "convention",
+      "listed": [],
+      "path": "rpm.motor.rate",
+      "pending": [],
+      "role": "numerical",
+      "source": null,
+      "taken": null
+    },
+    {
+      "default": "none",
+      "listed": [],
+      "path": "rpm.motor.rung",
+      "pending": [],
+      "role": "design",
+      "source": null,
+      "taken": null
+    },
+    {
+      "default": "none",
+      "listed": [],
+      "path": "rpm.motor.top_speed",
+      "pending": [],
+      "role": "design",
+      "source": null,
+      "taken": null
+    },
+    {
+      "default": "none",
+      "listed": [],
+      "path": "rpm.motor.velocity",
+      "pending": [],
+      "role": "design",
+      "source": null,
+      "taken": null
+    },
+    {
+      "default": "none",
+      "listed": [],
+      "path": "rpm.parts.rotor_magnet.at",
+      "pending": [],
+      "role": "physical",
+      "source": null,
+      "taken": null
+    },
+    {
+      "default": "none",
+      "listed": [],
+      "path": "rpm.parts.rotor_magnet.axis",
+      "pending": [],
+      "role": "physical",
+      "source": null,
+      "taken": null
+    },
+    {
+      "default": "none",
+      "listed": [],
+      "path": "rpm.parts.rotor_magnet.length",
+      "pending": [],
+      "role": "physical",
+      "source": null,
+      "taken": null
+    },
+    {
+      "default": "none",
+      "listed": [],
+      "path": "rpm.parts.rotor_magnet.radius",
+      "pending": [],
+      "role": "physical",
+      "source": null,
+      "taken": null
+    },
+    {
+      "default": "none",
+      "listed": [],
+      "path": "seed",
+      "pending": [],
+      "role": "design",
+      "source": null,
+      "taken": null
+    },
+    {
+      "default": "convention",
+      "listed": [],
+      "path": "swim_speed:umr.after",
+      "pending": [],
+      "role": "design",
+      "source": null,
+      "taken": "swim_speed:umr.after = 0.0 s, a convention default (the setting's written default; the window starts at the run's start unless a later start is given)"
+    },
+    {
+      "default": "none",
+      "listed": [],
+      "path": "swim_speed:umr.along",
+      "pending": [],
+      "role": "design",
+      "source": null,
+      "taken": null
+    },
+    {
+      "default": "convention",
+      "listed": [],
+      "path": "swim_speed:umr.rate",
+      "pending": [],
+      "role": "numerical",
+      "source": null,
+      "taken": null
+    },
+    {
+      "default": "none",
+      "listed": [],
+      "path": "tube.axis",
+      "pending": [],
+      "role": "physical",
+      "source": null,
+      "taken": null
+    },
+    {
+      "default": "convention",
+      "listed": [],
+      "path": "tube.centre",
+      "pending": [],
+      "role": "physical",
+      "source": null,
+      "taken": "tube.centre = (0.0, 0.0, 0.0) m, a convention default (the setting's written default; a tube is centred on the world's origin unless placed)"
+    },
+    {
+      "default": "none",
+      "listed": [],
+      "path": "tube.inner_radius",
+      "pending": [],
+      "role": "physical",
+      "source": null,
+      "taken": null
+    },
+    {
+      "default": "none",
+      "listed": [],
+      "path": "tube.length",
+      "pending": [],
+      "role": "physical",
+      "source": null,
+      "taken": null
+    },
+    {
+      "default": "none",
+      "listed": [],
+      "path": "tube.wall",
+      "pending": [],
+      "role": "physical",
+      "source": null,
+      "taken": null
+    },
+    {
+      "default": "none",
+      "listed": [],
+      "path": "umr.initial.angular_velocity",
+      "pending": [],
+      "role": "design",
+      "source": null,
+      "taken": null
+    },
+    {
+      "default": "none",
+      "listed": [],
+      "path": "umr.initial.orientation",
+      "pending": [],
+      "role": "design",
+      "source": null,
+      "taken": null
+    },
+    {
+      "default": "none",
+      "listed": [],
+      "path": "umr.initial.position",
+      "pending": [],
+      "role": "design",
+      "source": null,
+      "taken": null
+    },
+    {
+      "default": "none",
+      "listed": [],
+      "path": "umr.initial.velocity",
+      "pending": [],
+      "role": "design",
+      "source": null,
+      "taken": null
+    },
+    {
+      "default": "convention",
+      "listed": [],
+      "path": "umr.motion.rate",
+      "pending": [],
+      "role": "numerical",
+      "source": null,
+      "taken": null
+    },
+    {
+      "default": "none",
+      "listed": [],
+      "path": "umr.parts.shell.at",
+      "pending": [],
+      "role": "physical",
+      "source": null,
+      "taken": null
+    },
+    {
+      "default": "none",
+      "listed": [],
+      "path": "umr.parts.shell.length",
+      "pending": [],
+      "role": "physical",
+      "source": null,
+      "taken": null
+    },
+    {
+      "default": "none",
+      "listed": [],
+      "path": "umr.parts.shell.modulation",
+      "pending": [],
+      "role": "physical",
+      "source": null,
+      "taken": null
+    },
+    {
+      "default": "none",
+      "listed": [],
+      "path": "umr.parts.shell.radius",
+      "pending": [],
+      "role": "physical",
+      "source": null,
+      "taken": null
+    },
+    {
+      "default": "none",
+      "listed": [],
+      "path": "umr.parts.shell.starts",
+      "pending": [],
+      "role": "physical",
+      "source": null,
+      "taken": null
+    },
+    {
+      "default": "none",
+      "listed": [],
+      "path": "umr.parts.shell.wavenumber",
+      "pending": [],
+      "role": "physical",
+      "source": null,
+      "taken": null
+    }
+  ],
+  "summary": [
+    "build report: experiment 'script_a0', base step 0.0005 s, run as one compiled scan",
+    "profile exploratory: 7 items pending, not sealed: controller.damping (a numerical default); controller.gain (a numerical default); controller.iterations (a numerical default); controller.lookahead (a numerical default); controller.reach (a numerical default); controller.smoothing (a numerical default); controller.standoff (a numerical default)",
+    "  pending: controller.damping (a numerical default)",
+    "  pending: controller.gain (a numerical default)",
+    "  pending: controller.iterations (a numerical default)",
+    "  pending: controller.lookahead (a numerical default)",
+    "  pending: controller.reach (a numerical default)",
+    "  pending: controller.smoothing (a numerical default)",
+    "  pending: controller.standoff (a numerical default)",
+    "  default: contact:umr.rule = 'remove_outward', a convention default (the setting's written default; a frictionless contact that does not bounce: the projection removes the velocity into the surface, a physical model of the contact, not a solver's choice)",
+    "  default: controller.acknowledged = (), a convention default (the setting's written default; no element of the description is read past unless acknowledged with its reason)",
+    "  default: controller.damping = 0.05, a numerical default (the value the earlier line's controller ran with; the frozen reference of the arm's experiment was run with it; no study of it is recorded)",
+    "  default: controller.gain = 1.0, a numerical default (the value the earlier line's controller ran with; a design value of the controller (where and how it holds the arm), held as a numerical default so that A0's frozen declarations stand: the frozen reference of the arm's experiment was run with it, and no study of it is recorded)",
+    "  default: controller.iterations = 5, a numerical default (the value the earlier line's controller ran with; the frozen reference of the arm's experiment was run with it; no study of it is recorded)",
+    "  default: controller.lookahead = 0.01 s, a numerical default (the value the earlier line's controller ran with; a design value of the controller (where and how it holds the arm), held as a numerical default so that A0's frozen declarations stand: the frozen reference of the arm's experiment was run with it, and no study of it is recorded)",
+    "  default: controller.orientation_feedback = False, a convention default (the setting's written default; the target is not turned to follow the body unless asked)",
+    "  default: controller.reach = (-0.05, 0.05) m, a numerical default (the value the earlier line's controller ran with; a design value of the controller (where and how it holds the arm), held as a numerical default so that A0's frozen declarations stand: the frozen reference of the arm's experiment was run with it, and no study of it is recorded)",
+    "  default: controller.smoothing = 0.005, a numerical default (the value the earlier line's controller ran with; a design value of the controller (where and how it holds the arm), held as a numerical default so that A0's frozen declarations stand: the frozen reference of the arm's experiment was run with it, and no study of it is recorded)",
+    "  default: controller.standoff = 0.15 m, a numerical default (the value the earlier line's controller ran with; a design value of the controller (where and how it holds the arm), held as a numerical default so that A0's frozen declarations stand: the frozen reference of the arm's experiment was run with it, and no study of it is recorded)",
+    "  default: rpm.arm.acknowledged = (), a convention default (the setting's written default; no element of the description is read past unless acknowledged with its reason)",
+    "  default: rpm.arm.actuators = (), a convention default (the setting's written default; a transmission whose actuator's rotor is not given reflects nothing onto its joint)",
+    "  default: rpm.arm.armature = (), a convention default (the setting's written default; a joint whose armature is not declared, and whose transmission's actuator is not given, has none: the URDF's own meaning, no geared drive's rotor reflected onto it)",
+    "  default: swim_speed:umr.after = 0.0 s, a convention default (the setting's written default; the window starts at the run's start unless a later start is given)",
+    "  default: tube.centre = (0.0, 0.0, 0.0) m, a convention default (the setting's written default; a tube is centred on the world's origin unless placed)",
+    "  built.report.pending() prints each with the lines to paste",
+    "entries (11):",
+    "  controller: arm_tracking 0.1.0",
+    "  gravity:umr: gravity 0.1.0",
+    "  rpm.arm: arm 0.1.0 (rung kinematic)",
+    "  drive:rpm.motor.velocity: drive.constant 0.1.0",
+    "  rpm.motor: motor 0.2.0 (rung kinematic)",
+    "  rpm.magnetic: point_dipole 0.1.0",
+    "  drag:umr: drag 0.3.0 (rung surrogate)",
+    "  magnetic.force:umr: magnetic.force 0.1.0",
+    "  magnetic.torque:umr: magnetic.torque 0.1.0",
+    "  umr: rigid_inertial 0.2.0",
+    "  swim_speed:umr: swim_speed 0.1.0",
+    "values read (10):",
+    "  rpm.magnetic_moment = (18.89, 0.0, 0.0) A m^2  [declared in the experiment (its magnitude), along the magnet rotor_magnet's direction, from decla...]",
+    "  umr.buoyant_volume = 6.022068099805108e-08 m^3  [declared in the experiment, in place of the value its parts give, 6.022068099805107e-08 m^3]",
+    "  umr.centre_of_buoyancy = (0.0, 0.0, 0.0) m  [declared in the experiment, in place of the value its parts give, (0, 0, 0) m]",
+    "  umr.extent = 0.0020748000000000003 m  [derived from its parts]",
+    "  umr.inertia = (1.0331989974018431e-10, 1.0331989974018431e-10, 1.0331989974018431e-10) kg m^2  [declared in the experiment, in place of the value its parts would give (none: body umr's mass and...]",
+    "  umr.magnet_centre = (0.0, 0.0, 0.0) m  [declared in the experiment, in place of the value its parts would give (none: body 'umr' has part...]",
+    "  umr.magnetic_moment = (0.0, 0.00168, 0.0) A m^2  [declared in the experiment, in place of the value its parts would give (none: body 'umr' has part...]",
+    "  umr.mass = 8.491116020725203e-05 kg  [declared in the experiment, in place of the value its parts would give (none: body umr's mass and...]",
+    "  water.density = 1000.0 kg/m^3  [declared in the experiment]",
+    "  water.viscosity = 0.001 Pa s  [declared in the experiment]",
+    "controller: arm_tracking 0.1.0, mode 1 (inside the compiled step, as a node at its own rate), every 1 step (0.0005 s), latency 0 steps (0.0 s): a tick at time t reads the state as it stands at t, before the step that starts there; its writes act on every step from the one that starts at t + latency until the next tick's writes do, and the writes it holds before its first act on the steps before them",
+    "descriptions, each chain segment's as read:",
+    "  rpm.arm: urdf ar4.urdf, sha256 851d2f4ba29f4a49709f0f286c91eabb3fa2d84af59624ff3581d322309ddbc4: 171 read and used, 22 recognised and not used, 0 refused",
+    "    ar4.urdf: 18 <visual> elements not used (link[base_link_aluminum]/visual, link[base_link_enclosure]/visual, link[base_link_motor]/visual, link[link_1_aluminum]/visual, link[link_1_motor]/visual, link[link_2_aluminum]/visual, link[link_2_motor]/visual, link[link_2_cover]/visual, link[link_2_logo]/visual, link[link_3_aluminum]/visual, link[link_3_motor]/visual, link[link_4_aluminum]/visual, link[link_4_motor]/visual, link[link_4_cover]/visual, link[link_4_logo]/visual, link[link_5_aluminum]/visual, link[link_5_motor]/visual, link[link_6_aluminum]/visual). MIME simulates no link's appearance; the stage draws it on each link's frame (mime.viz): a box, cylinder or sphere as its USD primitive, a mesh from the asset cache where a visual set bakes it (`mime visuals fetch <set>`), and simple shapes from the link's frames where it has neither.",
+    "    ar4.urdf: 4 <collision> elements not used (link[link_1_aluminum]/collision, link[link_2_aluminum]/collision, link[link_3_aluminum]/collision, link[link_4_aluminum]/collision). MIME simulates no collision between a chain's links: contact is an interaction an experiment attaches between named things (mime.interactions.Contact). To ask for link collisions: https://github.com/Microrobotics-Simulation-Framework/MIME/issues.",
+    "    ar4.urdf: 18 links with geometry and no <inertial>, read as massless: base_link_aluminum, base_link_enclosure, base_link_motor, link_1_aluminum, link_1_motor, link_2_aluminum, link_2_motor, link_2_cover, link_2_logo, link_3_aluminum, link_3_motor, link_4_aluminum, link_4_motor, link_4_cover, link_4_logo, link_5_aluminum, link_5_motor, link_6_aluminum. URDF reads a link with no <inertial> as massless, and MIME infers no mass from geometry. A dynamic chain refuses a moving body with geometry none of whose links declares an <inertial>: add one, from CAD or a measurement, or ask for inference from geometry at https://github.com/Microrobotics-Simulation-Framework/MIME/issues.",
+    "validity of drag:umr (declared, not yet checked): surrogate: quasi-steady Stokes flow (the limit of vanishing Reynolds number), as its training resistances were computed; the Reynolds number, by the body's translation and by its turning, is computed after each run (the post-run watch) and flagged past the bound the entry declares",
+    "validity of drag:umr (declared, not yet checked): surrogate: de Jongh screw bodies (cross-section modulation 0.33, two starts) in a straight tube; nu, kappa and L/R checked against the training data at plan time; the offset declared up to 0.3 of the tube's radius and clamped beyond 0.95 of the room to the wall; its accuracy against the MRS it was checked against is MIME-ANO-114's, up to 16% in swim speed between 0.2 and 0.3 of the radius",
+    "validity of drag:umr (declared, not yet checked): surrogate: the resistance is moved from the end of the body's axis, about which it was trained, to the centre of mass, half the body's length along its x axis taken as the helix's, which the surrogate takes to lie along the tube's; it cannot see a tilt (away from the axis its resistance is a function of the body's centre and of which way the body's axis points along the tube, and of nothing else about the orientation)",
+    "validity of drag:umr (declared, not yet checked): surrogate: valid for a body whose axis lies within 5 degrees of the tube's, a limit declared (mime.nodes.hydro.TILT_VALIDITY), not fitted, from one MRS measurement of FL-9 on the axis (docs/data/tilt_validity.json, scripts/tilt_validity.py): at that tilt the force-free swim speed differs from the aligned body's by less than the 16% this entry states for the surrogate against the boundary element, and at the next tilt measured, in one of two directions, it does not; one spacing, one offset, one body, and the MRS itself not converged at that spacing; tilt_fired is raised at the step the tilt passes the limit, and bore_fired at the step the body, as the cylinder of its length and outer radius with its centre on the axis, no longer fits the bore",
+    "validity of magnetic.force:umr (declared, not yet checked): a point dipole in a field read at the body's centre of mass: valid while the gradient varies little across the body, and outside a point dipole's near field (MIME-ANO-100); a validity line that checks the distance is a1's",
+    "validity of magnetic.torque:umr (declared, not yet checked): a permanent moment in a field that varies in space, read at the body's centre of mass: valid while the field varies little across the body, and outside a point dipole's near field (MIME-ANO-100)",
+    "validity of rpm.magnetic (declared, not yet checked): evaluated outside the magnet: the field is singular at its centroid, and a point dipole is faithful only far from the magnet, against its radius (MIME-ANO-100); a validity line that checks the distance is a1's",
+    "limits of rpm.arm (stated by its record): rigid joints and links, with no joint flexibility, backlash or structural mode, and no contact between links (MIME-ANO-101)",
+    "limits of rpm.arm (stated by its record): a prescribed motion: a load on it is not applied, the reaction of a field on a magnet mounted on it and a mounted motor's reaction torque among them (MIME-ANO-103), and no mass mounted on it changes it: every mounted mass is accepted, tilted, unbalanced or articulated, and none is carried",
+    "limits of rpm.motor (stated by its record): an ideal source of the prescribed motion, with no cogging, imbalance or thermal terms (MIME-ANO-102, as it applies to a prescribed motion)",
+    "limits of rpm.motor (stated by its record): a prescribed motion: a load on it is not applied, and its reaction torque on the link it is mounted on is not delivered (MIME-ANO-103); mass on its rotor is an articulated payload, refused on a dynamic segment",
+    "post-run watches (computed after each run; a flag on the result, never a refusal, and no part of the graph):",
+    "  drag:umr: the Reynolds number after each run for drag 0.3.0 (rung surrogate) of umr in water, compared with the 0.1 its rung is declared up to",
+    "MADDENING's warnings: none",
+    "refusals: none",
+    "derived hash: sha256:41377171e8eb14a8693f07d05e16235497ec73be2451c50206284844bd129ed4"
+  ],
+  "validity": [
+    {
+      "kind": "declared",
+      "line": "surrogate: quasi-steady Stokes flow (the limit of vanishing Reynolds number), as its training resistances were computed; the Reynolds number, by the body's translation and by its turning, is computed after each run (the post-run watch) and flagged past the bound the entry declares",
+      "owner": "drag:umr"
+    },
+    {
+      "kind": "declared",
+      "line": "surrogate: de Jongh screw bodies (cross-section modulation 0.33, two starts) in a straight tube; nu, kappa and L/R checked against the training data at plan time; the offset declared up to 0.3 of the tube's radius and clamped beyond 0.95 of the room to the wall; its accuracy against the MRS it was checked against is MIME-ANO-114's, up to 16% in swim speed between 0.2 and 0.3 of the radius",
+      "owner": "drag:umr"
+    },
+    {
+      "kind": "declared",
+      "line": "surrogate: the resistance is moved from the end of the body's axis, about which it was trained, to the centre of mass, half the body's length along its x axis taken as the helix's, which the surrogate takes to lie along the tube's; it cannot see a tilt (away from the axis its resistance is a function of the body's centre and of which way the body's axis points along the tube, and of nothing else about the orientation)",
+      "owner": "drag:umr"
+    },
+    {
+      "kind": "declared",
+      "line": "surrogate: valid for a body whose axis lies within 5 degrees of the tube's, a limit declared (mime.nodes.hydro.TILT_VALIDITY), not fitted, from one MRS measurement of FL-9 on the axis (docs/data/tilt_validity.json, scripts/tilt_validity.py): at that tilt the force-free swim speed differs from the aligned body's by less than the 16% this entry states for the surrogate against the boundary element, and at the next tilt measured, in one of two directions, it does not; one spacing, one offset, one body, and the MRS itself not converged at that spacing; tilt_fired is raised at the step the tilt passes the limit, and bore_fired at the step the body, as the cylinder of its length and outer radius with its centre on the axis, no longer fits the bore",
+      "owner": "drag:umr"
+    },
+    {
+      "kind": "declared",
+      "line": "a point dipole in a field read at the body's centre of mass: valid while the gradient varies little across the body, and outside a point dipole's near field (MIME-ANO-100); a validity line that checks the distance is a1's",
+      "owner": "magnetic.force:umr"
+    },
+    {
+      "kind": "declared",
+      "line": "a permanent moment in a field that varies in space, read at the body's centre of mass: valid while the field varies little across the body, and outside a point dipole's near field (MIME-ANO-100)",
+      "owner": "magnetic.torque:umr"
+    },
+    {
+      "kind": "declared",
+      "line": "evaluated outside the magnet: the field is singular at its centroid, and a point dipole is faithful only far from the magnet, against its radius (MIME-ANO-100); a validity line that checks the distance is a1's",
+      "owner": "rpm.magnetic"
+    },
+    {
+      "kind": "record",
+      "line": "rigid joints and links, with no joint flexibility, backlash or structural mode, and no contact between links (MIME-ANO-101)",
+      "owner": "rpm.arm"
+    },
+    {
+      "kind": "record",
+      "line": "a prescribed motion: a load on it is not applied, the reaction of a field on a magnet mounted on it and a mounted motor's reaction torque among them (MIME-ANO-103), and no mass mounted on it changes it: every mounted mass is accepted, tilted, unbalanced or articulated, and none is carried",
+      "owner": "rpm.arm"
+    },
+    {
+      "kind": "record",
+      "line": "an ideal source of the prescribed motion, with no cogging, imbalance or thermal terms (MIME-ANO-102, as it applies to a prescribed motion)",
+      "owner": "rpm.motor"
+    },
+    {
+      "kind": "record",
+      "line": "a prescribed motion: a load on it is not applied, and its reaction torque on the link it is mounted on is not delivered (MIME-ANO-103); mass on its rotor is an articulated payload, refused on a dynamic segment",
+      "owner": "rpm.motor"
+    }
+  ],
+  "watches": [
+    "drag:umr: the Reynolds number after each run for drag 0.3.0 (rung surrogate) of umr in water, compared with the 0.1 its rung is declared up to"
+  ]
+}

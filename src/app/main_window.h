@@ -3,7 +3,19 @@
 #include <QMainWindow>
 #include <QLabel>
 #include <QByteArray>
+#include <QString>
+#include <cstdint>
+#include <functional>
 #include <memory>
+#include <string>
+#include <vector>
+
+#include <nlohmann/json.hpp>
+
+class QAction;
+class QProcess;
+class QTemporaryDir;
+class QTimer;
 
 #include "core/stability.h"
 #include "core/audit_logger.h"
@@ -26,16 +38,26 @@ class TimelinePanel;
 class ConsoleWidget;
 class MimeConsolePanel;
 class RunConfigPanel;
-class SkyPilotMonitorPanel;
 class ProjectBrowserPanel;
 class GraphInspectorPanel;
 class ScriptEditorPanel;
-class ParameterPanel;
+class LiveInputsPanel;
+class PlotsPanel;
+class ClaimsPanel;
 } // namespace microbotica::panels
 
 namespace microbotica::experiment {
 class ExperimentRunner;
 } // namespace microbotica::experiment
+
+namespace microbotica::live {
+class LiveClient;
+class BindingFrames;
+class LivePhysicsProcess;
+struct Hello;
+struct Reply;
+struct LiveOutcome;
+} // namespace microbotica::live
 
 namespace microbotica::app {
 
@@ -56,6 +78,13 @@ class MainWindow : public QMainWindow {
 public:
     explicit MainWindow(QWidget* parent = nullptr);
     ~MainWindow() override;
+
+    /// Open a path as File's actions do: a MIME 0.3 saved experiment folder,
+    /// or a USD file (a recording plays). False, with a message, otherwise.
+    bool openPath(const QString& path);
+
+    /// Launch, as the Run Configuration panel's button does.
+    void launch() { onSimulationStart(); }
 
 protected:
     void closeEvent(QCloseEvent* event) override;
@@ -82,16 +111,76 @@ private:
     void saveLayout();
     void restoreLayout();
 
-    /// Initialise an experiment from its root directory: load the scene,
-    /// spawn the MIME runner, and mirror state into RunConfigPanel.
-    /// Returns true if the experiment is ready to be launched.
+    /// Open a MIME 0.3 saved experiment folder: load its stage
+    /// (scene/scene.usda), remember it for Launch, and mirror it into the
+    /// panels. Returns false (with a message) for any other folder.
     bool initExperiment(const QString& dir);
 
-    /// Async launch helpers — split out of onSimulationStart so the UI
-    /// thread stays responsive while the MIME runner's REP port comes up.
-    void startWaitingForRunner();
-    void finishWaitingForRunner(bool ok);
+    /// Open a USD file as the scene: leave playback of the previous one,
+    /// load it in the three-layer stack, switch the viewport to Storm, and
+    /// enter playback mode when it is a time-sampled recording.
+    bool openStage(const QString& filePath);
+
+    /// Pick the compute backend for the selected mode and launch physics.
     void finishSimulationStart();
+
+    // ── Live sessions (MIME 0.3, mime.live/1) ──────────────────────────────
+    // Nothing here waits for MIME on the UI thread: commands go out on the
+    // client's lanes, and their outcomes come back as queued calls.
+    /// Local: spawn `mime serve <saved folder>` and connect once its ready
+    /// file appears.
+    void startLocalSession();
+    /// Connect to a session (Local, once ready; Manual, at the panel's
+    /// endpoints): ask hello, and take the session up when it answers.
+    void connectLiveSession(const QString& commands, const QString& frames);
+    /// hello answered (or not): the stage, the panels, then start it.
+    void onLiveConnected(quint64 session, const QString& commands, const live::LiveOutcome& outcome);
+    /// A command's outcome, on the UI thread: a set's state in the live
+    /// inputs, a reply to onLiveReply, an error to the console.
+    void onLiveOutcome(const live::LiveOutcome& outcome);
+    /// Post a command on the session's commands lane; its outcome comes to
+    /// onLiveOutcome, then to `after`, on the UI thread.
+    void postLive(const nlohmann::json& request, std::function<void(const live::LiveOutcome&)> after = {});
+    /// Stop a connection still waiting for hello.
+    void cancelLiveConnect();
+    /// What hello says, shown: the stage (and MIME's visuals overlay), the
+    /// graph, the live inputs. False when the session's stage is not here.
+    bool applyHello(const live::Hello& hello);
+    /// A reply of the session, on the UI thread: a refusal goes to the MIME
+    /// console in its shape; the status to the run panel. While the first
+    /// chunk compiles or a pause is pending, `status` is polled.
+    void onLiveReply(const live::Reply& reply);
+    /// The run panel's status line: the state, what the session is doing and
+    /// what is pending from replies, the step and time from frames.
+    void showLiveLine();
+    /// End the session without blocking: its `stop` (after any command still
+    /// on its way), then the MIME process's exit, then completeLiveSession.
+    void endLiveSession(const QString& why);
+    /// The session has stopped: wait for a Local mime serve to exit.
+    void onLiveStopped();
+    /// Tear the session down: the client, the panels, the message.
+    void completeLiveSession();
+    /// The `mime serve` process ended (stopped, or crashed).
+    void onServeProcessEnded();
+    void onStepRequested();
+    void onRecordToggled(bool on);
+    bool liveSessionActive() const;
+    // ── Run folders (MIME 0.3): playback, outputs, claims, replay ──────────
+    /// Open a run folder: its recording (or its stage), its experiment, its
+    /// topology, its recorded series (plots) and MIME's claims about it.
+    bool openRunFolder(const QString& folder);
+    void onOpenRunFolder();
+    /// Replay the open run folder's live session (`mime run <experiment>
+    /// --commands commands.jsonl`) into a new run folder, then open it.
+    void onReplayRequested();
+    /// `mime visuals view <run folder>`: the layer that draws MIME's meshes
+    /// over the recording, opened in its place when it differs.
+    void requestVisualsView(const QString& runFolder, const QString& opened);
+
+    /// Settings → MIME command (MICROROBOTICA_MIME overrides it).
+    QString mimeCommand() const;
+    /// Settings → Run folders.
+    QString runsDir() const;
 
     /// Read the persisted notice-overlay preferences from QSettings and
     /// apply them to noticeOverlay_. Called on startup and after the
@@ -105,12 +194,49 @@ private:
     std::unique_ptr<simulation::SimulationController> simController_;
     std::unique_ptr<scripting::ScriptingEngine> scriptEngine_;
 
-    // MIME runner subprocess (created on demand by onFileOpenExperiment)
-    std::unique_ptr<experiment::ExperimentRunner> experimentRunner_;
-    // Path to the actor map for the currently loaded experiment, used by
-    // onSimulationStart to build the PhysicsConfig. Empty when running in
-    // legacy stub-backend mode.
+    // The MIME 0.3 saved experiment opened (File → Open Saved Experiment);
+    // empty when none is.
     std::string experimentDir_;
+
+    // The live session: `mime serve` (Local), its client, its binding.
+    std::unique_ptr<experiment::ExperimentRunner> serveProcess_;
+    std::unique_ptr<QTemporaryDir> readyDir_;
+    QTimer* readyTimer_ = nullptr;
+    std::shared_ptr<live::LiveClient> liveClient_;
+    std::shared_ptr<live::LiveClient> connectingClient_;  // while hello is on its way
+    live::LivePhysicsProcess* liveProcess_ = nullptr;     // simController_'s, while the session runs
+    std::shared_ptr<const live::BindingFrames> liveFrames_;
+    quint64 liveSessionId_ = 0;   // each connection's; an outcome of another is dropped
+    bool statusInFlight_ = false; // a status poll on its way
+    bool liveEnding_ = false;     // the session is stopping
+    bool awaitingServeExit_ = false;  // stopped; mime serve writing its run folder and exiting
+    QString liveEndWhy_;
+    bool closeAfterEnd_ = false;  // the window closes once the session has ended
+    bool endForced_ = false;      // asked to close twice: wait for MIME no longer
+    bool relaunchAfterEnd_ = false;  // Rebuild: a new session once this one has ended
+    // The session's status line: state, activity and pending from replies,
+    // step and time from frame headers (MIME's client note, entries 18, 21).
+    struct LiveLine {
+        std::string state;
+        std::string activity;
+        std::vector<std::string> pending;
+        std::uint64_t step = 0;
+        double time = 0.0;
+        bool recording = false;
+    } liveLine_;
+    QTimer* liveStatusPoll_ = nullptr;  // status, while compiling or a pause is pending
+    QString liveLineLogged_;      // the status line's last state, activity and pending, as logged
+    QString liveOut_;             // where `mime serve --out` writes (Local): a pending stop's run folder
+    QString sessionRunFolder_;    // the run folder this session's stop named
+    bool liveStopPending_ = false;  // the stop was taken while a chunk ran
+    QString lastRunFolder_;       // the run folder the last session wrote
+    QString runFolder_;           // the run folder open (File → Open Run Folder)
+    QAction* openLastRunAction_ = nullptr;
+    QAction* replayAction_ = nullptr;
+    QProcess* replayProcess_ = nullptr;
+    QProcess* visualsProcess_ = nullptr;
+    QAction* stepAction_ = nullptr;
+    QAction* recordAction_ = nullptr;
 
     // Central widget
     viewport::ViewportWidget* viewportWidget_ = nullptr;
@@ -129,11 +255,12 @@ private:
     panels::ConsoleWidget* consoleWidget_ = nullptr;
     panels::MimeConsolePanel* mimeConsole_ = nullptr;
     panels::RunConfigPanel* runConfigPanel_ = nullptr;
-    panels::SkyPilotMonitorPanel* skypilotPanel_ = nullptr;
     panels::ProjectBrowserPanel* projectBrowser_ = nullptr;
     panels::GraphInspectorPanel* graphInspector_ = nullptr;
     panels::ScriptEditorPanel* scriptEditor_ = nullptr;
-    panels::ParameterPanel* parameterPanel_ = nullptr;
+    panels::LiveInputsPanel* liveInputsPanel_ = nullptr;
+    panels::PlotsPanel* plotsPanel_ = nullptr;
+    panels::ClaimsPanel* claimsPanel_ = nullptr;
 
     // Status bar widgets
     QLabel* simTimeLabel_ = nullptr;

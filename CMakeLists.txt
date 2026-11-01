@@ -37,6 +37,18 @@ qt_standard_project_setup()
 # Use Q_EMIT, Q_SIGNALS, Q_SLOTS in our code instead.
 add_compile_definitions(QT_NO_EMIT)
 
+# Qt Charts (optional — the plots panel draws with it; without it, the panel
+# lists each series' latest value). In the base image from qt6-charts-dev.
+find_package(Qt6 QUIET COMPONENTS Charts)
+if(Qt6Charts_FOUND)
+    message(STATUS "Qt Charts found: the plots panel draws")
+else()
+    message(STATUS "Qt Charts not found — the plots panel lists values only")
+endif()
+
+# zlib (required — reads deflated members of a run's outputs.npz)
+find_package(ZLIB REQUIRED)
+
 # pybind11 (required for scripting)
 find_package(pybind11 REQUIRED)
 find_package(Python3 REQUIRED COMPONENTS Interpreter Development)
@@ -62,37 +74,6 @@ if(ZMQ_FOUND)
     add_compile_definitions(MICROBOTICA_HAS_ZMQ=1)
 else()
     message(STATUS "ZeroMQ not found — MIME adapter will be stubbed")
-endif()
-
-# zstd (optional — decompresses the binary ResultFrame stream when the MIME
-# runner is configured with compression="zstd"). The runner's default binary
-# compression is "none", so zstd is not required for the common path; the
-# decoder reports a clear error if a zstd frame arrives in a build without it.
-find_package(zstd CONFIG QUIET)
-if(zstd_FOUND)
-    set(ZSTD_FOUND TRUE)
-    if(TARGET zstd::libzstd_shared)
-        set(ZSTD_TARGET zstd::libzstd_shared)
-    elseif(TARGET zstd::libzstd_static)
-        set(ZSTD_TARGET zstd::libzstd_static)
-    elseif(TARGET zstd::libzstd)
-        set(ZSTD_TARGET zstd::libzstd)
-    endif()
-    message(STATUS "zstd found via CMake config: ${ZSTD_TARGET}")
-else()
-    find_package(PkgConfig QUIET)
-    if(PkgConfig_FOUND)
-        pkg_check_modules(ZSTD QUIET libzstd)
-        if(ZSTD_FOUND)
-            set(ZSTD_TARGET ${ZSTD_LINK_LIBRARIES})
-            message(STATUS "zstd found via pkg-config: ${ZSTD_LINK_LIBRARIES}")
-        endif()
-    endif()
-endif()
-if(ZSTD_FOUND)
-    add_compile_definitions(MICROBOTICA_HAS_ZSTD=1)
-else()
-    message(STATUS "zstd not found — binary stream zstd compression unsupported")
 endif()
 
 # OpenUSD (optional — scene management)
@@ -127,10 +108,14 @@ target_sources(microbotica PRIVATE
     src/stubs/stub_physics_process.cpp
     src/connection/connection_manager.cpp
     src/connection/ssh_tunnel.cpp
-    src/mime_adapter/mime_physics_process.cpp
-    src/mime_adapter/binary_frame_decoder.cpp
     src/mime_adapter/mime_stub_physics_process.cpp
-    src/experiment/experiment_loader.cpp
+    src/live/live_protocol.cpp
+    src/live/binding_frames.cpp
+    src/live/live_client.cpp
+    src/live/live_physics_process.cpp
+    src/runs/npz.cpp
+    src/runs/build_report.cpp
+    src/runs/run_folder.cpp
     src/experiment/experiment_runner.cpp
     src/experiment/cloud_job_launcher.cpp
     src/experiment/connection_dialog.cpp
@@ -142,6 +127,7 @@ target_sources(microbotica PRIVATE
     src/scripting/microbota_module.cpp
     src/viewport/viewport_widget.cpp
     src/viewport/local_viewport.cpp
+    src/viewport/storm_renderer.cpp
     src/viewport/software_viewport.cpp
     src/viewport/camera_controller.cpp
     src/viewport/camera_toolbar.cpp
@@ -158,7 +144,9 @@ target_sources(microbotica PRIVATE
     src/panels/graph_inspector_panel.cpp
     src/panels/python_highlighter.cpp
     src/panels/script_editor_panel.cpp
-    src/panels/parameter_panel.cpp
+    src/panels/live_inputs_panel.cpp
+    src/panels/plots_panel.cpp
+    src/panels/claims_panel.cpp
     src/app/application.cpp
     src/app/main_window.cpp
     src/app/settings_dialog.cpp
@@ -173,19 +161,18 @@ target_link_libraries(microbotica PRIVATE
     Qt6::Widgets
     Qt6::OpenGLWidgets
     pybind11::embed
+    ZLIB::ZLIB
 )
+if(Qt6Charts_FOUND)
+    target_link_libraries(microbotica PRIVATE Qt6::Charts)
+    target_compile_definitions(microbotica PRIVATE MICROBOTICA_HAS_QTCHARTS=1)
+endif()
 if(OpenUSD_FOUND)
     target_include_directories(microbotica SYSTEM PRIVATE ${OpenUSD_INCLUDE_DIRS})
     target_link_libraries(microbotica PRIVATE ${OpenUSD_LIBRARIES})
 endif()
 if(ZMQ_FOUND)
     target_link_libraries(microbotica PRIVATE ${ZMQ_TARGET})
-endif()
-if(ZSTD_FOUND)
-    target_link_libraries(microbotica PRIVATE ${ZSTD_TARGET})
-    if(ZSTD_INCLUDE_DIRS)
-        target_include_directories(microbotica SYSTEM PRIVATE ${ZSTD_INCLUDE_DIRS})
-    endif()
 endif()
 target_enable_warnings(microbotica)
 

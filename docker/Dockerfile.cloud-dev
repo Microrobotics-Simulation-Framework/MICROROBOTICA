@@ -1,0 +1,32 @@
+# MICROROBOTICA Cloud-Dev Image
+#
+# Thin layer on top of the base image that pre-installs the SkyPilot 0.12
+# runtime prerequisites the base image does NOT ship:
+#   nc + socat — Kubernetes portforward networking mode
+#   jq         — ssh-tunnel.sh exec credential plugin parses JSON
+#   autossh    — auto-reconnects the k3s control-plane SSH tunnel
+#   rsync      — sky uses it to upload workdir + file_mounts
+#
+# Baking these into the image avoids an apt-get update + install on every
+# container start, which previously caused I/O contention while sky was
+# also rsyncing workdirs — suspected contributor to the freeze that hit
+# the laptop. Stays local; not pushed to ghcr.
+#
+# Build (idempotent — run-cloud-dev.sh does this if the image is missing):
+#   docker build -f docker/Dockerfile.cloud-dev -t microrobotica:cloud-dev .
+
+FROM ghcr.io/microrobotics-simulation-framework/microrobotica:base
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        netcat-openbsd \
+        socat \
+        jq \
+        autossh \
+        rsync \
+        openssh-client \
+    && rm -rf /var/lib/apt/lists/*
+
+LABEL org.opencontainers.image.description="MICROROBOTICA cloud-dev image — base + SkyPilot 0.12 prereqs"

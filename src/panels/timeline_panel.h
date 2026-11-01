@@ -3,7 +3,10 @@
 #include <QDockWidget>
 #include <QLabel>
 #include <QSlider>
+#include <QComboBox>
 #include <QTimer>
+
+#include <chrono>
 
 #include "core/stability.h"
 
@@ -51,9 +54,15 @@ public:
     void playbackPause();
     void playbackStop();
 
+    /// Playback speed, a factor of the recording's own rate (1 = as recorded).
+    void setPlaybackSpeed(double factor);
+    double playbackSpeed() const { return playbackSpeed_; }
+
 Q_SIGNALS:
     /// Emitted when the playback time code changes (slider or timer).
     void timeCodeChanged(double timeCode);
+    /// The playback position in the recording's seconds (time code / time codes per second), for the plots.
+    void playbackSecondsChanged(double seconds);
 
 private Q_SLOTS:
     void onTimerTick();
@@ -84,9 +93,21 @@ private:
     QTimer* playbackTimer_ = nullptr;
     double playbackStart_ = 0.0;
     double playbackEnd_ = 0.0;
+    /// Recording's authored TimeCodesPerSecond — the wall-clock authority
+    /// for playback timing.  Preserved verbatim from the USD stage; never
+    /// clamped to the timer tick rate (the per-tick frame advancement is
+    /// computed from wall-clock delta, so high-fps clips play at their
+    /// intended duration with frames skipped if the timer can't keep up).
     double playbackFps_ = 24.0;
+    double playbackSpeed_ = 1.0;
+    double framePhase_ = 0.0;   ///< frames owed but not yet advanced (slow speeds)
+    QComboBox* speedCombo_ = nullptr;
     int currentFrame_ = 0;
     bool wasPlayingBeforeScrub_ = false;
+    /// Wall-clock timestamp of the last playback tick; used to derive how
+    /// many frames to advance per tick so the clip's authored duration is
+    /// preserved regardless of timer resolution.
+    std::chrono::steady_clock::time_point lastPlaybackTick_{};
 
     void updateFrameLabel();
 };

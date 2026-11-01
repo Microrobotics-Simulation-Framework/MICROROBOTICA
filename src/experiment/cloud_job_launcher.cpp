@@ -1,5 +1,6 @@
 #include "experiment/cloud_job_launcher.h"
 #include <spdlog/spdlog.h>
+#include <filesystem>
 
 namespace microbotica::experiment {
 
@@ -24,22 +25,16 @@ bool CloudJobLauncher::launch(const std::string& experiment_dir,
         return false;
     }
 
-    std::string job_path = experiment_dir + "/" + job_config;
-
     process_ = new QProcess(this);
     connect(process_,
             QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
             this, &CloudJobLauncher::onLaunchFinished);
 
-    QStringList args;
-    args << "jobs" << "launch"
-         << QString::fromStdString(job_path)
-         << "--name" << QString::fromStdString(cluster_name)
-         << "--workdir" << QString::fromStdString(experiment_dir)
-         << "-y";  // non-interactive
+    const QStringList args =
+        buildLaunchArgs(experiment_dir, job_config, cluster_name);
 
-    spdlog::info("CloudJobLauncher: Launching SkyPilot job '{}' from {}",
-                 cluster_name, job_path);
+    spdlog::info("CloudJobLauncher: sky {}",
+                 args.join(QLatin1Char(' ')).toStdString());
     process_->start("sky", args);
 
     if (!process_->waitForStarted(10000)) {
@@ -54,14 +49,80 @@ bool CloudJobLauncher::launch(const std::string& experiment_dir,
     return true;
 }
 
-void CloudJobLauncher::cancel(const std::string& cluster_name) {
-    QProcess cancel_proc;
-    QStringList args;
-    args << "jobs" << "cancel" << QString::fromStdString(cluster_name) << "-y";
-    cancel_proc.start("sky", args);
-    cancel_proc.waitForFinished(30000);
+QStringList CloudJobLauncher::buildLaunchArgs(
+        const std::string& experiment_dir,
+        const std::string& job_config,
+        const std::string& cluster_name) {
+    // `sky launch -c <name> -y -d` (NOT `sky jobs launch`) — we want a
+    // persistent cluster we can resolve, tunnel to, and keep talking to;
+    // managed jobs would tear themselves down on completion. `-d`
+    // (detach-run) returns once the task is dispatched, leaving the
+    // cluster up.
 
-    spdlog::info("CloudJobLauncher: Cancelled SkyPilot job '{}'", cluster_name);
+    // Canonicalize the workdir. When MICROROBOTICA runs inside the
+    // cloud-dev container, the sky API daemon is on the host (with the
+    // host's ~/.sky bind-mounted in), so it resolves --workdir against
+    // the host filesystem. `run-cloud-dev.sh` symlinks /workspace/*
+    // into /home/nick/MSF/msf/* (host-symmetric paths bind-mounted
+    // through), so canonical() turns a container-local path the user
+    // picked in QFileDialog into something sky on the host can stat.
+    std::string resolved = experiment_dir;
+    try {
+        resolved = std::filesystem::canonical(experiment_dir).string();
+    } catch (const std::filesystem::filesystem_error& e) {
+        spdlog::warn("CloudJobLauncher: canonical('{}') failed ({}), "
+                     "using path as-is", experiment_dir, e.what());
+    }
+
+    const std::string job_path = resolved + "/" + job_config;
+    QStringList args;
+    args << QStringLiteral("launch")
+         << QStringLiteral("-y")
+         << QStringLiteral("-d")
+         << QStringLiteral("-c") << QString::fromStdString(cluster_name)
+         << QStringLiteral("--workdir") << QString::fromStdString(resolved)
+         << QString::fromStdString(job_path);
+    return args;
+}
+
+void CloudJobLauncher::cancel(const std::string& cluster_name,
+                                bool downCluster) {
+    // Two-step graceful teardown so MimeConsolePanel actually receives
+    // the runner's PERFORMANCE SUMMARY before the pod disappears:
+    //
+    //   1. `sky cancel -a -y <cluster>` — graceful SIGTERM to the
+    //      running job(s).  mime.runner's signal handler sets
+    //      running=False, the main loop exits, and the cleanup branch
+    //      prints "=== PERFORMANCE SUMMARY ===" + sim/wall ratio +
+    //      steps/s before the Python process exits.  sky logs --follow
+    //      reads those lines from sky's job log and forwards them into
+    //      our panel.
+    //
+    //   2. `sleep 8` — give sky logs time to drain the buffered tail
+    //      (stdout buffering on the pod-side runner is line-buffered
+    //      under `python -u`, but the sky-side log forwarder batches).
+    //
+    //   3. `sky down -y <cluster>` — if `downCluster` is set, tear the
+    //      cluster down for good.  Skipping this leaves the cluster up
+    //      so the user can re-Launch into it (this is the eventual
+    //      multi-experiment-on-warm-cluster path).
+    //
+    // The previous implementation went straight to `sky down`, which
+    // kills the pod before mime.runner has a chance to flush its
+    // summary, exactly what the user just hit.
+
+    const QString clusterQ = QString::fromStdString(cluster_name);
+    QString cmd;
+    if (downCluster) {
+        cmd = QStringLiteral(
+            "sky cancel -a -y %1 ; sleep 8 ; sky down -y %1").arg(clusterQ);
+    } else {
+        cmd = QStringLiteral("sky cancel -a -y %1").arg(clusterQ);
+    }
+    QStringList args; args << QStringLiteral("-c") << cmd;
+    QProcess::startDetached(QStringLiteral("bash"), args);
+    spdlog::info("CloudJobLauncher: requested `{}` (detached)",
+                 cmd.toStdString());
 }
 
 bool CloudJobLauncher::isLaunching() const {

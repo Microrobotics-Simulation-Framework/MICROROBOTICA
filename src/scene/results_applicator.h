@@ -1,5 +1,6 @@
 #pragma once
 
+#include <memory>
 #include <string>
 #include <unordered_map>
 #include "core/component_meta.h"
@@ -73,14 +74,25 @@ private:
 
     // Cached xform op handles — avoids GetOrderedXformOps() every frame.
     // Invalidated when cacheGeneration_ doesn't match the current scene.
+    // Held by unique_ptr so the raw pointers in actorOpsCache_ stay valid
+    // across opsCache_ rehashes.
     struct CachedOps {
         UsdGeomXformOp translateOp;
         UsdGeomXformOp orientOp;
+        UsdGeomXformOp scaleOp;  // found, or added on the first uniform scale
+        UsdPrim prim;
         bool valid = false;
     };
-    std::unordered_map<std::string, CachedOps> opsCache_;
+    std::unordered_map<std::string, std::unique_ptr<CachedOps>> opsCache_;
+
+    // Direct actor → CachedOps* lookup, built once per scene generation.
+    // Skips the per-frame `actorToPrimPath.find()` hash on the hot path —
+    // at large actor counts this is several µs/frame on the UI thread.
+    std::unordered_map<std::string, CachedOps*> actorOpsCache_;
+    std::uint64_t actorOpsCacheGen_ = static_cast<std::uint64_t>(-1);
 
     CachedOps& getCachedOps(const std::string& primPath, uint64_t currentGen);
+    void rebuildActorOpsCacheIfNeeded(const core::PhysicsConfig& config);
 #endif
 };
 

@@ -1,0 +1,69 @@
+{
+ "start": {
+  "protocol": "mime.live/1",
+  "ok": true,
+  "command": "start",
+  "state": "running",
+  "step": 0,
+  "time": 0.0,
+  "frames": 1,
+  "pace": 1.0,
+  "recording": false,
+  "non_finite": null,
+  "stepping": 0,
+  "activity": "idle",
+  "pending": []
+ },
+ "status_compiling": {
+  "protocol": "mime.live/1",
+  "ok": true,
+  "command": "status",
+  "state": "running",
+  "step": 0,
+  "time": 0.0,
+  "frames": 1,
+  "pace": 1.0,
+  "recording": false,
+  "non_finite": null,
+  "stepping": 0,
+  "activity": "compiling",
+  "pending": []
+ },
+ "pause_pending": {
+  "protocol": "mime.live/1",
+  "ok": true,
+  "command": "pause",
+  "state": "running",
+  "step": 0,
+  "time": 0.0,
+  "frames": 1,
+  "pace": 1.0,
+  "recording": false,
+  "non_finite": null,
+  "stepping": 0,
+  "activity": "compiling",
+  "pending": [
+   "pause"
+  ]
+ },
+ "stop_pending": {
+  "protocol": "mime.live/1",
+  "ok": true,
+  "command": "stop",
+  "taken": true,
+  "message": "stop pending: the session stops at the end of the chunk in hand; the final frame or the closed connection says it has, and no status reply will",
+  "state": "running",
+  "step": 0,
+  "time": 0.0,
+  "frames": 1,
+  "pace": 1.0,
+  "recording": false,
+  "non_finite": null,
+  "stepping": 0,
+  "activity": "compiling",
+  "pending": [
+   "pause",
+   "stop"
+  ]
+ }
+}

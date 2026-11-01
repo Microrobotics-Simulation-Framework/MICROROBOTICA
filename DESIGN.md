@@ -78,8 +78,8 @@ to create drawable" crashes — even if the widget is never shown. Lazy
 creation avoids this entirely.
 
 **Status**: Implemented. The application starts with SoftwareViewport
-in all environments. Hydra mode can be activated at runtime when a GPU
-is available.
+in all environments. Hydra mode is activated at runtime when an OpenGL 4.5
+Compatibility context is available (D11).
 
 **Files**: `src/viewport/viewport_widget.cpp`
 
@@ -208,3 +208,124 @@ for risk assessment.
 validates schema on every push.
 
 **Files**: `docs/validation/known_anomalies.yaml`, `scripts/check_anomalies.py`
+
+---
+
+## D11: Storm on Mesa at OpenGL 4.5, No NVIDIA Dependency
+
+**Decision**: The viewport asks for OpenGL **4.5** in the Compatibility profile
+(not 4.6), and the run scripts pass the host's GPU render nodes
+(`--device /dev/dri`, never an NVIDIA GPU's) instead of `--gpus all`. Default
+rendering is the Intel GPU through Mesa; Mesa's software rasteriser, llvmpipe,
+is the fallback and what CI draws with.
+
+**Rationale**: Hydra Storm (HgiGL, OpenUSD 24.08) needs 4.5 Compatibility.
+Mesa provides it on llvmpipe (4.5) and on the Intel GPU (4.6). The old 4.6 gate
+admitted only the NVIDIA driver, whose driver deadlocks the maintainer's laptop.
+MIME 0.3's discovery measured Storm on llvmpipe, headless, with no GL errors
+(`plans/microrobotica/DISCOVERY_MIME03.md` §3, §5c).
+
+**Shared render path**: `StormRenderer` holds the engine, the camera matrices
+with clip planes fitted to the stage's bounds, and the lights, with no Qt.
+`LocalViewport` draws through it, and so does the headless screenshot test (an
+EGL surfaceless context on Mesa), so the test checks the app's own drawing.
+
+**Multisampling**: 4x by default. Storm's alpha-to-coverage draws the
+translucent tube and vessel see-through only with a multisample buffer.
+`MICROROBOTICA_MSAA=0` trades that for speed on a large software-rendered window.
+
+**Status**: Implemented. Screenshot tests draw the committed demo recording on
+llvmpipe and compare it with `tests/fixtures/screenshots/` (in CI), and draw A0's
+MIME 0.3 recording when `MICROROBOTICA_A0_RUN` names a run folder
+(`scripts/make_a0_fixtures.sh`). Measured on llvmpipe at 640x480, 4x MSAA: A0's
+repaints 6-12 ms, the demo's 36-43 ms.
+
+**Files**: `src/viewport/gl_requirements.h`, `src/viewport/storm_renderer.cpp`,
+`src/viewport/local_viewport.cpp`, `src/viewport/viewport_widget.cpp`,
+`scripts/render-args.sh`, `tests/screenshot/`
+
+---
+
+## D12: MIME 0.3's Live Sessions Through One Isolated Protocol Layer
+
+**Decision**: MICROROBOTICA runs a MIME 0.3 experiment live by spawning
+`mime serve <saved folder>` (or connecting to one) and speaking `mime.live/1`.
+Every message shape of that protocol lives in `src/live/live_protocol.*` and
+nowhere else; the transport (`LiveClient`), the stage mapping (`BindingFrames`)
+and the scene pipeline (`LivePhysicsProcess` → `SimulationController` →
+`ResultsApplicator`) see only its parsed types.
+
+**Rationale**: MIME's side (its PR #86) was still in its fix round when this
+was written: field names, refusals and notice texts could change. One layer,
+tested against messages captured from a real `mime serve`
+(`tests/fixtures/live/`, `scripts/capture_live_fixtures.py`), keeps such a
+change to one file and its test. Parsing is tolerant within the major version,
+as the protocol asks: unknown fields are ignored.
+
+**Stage binding, not actor maps**: MIME names the prim each state field moves
+(`hello.binding`), every bound prim placed in the world, so a pose is applied
+as it stands. MIME's frames are in metres; positions are divided by the
+stage's `metersPerUnit`, which the session layer now mirrors from the opened
+file (as it mirrors the time codes, D1).
+
+**Readiness from the ready file and hello**, not port polling: `mime serve
+--ready-file` names its endpoints once its sockets listen; `hello` describes
+the session. The frames socket's handshake is awaited before `hello`, so a
+`step` right after connecting keeps its frames.
+
+**Measured** (A0, this laptop, CPU): a session through the app, 910 frames of
+900 bytes in about 22 s, none dropped, decode about 35 µs, scene apply about
+380 µs a frame.
+
+**Status**: Implemented against MIME PR #86 and its fix round; checked against
+MIME's `v0.3` after #86 merged (`21e98f5`), then after its phase 7n-b (PR #89,
+the client note's entries 16 to 24) merged (`62d7604`).
+
+**It never goes silent** (MIME's 7n-b): the server answers `hello`, `status`,
+`pause` and a stop taken while a chunk runs at once, even while the first
+chunk compiles, and acts on `set`, `record`, `pace`, `start` and `step` at
+the chunk's end. So each command waits as long as MIME may take to answer it
+(`LiveClient::Timeouts`: 5 s at once, 30 s at a chunk's end, 120 s for a stop
+that writes its run folder), and a reply to another command than the one
+sent is refused. A stop taken while a chunk runs is pending: its reply names
+no run folder, and `LivePhysicsProcess::stop` returns once the final frame
+comes or the frames' connection closes; a Local session's run folder is then
+where its ready file said. The run panel's status line takes the state, the
+activity ("compiling") and what is pending from replies, the step and time
+from frames, and polls `status` while the first chunk compiles or a pause is
+pending, never after a stop.
+
+**The window never waits for MIME.** `LiveClient` sends on worker threads
+("lanes"), each with its own REQ socket: the commands lane takes every
+command one at a time in the order given (so a pause clicked after a set
+reaches MIME after it), and the status lane takes the status polls alone, so
+a poll is never queued behind a `set` waiting for the chunk in hand. Outcomes
+come back to callbacks, which the main window turns into queued calls on the
+UI thread (each tagged with its session, so a late one of an ended session is
+dropped). `connect`, start, pause, set, Step, Record and the status polls are
+posted; Stop is two phases, the session's `stop` (`requestStop`) and then
+`mime serve`'s exit, awaited on its `finished` signal (60 s, then SIGTERM,
+then kill 15 s later) rather than with `waitForFinished`. Closing the window
+during a session stops it first and closes when it has ended; closing again
+waits for MIME no longer. `close()` on the client ends a request in flight
+within 100 ms. The synchronous `request()`, `connect()` and `stop()` remain,
+as waits on the same lanes, for tests and teardown.
+
+**The build report** (`mime.report/1`, `src/runs/build_report.*`): `hello`
+and a run folder's `report.json` give the validity lines (declared and not
+yet checked, computed at the build, or a capability record's limit), the
+watches, the flags with their meanings, the settings and the profile. The
+claims panel shows them, a declared line never as a verdict; the report's
+flags name the frames' flag fields. A run folder without one (written before
+7n-b) shows its watches and flags alone; a report of a newer format is not
+read, and the panel says so, as MIME's own reader does.
+
+**Server lifetime**: `mime serve` exits when the process that launched it is
+gone, so a session MICROROBOTICA launches (Local) never outlives a crashed
+viewer. A session started by hand for a Manual endpoint (a remote one, over
+SSH) needs `--outlive-launcher` to survive the shell that started it.
+
+**Files**: `src/live/`, `src/runs/build_report.*`, `src/app/main_window.cpp`, `src/panels/live_inputs_panel.cpp`,
+`src/panels/claims_panel.cpp`,
+`tests/test_live_protocol.cpp`, `tests/test_live_client.cpp`, `tests/test_live_mime_serve.cpp`,
+`tests/verification/test_live_stage.cpp`

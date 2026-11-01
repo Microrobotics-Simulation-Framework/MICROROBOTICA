@@ -9,6 +9,7 @@
 
 #include <spdlog/spdlog.h>
 #include <algorithm>
+#include <cmath>
 
 namespace microbotica::panels {
 
@@ -54,10 +55,24 @@ TimelinePanel::TimelinePanel(simulation::SimulationController& simCtrl,
             this, &TimelinePanel::onSliderMoved);
     layout->addWidget(playbackSlider_);
 
+    auto* frameRow = new QHBoxLayout;
     frameLabel_ = new QLabel(container);
     frameLabel_->setFont(QFont("Monospace", 9));
     frameLabel_->setVisible(false);
-    layout->addWidget(frameLabel_);
+    frameRow->addWidget(frameLabel_);
+    frameRow->addStretch();
+    speedCombo_ = new QComboBox(container);
+    for (double factor : {0.1, 0.25, 0.5, 1.0, 2.0, 4.0}) {
+        speedCombo_->addItem(QStringLiteral("%1×").arg(factor), factor);
+    }
+    speedCombo_->setCurrentIndex(speedCombo_->findData(1.0));
+    speedCombo_->setToolTip(tr("Playback speed: a factor of the recording's own rate"));
+    speedCombo_->setVisible(false);
+    connect(speedCombo_, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this](int) {
+        setPlaybackSpeed(speedCombo_->currentData().toDouble());
+    });
+    frameRow->addWidget(speedCombo_);
+    layout->addLayout(frameRow);
 
     container->setLayout(layout);
     setWidget(container);
@@ -97,19 +112,24 @@ void TimelinePanel::onTimerTick()
         lastFpsTime_ = now;
 
         // Stream benchmark readout (fit-up §8): wire format, on-wire frame
-        // size, mean decode cost, and UI-side drop count.
+        // size, mean decode + apply cost, and the worker/UI drop counts.
         const auto stats = simCtrl_.streamStats();
         if (stats.framesReceived > 0) {
             qint64 dropped = static_cast<qint64>(stats.framesReceived)
                            - simCtrl_.appliedFrameCount();
             if (dropped < 0) dropped = 0;
-            QString text = QString("%1  %2 B/f  %3 us")
+            QString text = QString("%1  %2 B/f  dec %3 us  app %4 us")
                 .arg(QString::fromStdString(
                          stats.compression == "none" || stats.format == "json"
                              ? stats.format
                              : stats.format + "/" + stats.compression))
                 .arg(stats.lastFrameBytes)
-                .arg(stats.decodeAvgUs, 0, 'f', 1);
+                .arg(stats.decodeAvgUs, 0, 'f', 1)
+                .arg(stats.applyAvgUs, 0, 'f', 1);
+            if (stats.framesSkipped > 0) {
+                text += QString("  %1 skip")
+                    .arg(static_cast<qulonglong>(stats.framesSkipped));
+            }
             if (dropped > 0) {
                 text += QString("  %1 drop").arg(dropped);
             }
@@ -157,16 +177,24 @@ void TimelinePanel::enterPlaybackMode(double startTime, double endTime, double f
     playbackEnd_ = endTime;
     currentFrame_ = static_cast<int>(startTime);
 
-    // Clamp fps to 60 max — QTimer has ~15ms resolution on Windows,
-    // so higher fps would drift noticeably.
-    playbackFps_ = std::min(fps, 60.0);
-    if (fps > 60.0) {
-        spdlog::warn("TimelinePanel: Clamping playback fps from {} to 60 "
-                     "(QTimer resolution limit)", fps);
-    }
-
-    int interval = static_cast<int>(1000.0 / playbackFps_);
+    // Preserve the file's authored TimeCodesPerSecond as the wall-clock
+    // authority — recordings with high fps (e.g. dt=1e-4, sample_every=100
+    // → 100 fps from the schwarz/ar4 recorders) used to be silently
+    // clamped to 60 fps and played back ~1.67× slower than the recorded
+    // duration, which on short clips reads as "freezes after the loop
+    // start completes."  See plans/BUG_recorder_playback_fps_coupled_to_dt.md.
+    //
+    // The display tick is capped at 60 Hz for OS-stable QTimer scheduling,
+    // but onPlaybackTimerTick advances the timecode by however many frames
+    // fit in the wall-clock delta since the last tick — so a 100 fps clip
+    // ticks at 60 Hz visually but advances ~1.67 frames per tick and
+    // completes in its intended wall-clock duration, with the loop firing
+    // at the right moment.  Tested with 24, 30, 60, 100 fps recordings.
+    playbackFps_ = fps;
+    const double display_fps = std::min(fps, 60.0);
+    int interval = static_cast<int>(1000.0 / display_fps);
     playbackTimer_->setInterval(std::max(interval, 1));
+    lastPlaybackTick_ = {};   // restart wall-clock accumulator
 
     // Configure slider.
     // QSlider uses integer steps — one position per frame.
@@ -177,6 +205,8 @@ void TimelinePanel::enterPlaybackMode(double startTime, double endTime, double f
     playbackSlider_->setValue(currentFrame_);
     playbackSlider_->setVisible(true);
     frameLabel_->setVisible(true);
+    speedCombo_->setVisible(true);
+    framePhase_ = 0.0;
 
     // Hide simulation-mode widgets
     fpsLabel_->setVisible(false);
@@ -192,6 +222,7 @@ void TimelinePanel::enterSimulationMode()
     playbackTimer_->stop();
     playbackSlider_->setVisible(false);
     frameLabel_->setVisible(false);
+    speedCombo_->setVisible(false);
     fpsLabel_->setVisible(true);
     streamLabel_->setVisible(true);
     timeLabel_->setText(tr("Sim: 0.000 s"));
@@ -200,6 +231,7 @@ void TimelinePanel::enterSimulationMode()
 void TimelinePanel::playbackPlay()
 {
     if (!playbackMode_) return;
+    lastPlaybackTick_ = {};   // first tick after Play uses default 1-frame step
     playbackTimer_->start();
 }
 
@@ -214,6 +246,7 @@ void TimelinePanel::playbackStop()
     if (!playbackMode_) return;
     playbackTimer_->stop();
     currentFrame_ = static_cast<int>(playbackStart_);
+    lastPlaybackTick_ = {};
     playbackSlider_->setValue(currentFrame_);
     Q_EMIT timeCodeChanged(static_cast<double>(currentFrame_));
     updateFrameLabel();
@@ -221,13 +254,58 @@ void TimelinePanel::playbackStop()
 
 void TimelinePanel::onPlaybackTimerTick()
 {
-    currentFrame_++;
+    // Advance by however many frames fit in the wall-clock delta since
+    // the last tick.  This preserves the recording's authored duration
+    // even when playbackFps_ exceeds the display tick rate (the clamp on
+    // the QTimer interval is for OS scheduling stability, not for the
+    // timeline's pace).  First tick after Play (lastPlaybackTick_ == {})
+    // falls back to a single-frame step so a paused-and-resumed playback
+    // doesn't jump.
+    // At a speed other than 1 the frames owed accumulate (framePhase_), so a
+    // slow playback advances a frame every few ticks rather than every tick.
+    const auto now = std::chrono::steady_clock::now();
+    int frames_advance = 1;
+    if (lastPlaybackTick_.time_since_epoch().count() != 0) {
+        const double dt_s = std::chrono::duration<double>(
+            now - lastPlaybackTick_).count();
+        framePhase_ += dt_s * playbackFps_ * playbackSpeed_;
+        frames_advance = static_cast<int>(std::floor(framePhase_));
+        framePhase_ -= frames_advance;
+    } else {
+        framePhase_ = 0.0;
+    }
+    lastPlaybackTick_ = now;
+    if (frames_advance <= 0) {
+        return;
+    }
+
+    currentFrame_ += frames_advance;
     if (currentFrame_ > static_cast<int>(playbackEnd_)) {
-        currentFrame_ = static_cast<int>(playbackStart_); // Loop
+        // Loop: wrap with carry so overshoot doesn't lose alignment on
+        // fast playback (e.g. a 100 fps clip ticking at 60 Hz that
+        // crosses the end mid-tick).
+        const int range = static_cast<int>(playbackEnd_ - playbackStart_) + 1;
+        if (range > 0) {
+            const int offset = currentFrame_ - static_cast<int>(playbackStart_);
+            currentFrame_ = static_cast<int>(playbackStart_) + (offset % range);
+        } else {
+            currentFrame_ = static_cast<int>(playbackStart_);
+        }
     }
     playbackSlider_->setValue(currentFrame_);
     Q_EMIT timeCodeChanged(static_cast<double>(currentFrame_));
     updateFrameLabel();
+}
+
+void TimelinePanel::setPlaybackSpeed(double factor)
+{
+    if (!(factor > 0.0)) return;
+    playbackSpeed_ = factor;
+    framePhase_ = 0.0;
+    const int index = speedCombo_->findData(factor);
+    if (index >= 0 && index != speedCombo_->currentIndex()) {
+        speedCombo_->setCurrentIndex(index);
+    }
 }
 
 void TimelinePanel::onSliderPressed()
@@ -263,6 +341,7 @@ void TimelinePanel::updateFrameLabel()
                              .arg(totalFrames)
                              .arg(timeSec, 0, 'f', 3));
     timeLabel_->setText(QString("Time: %1 s").arg(timeSec, 0, 'f', 3));
+    Q_EMIT playbackSecondsChanged(timeSec);
 }
 
 } // namespace microbotica::panels

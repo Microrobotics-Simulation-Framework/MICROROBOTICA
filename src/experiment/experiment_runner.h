@@ -3,9 +3,9 @@
 #include <string>
 #include <QObject>
 #include <QProcess>
+#include <QStringList>
 #include "core/component_meta.h"
 #include "core/stability.h"
-#include "experiment/experiment_config.h"
 
 namespace microbotica::experiment {
 
@@ -13,11 +13,11 @@ namespace microbotica::experiment {
 ///
 /// MBCA-COMP-061
 ///
-/// Spawns `python3 -m mime.runner <experiment_dir>` via QProcess,
-/// monitors the process for crashes, and provides status reporting.
-/// The MIME runner reads experiment.yaml, builds the graph, starts
-/// stepping, and publishes ResultFrames over ZMQ. This class manages
-/// the process, not the ZMQ connection (that's MimePhysicsProcess).
+/// Spawns MIME 0.3's `mime serve <saved folder>` via QProcess, monitors
+/// the process for crashes, and provides status reporting. `mime serve`
+/// loads and builds the saved experiment and serves its live session
+/// (mime.live/1) over ZMQ. This class manages the process, not the
+/// session (that's live::LiveClient).
 class ExperimentRunner : public QObject {
     Q_OBJECT
 
@@ -36,25 +36,23 @@ public:
     static const core::ComponentMeta& interfaceMeta() {
         static const core::ComponentMeta meta{
             .component_id      = "MBCA-COMP-061",
-            .component_version = "1.0.0",
+            .component_version = "2.0.0",
             .stability         = core::StabilityLevel::Experimental,
-            .description       = "Manages MIME physics subprocess lifecycle via QProcess.",
-            .preconditions     = {"python3 is available on PATH",
-                                  "mime package is installed in the Python environment"},
-            .postconditions    = {"start() spawns a MIME runner subprocess",
-                                  "stop() terminates the subprocess gracefully",
+            .description       = "Manages the MIME process (mime serve) lifecycle via QProcess.",
+            .preconditions     = {"MIME 0.3 is installed: the `mime` command (or the path Settings names) runs"},
+            .postconditions    = {"startServe() spawns `mime serve <saved folder>` on localhost at free ports",
+                                  "stop() lets it write its run folder, then SIGTERMs, then kills",
                                   "processCrashed signal emitted on unexpected exit"},
             .invariants        = {"At most one MIME process is active at a time"},
-            .design_rationale  = "Subprocess isolation keeps JAX/CUDA in a separate process "
+            .design_rationale  = "Subprocess isolation keeps JAX in a separate process "
                                  "from the Qt/OpenGL UI, preventing context conflicts.",
-            .assumptions       = {"MIME runner publishes on ZMQ ports 5555/5556 by default",
-                                  "MIME runner exits cleanly on SIGTERM"},
-            .limitations       = {"No automatic restart on crash (caller must re-start)",
-                                  "No stdout/stderr capture beyond crash diagnostics"},
+            .assumptions       = {"mime serve writes its ready file once its sockets listen",
+                                  "mime serve stops cleanly, writing its run folder, on stop or SIGTERM"},
+            .limitations       = {"No automatic restart on crash (caller must re-start)"},
             .validated_regimes = {},
             .hazard_hints      = {
-                "A crashed MIME process leaves ZMQ sockets in a half-closed state. "
-                "MimePhysicsProcess detects this via the 10s heartbeat timeout.",
+                "A crashed MIME process sends no final frame; the live client's frame "
+                "stream then simply ends.",
             },
             .references        = {},
             .deprecation_notice = std::nullopt,
@@ -62,16 +60,23 @@ public:
         return meta;
     }
 
-    /// Start a MIME runner subprocess for the given experiment directory.
-    /// @param experiment_dir  Absolute path to the experiment directory
-    /// @param stream_format   ResultFrame wire format to request of the
-    ///                        runner (MIME v0.2 fit-up §8): "json", "binary",
-    ///                        or "" to leave it at the runner default. When
-    ///                        non-empty it is passed as the MIME_STREAM_FORMAT
-    ///                        environment variable to the subprocess.
-    /// @return true if the process started successfully
-    bool start(const std::string& experiment_dir,
-               const std::string& stream_format = "");
+    /// What `mime serve` is run with (MIME 0.3's live session, mime.live/1).
+    struct ServeCommand {
+        QString program = QStringLiteral("mime");  ///< the `mime` command, or its full path
+        QString folder;      ///< the saved experiment it serves
+        QString readyFile;   ///< --ready-file: written once its sockets listen
+        QString out;         ///< --out: the run folder it writes when it stops
+        bool jsonFrames = false;  ///< --json-frames, for debugging
+    };
+
+    /// The arguments `mime serve` is given: the folder, both sockets on
+    /// localhost at free ports, the ready file and the run folder.
+    static QStringList serveArguments(const ServeCommand& command);
+
+    /// Spawn `mime serve` for a saved experiment. Its stdout and stderr are
+    /// forwarded (stdoutChunk, stderrChunk). JAX stays on the CPU unless
+    /// JAX_PLATFORMS is already set. Returns false if it could not start.
+    bool startServe(const ServeCommand& command);
 
     /// Block until the runner's ZMQ REP port (default 5555) accepts a
     /// connection, or timeout. This is a *liveness probe* — useful
@@ -88,8 +93,25 @@ public:
     /// is JIT-compiling.
     bool probeReady(int port = 5555, int timeout_ms = 100);
 
-    /// Stop the running MIME subprocess gracefully.
+    /// Process-less version of probeReady — does the same TCP accept
+    /// probe but does not require ExperimentRunner to own a child
+    /// process. Useful for non-Local paths (Cloud SSH tunnel) where the
+    /// port is bound by something we don't manage.
+    static bool probePort(int port, int timeout_ms = 100);
+
+    /// Stop the MIME process: wait for it to exit on its own (after a `stop`
+    /// command it writes its run folder and exits), then SIGTERM (which
+    /// `mime serve` also answers by stopping cleanly), then kill. Blocks.
     void stop();
+
+    /// The process is about to exit because it was told to (a session's
+    /// `stop`): its exit is a stop, not a crash.
+    void expectExit();
+
+    /// Stop the MIME process without blocking: let it exit on its own for
+    /// `graceMs` (writing its run folder), then SIGTERM, then after 15 s more
+    /// kill. processStopped says when it has exited.
+    void stopAsync(int graceMs);
 
     /// @return Current runner status
     RunnerStatus runnerStatus() const { return status_; }
