@@ -50,6 +50,8 @@ private:
     QLineEdit* defaultExperimentDir_ = nullptr;
     QLineEdit* mimeCommand_ = nullptr;
     QLineEdit* runsDir_ = nullptr;
+    QComboBox* manualMechanism_ = nullptr;  // a Manual endpoint's security mechanism
+    QLineEdit* manualServerKey_ = nullptr;  // and its server's public key (Z85)
 
     // Notices group (in General tab)
     QCheckBox* showNotices_ = nullptr;

@@ -83,6 +83,27 @@ void SettingsDialog::createGeneralTab(QTabWidget* tabs) {
                             "(its experiment, command log, outputs, recording)."));
     form->addRow(tr("Run folders:"), runsLayout);
 
+    // A Manual endpoint's security mechanism: a Local session takes it from
+    // mime serve's ready file. A mechanism this version cannot speak is
+    // refused at Launch, never replaced by an unencrypted connection.
+    manualMechanism_ = new QComboBox(page);
+    manualMechanism_->addItem(tr("None (NULL)"), QStringLiteral("null"));
+    manualMechanism_->addItem(tr("CurveZMQ (encrypted)"), QStringLiteral("curve"));
+    manualMechanism_->setToolTip(
+        tr("The security mechanism of the mime serve a Manual endpoint reaches.\n"
+           "This version of MICROROBOTICA speaks None only: with CurveZMQ chosen,\n"
+           "Launch refuses to connect rather than connect unencrypted."));
+    form->addRow(tr("Manual endpoint security:"), manualMechanism_);
+    manualServerKey_ = new QLineEdit(page);
+    manualServerKey_->setPlaceholderText(tr("the server's public key (Z85, 40 characters)"));
+    manualServerKey_->setToolTip(tr("For CurveZMQ: the public key of the mime serve a Manual endpoint reaches."));
+    form->addRow(tr("Server public key:"), manualServerKey_);
+    auto enableKey = [this]() {
+        manualServerKey_->setEnabled(manualMechanism_->currentData().toString() == QStringLiteral("curve"));
+    };
+    connect(manualMechanism_, &QComboBox::currentIndexChanged, this, enableKey);
+    enableKey();
+
     // ── Notices: viewport overlay shown for long-running background state
     // (waiting on the MIME runner, decode errors, ...). Style is inspired
     // by noice.nvim — top-right floating cards with a severity accent.
@@ -211,6 +232,15 @@ void SettingsDialog::loadSettings() {
     s.beginGroup("mime");
     mimeCommand_->setText(s.value("command").toString());
     runsDir_->setText(s.value("runs_dir", QDir::homePath() + "/MICROROBOTICA/runs").toString());
+    const QString storedMechanism = s.value("mechanism", "null").toString().trimmed().toLower();
+    int mechanism = manualMechanism_->findData(storedMechanism.isEmpty() ? QStringLiteral("null") : storedMechanism);
+    if (mechanism < 0) {
+        // Saved by a later version: kept as it is, never turned into None on save.
+        manualMechanism_->addItem(tr("%1 (not supported by this version)").arg(storedMechanism), storedMechanism);
+        mechanism = manualMechanism_->count() - 1;
+    }
+    manualMechanism_->setCurrentIndex(mechanism);
+    manualServerKey_->setText(s.value("server_key").toString());
     s.endGroup();
 
     s.beginGroup("notices");
@@ -260,6 +290,8 @@ void SettingsDialog::saveSettings() {
     s.beginGroup("mime");
     s.setValue("command", mimeCommand_->text().trimmed());
     s.setValue("runs_dir", runsDir_->text().trimmed());
+    s.setValue("mechanism", manualMechanism_->currentData().toString());
+    s.setValue("server_key", manualServerKey_->text().trimmed());
     s.endGroup();
 
     s.beginGroup("notices");

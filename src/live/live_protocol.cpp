@@ -1,6 +1,7 @@
 #include "live/live_protocol.h"
 
 #include <algorithm>
+#include <cctype>
 #include <cstring>
 
 namespace microbotica::live {
@@ -533,6 +534,34 @@ Hello parseHello(const nlohmann::json& reply) {
     return h;
 }
 
+// ── The security mechanism ───────────────────────────────────────────────────
+
+Security securityOf(const std::string& mechanism, const std::string& serverKey) {
+    std::string name;
+    for (char c : mechanism) {
+        if (c != ' ' && c != '\t' && c != '\n' && c != '\r') {
+            name += static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+        }
+    }
+    Security security;
+    security.mechanism = name.empty() ? std::string("null") : name;
+    security.serverKey = serverKey;
+    return security;
+}
+
+std::optional<std::string> mechanismRefusal(const Security& security) {
+    if (security.mechanism == "null") {
+        return std::nullopt;
+    }
+    if (security.mechanism == "curve") {
+        return std::string("the session uses CurveZMQ (mechanism \"curve\": encrypted, the server known by its key), "
+                           "which this version of MICROROBOTICA does not speak yet. It does not connect without "
+                           "it: update MICROROBOTICA to join this session.");
+    }
+    return "the session uses the security mechanism \"" + security.mechanism + "\", which this version of "
+           "MICROROBOTICA does not know. It does not connect without it.";
+}
+
 // ── Ready file ───────────────────────────────────────────────────────────────
 
 ReadyFile parseReadyFile(const std::string& content) {
@@ -547,6 +576,12 @@ ReadyFile parseReadyFile(const std::string& content) {
     r.commands = text(j, "commands");
     r.frames = text(j, "frames");
     r.out = text(j, "out");
+    const auto mechanism = j.is_object() ? j.find("mechanism") : j.end();
+    std::string named;
+    if (j.is_object() && mechanism != j.end() && !mechanism->is_null()) {
+        named = mechanism->is_string() ? mechanism->get<std::string>() : mechanism->dump();
+    }
+    r.security = securityOf(named, text(j, kReadyServerKey));
     if (r.protocol != kProtocol) {
         throw ProtocolError("a ready file of protocol '" + r.protocol + "'; this client speaks " + kProtocol);
     }

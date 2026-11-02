@@ -276,17 +276,41 @@ struct Hello {
 /// hello's reply, read. Throws ProtocolError when it is refused, of another protocol, or has no usable schema.
 Hello parseHello(const nlohmann::json& reply);
 
+// ── The security mechanism ───────────────────────────────────────────────────
+
+/// The security mechanism a session's sockets use (ZMTP's): "null", none, as every session uses today, or "curve"
+/// (CurveZMQ: encrypted, the server known by its public key; MIME's remote sessions, designs #214 and #215). The
+/// ready file names it, for a manual endpoint the settings do, and never `hello`, which travels over the connection
+/// the mechanism secures. Absent means null.
+struct Security {
+    std::string mechanism = "null";  ///< lower case
+    std::string serverKey;           ///< the server's public key, Z85 (40 characters), for curve
+};
+
+/// A mechanism as named (in any case; empty for none) and its server key.
+Security securityOf(const std::string& mechanism, const std::string& serverKey = {});
+
+/// Why this client cannot speak `security`'s mechanism, said for the person, or nullopt when it can. A client that
+/// cannot speak the mechanism a session names refuses it: it never falls back to null. This one speaks null alone.
+std::optional<std::string> mechanismRefusal(const Security& security);
+
 // ── mime serve's ready file ──────────────────────────────────────────────────
 
-/// What `mime serve --ready-file` writes once its sockets listen.
+/// The ready file's key for the server's public key. Provisional: MIME has yet to name it in docs/live.md.
+inline constexpr const char* kReadyServerKey = "server_key";
+
+/// What `mime serve --ready-file` writes once its sockets listen. Fields may be added: a reader ignores any key it does
+/// not know (mime.live/1's rule for the ready file).
 struct ReadyFile {
     std::string protocol;
     std::string commands;  ///< the REP endpoint, e.g. "tcp://127.0.0.1:41233"
     std::string frames;    ///< the PUB endpoint
     std::string out;       ///< the run folder it will write
+    Security security;     ///< `mechanism` and the server's key; null when the file names none
 };
 
-/// The ready file's text, read. Throws ProtocolError when it lacks an endpoint or names another protocol.
+/// The ready file's text, read. Throws ProtocolError when it lacks an endpoint or names another protocol. A mechanism
+/// this client cannot speak is read, not refused here: connecting refuses it (mechanismRefusal).
 ReadyFile parseReadyFile(const std::string& text);
 
 } // namespace microbotica::live

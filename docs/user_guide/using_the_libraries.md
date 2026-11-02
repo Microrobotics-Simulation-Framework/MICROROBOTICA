@@ -108,7 +108,11 @@ set `MICROROBOTICA_MIME`.
   endpoint**. `mime serve` exits when the process that launched it is
   gone; `--outlive-launcher` keeps a session you start by hand running
   after the shell that started it. Sessions MICROROBOTICA launches itself
-  (Local) need no flag: they stop with the viewer. A stop that MIME takes
+  (Local) need no flag: they stop with the viewer. A remote session
+  secured with CurveZMQ needs its mechanism and the server's public key
+  in **File → Settings → Manual endpoint security**; this version speaks
+  only unsecured (NULL) sessions and refuses a CurveZMQ one with a clear
+  message rather than connect without it. A stop that MIME takes
   while a chunk runs names no run folder in its reply: a remote session's
   is where `--out` told it to write.
 

@@ -132,8 +132,8 @@ private:
     bool stopping_ = false;
 };
 
-LiveClient::LiveClient(std::string commands, std::string frames, Timeouts timeouts)
-    : commands_(std::move(commands)), frames_(std::move(frames)), timeouts_(timeouts),
+LiveClient::LiveClient(std::string commands, std::string frames, Timeouts timeouts, Security security)
+    : commands_(std::move(commands)), frames_(std::move(frames)), timeouts_(timeouts), security_(std::move(security)),
       sockets_(std::make_unique<Sockets>())
 {
     commandsLane_ = std::make_unique<Lane>(*this, "commands");
@@ -275,6 +275,9 @@ void LiveClient::run(Job& job, Outcome& outcome, void* laneSocket) {
     const std::string what = "mime.live/1 " + command + " to " + commands_;
     if (closed_.load()) {
         throw std::runtime_error(what + ": the session is closed");
+    }
+    if (const auto refusal = mechanismRefusal(security_)) {
+        throw ProtocolError(what + ": " + *refusal);  // before any socket: never a null-mechanism fallback
     }
     if (job.connect) {
         connectFrames();

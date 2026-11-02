@@ -293,7 +293,41 @@ TEST_CASE("mime.live/1: the ready file names both endpoints and the run folder",
     CHECK(ready.commands.rfind("tcp://127.0.0.1:", 0) == 0);
     CHECK(ready.frames.rfind("tcp://127.0.0.1:", 0) == 0);
     CHECK(ready.out == "/data/runs/script_a0-live");
+    CHECK(ready.security.mechanism == "null");  // today's ready files name none: null
+    CHECK_FALSE(mechanismRefusal(ready.security).has_value());
     CHECK_THROWS_AS(parseReadyFile(R"({"protocol":"mime.live/1","commands":"tcp://127.0.0.1:1"})"), ProtocolError);
+}
+
+TEST_CASE("mime.live/1: the ready file's rule: unknown keys ignored, a mechanism read, one not spoken refused",
+          "[unit][live]") {
+    // Fields may be added: a reader ignores any key it does not know.
+    const ReadyFile added = parseReadyFile(
+        R"({"protocol":"mime.live/1","commands":"tcp://127.0.0.1:1","frames":"tcp://127.0.0.1:2","out":"/r",)"
+        R"("pid":4242,"pace":{"rtf":1.0},"later":[1,2,3]})");
+    CHECK(added.commands == "tcp://127.0.0.1:1");
+    CHECK(added.security.mechanism == "null");
+
+    // A CURVE session names its mechanism and the server's public key there (never in hello): read, and refused by
+    // this client, which speaks null alone, rather than reached without it.
+    const std::string key = "rq:rM>}U?@Lns47E1%kR.o@n%FcmmsL/@{H8]yf7";  // 40 characters of Z85
+    const ReadyFile curve = parseReadyFile(
+        std::string(R"({"protocol":"mime.live/1","commands":"tcp://h:1","frames":"tcp://h:2","mechanism":"CURVE",)") +
+        "\"" + kReadyServerKey + "\":\"" + key + "\"}");
+    CHECK(curve.security.mechanism == "curve");
+    CHECK(curve.security.serverKey == key);
+    const auto refusal = mechanismRefusal(curve.security);
+    REQUIRE(refusal.has_value());
+    CHECK(refusal->find("CurveZMQ") != std::string::npos);
+    CHECK(refusal->find("does not connect without it") != std::string::npos);
+
+    // A mechanism this client does not know is refused by name; a null one, or none, is null.
+    const auto unknown = mechanismRefusal(securityOf("PLAIN"));
+    REQUIRE(unknown.has_value());
+    CHECK(unknown->find("\"plain\"") != std::string::npos);
+    CHECK(securityOf("").mechanism == "null");
+    CHECK(securityOf(" NULL ").mechanism == "null");
+    CHECK(parseReadyFile(R"({"commands":"tcp://h:1","frames":"tcp://h:2","mechanism":null})").security.mechanism ==
+          "null");
 }
 
 TEST_CASE("mime.live/1: frame order says a gap and a frame out of order", "[unit][live]") {

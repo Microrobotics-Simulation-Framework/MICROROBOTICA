@@ -57,6 +57,7 @@ class LivePhysicsProcess;
 struct Hello;
 struct Reply;
 struct LiveOutcome;
+struct Security;
 } // namespace microbotica::live
 
 namespace microbotica::app {
@@ -131,8 +132,12 @@ private:
     /// file appears.
     void startLocalSession();
     /// Connect to a session (Local, once ready; Manual, at the panel's
-    /// endpoints): ask hello, and take the session up when it answers.
-    void connectLiveSession(const QString& commands, const QString& frames);
+    /// endpoints) with its security mechanism (the ready file's, or the
+    /// settings'): refuse one this client cannot speak, else ask hello, and
+    /// take the session up when it answers.
+    void connectLiveSession(const QString& commands, const QString& frames, const live::Security& security);
+    /// Settings → Manual endpoint security: the mechanism and server key.
+    live::Security manualSecurity() const;
     /// hello answered (or not): the stage, the panels, then start it.
     void onLiveConnected(quint64 session, const QString& commands, const live::LiveOutcome& outcome);
     /// A command's outcome, on the UI thread: a set's state in the live
