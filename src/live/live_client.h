@@ -57,6 +57,10 @@ struct LiveOutcome {
 ///
 /// A callback runs on a lane's thread: it must not wait for another request of the same lane, and must not drop the
 /// last reference to the client (whose destructor joins the lanes).
+///
+/// The session's security mechanism (the ready file's, or the settings' for a manual endpoint) is the client's to
+/// speak: one it cannot speak fails every request with a ProtocolError that says why, before any socket is made. It
+/// never falls back to the null mechanism.
 class LiveClient {
 public:
     struct Stats {
@@ -79,7 +83,8 @@ public:
 
     /// @param commands  the session's REP endpoint, e.g. tcp://127.0.0.1:5555
     /// @param frames    its PUB endpoint, e.g. tcp://127.0.0.1:5556
-    LiveClient(std::string commands, std::string frames, Timeouts timeouts = {});
+    /// @param security  the session's security mechanism (null unless it names one)
+    LiveClient(std::string commands, std::string frames, Timeouts timeouts = {}, Security security = {});
     ~LiveClient();
     LiveClient(const LiveClient&) = delete;
     LiveClient& operator=(const LiveClient&) = delete;
@@ -121,6 +126,7 @@ public:
     bool closed() const { return closed_.load(); }
 
     const Timeouts& timeouts() const { return timeouts_; }
+    const Security& security() const { return security_; }
     const std::string& commandsEndpoint() const { return commands_; }
     const std::string& framesEndpoint() const { return frames_; }
 
@@ -137,6 +143,7 @@ private:
     std::string commands_;
     std::string frames_;
     Timeouts timeouts_;
+    Security security_;
     std::unique_ptr<Sockets> sockets_;
     mutable std::mutex helloMutex_;
     std::optional<Hello> hello_;

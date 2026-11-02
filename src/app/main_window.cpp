@@ -756,7 +756,7 @@ void MainWindow::onSimulationStart()
     if (mode == connection::ConnectionMode::Manual) {
         liveOut_.clear();  // its run folder is where it was told to write it
         connectLiveSession(QString::fromStdString(runConfigPanel_->commandsEndpoint()),
-                           QString::fromStdString(runConfigPanel_->framesEndpoint()));
+                           QString::fromStdString(runConfigPanel_->framesEndpoint()), manualSecurity());
         return;
     }
     // Local, with a saved experiment open: `mime serve` it.
@@ -888,7 +888,8 @@ void MainWindow::startLocalSession()
                 liveOut_ = QString::fromStdString(ready.out);
                 readyTimer_->stop();
                 if (noticeOverlay_) noticeOverlay_->removeNotice(QStringLiteral("mime-serve"));
-                connectLiveSession(QString::fromStdString(ready.commands), QString::fromStdString(ready.frames));
+                connectLiveSession(QString::fromStdString(ready.commands), QString::fromStdString(ready.frames),
+                                   ready.security);
                 return;
             } catch (const live::ProtocolError&) {
                 // Written but not yet whole: look again at the next tick.
@@ -902,8 +903,28 @@ void MainWindow::startLocalSession()
     readyTimer_->start();
 }
 
-void MainWindow::connectLiveSession(const QString& commands, const QString& frames)
+live::Security MainWindow::manualSecurity() const
 {
+    QSettings s;
+    return live::securityOf(s.value(QStringLiteral("mime/mechanism")).toString().toStdString(),
+                            s.value(QStringLiteral("mime/server_key")).toString().trimmed().toStdString());
+}
+
+void MainWindow::connectLiveSession(const QString& commands, const QString& frames, const live::Security& security)
+{
+    // A mechanism this client cannot speak is refused, never replaced by the
+    // null mechanism (mime.live/1's rule; the client refuses it too).
+    if (const auto refusal = live::mechanismRefusal(security)) {
+        const QString why = QString::fromStdString(*refusal);
+        mimeConsole_->appendStderr((QStringLiteral("[session] %1: ").arg(commands) + why + QLatin1Char('\n')).toUtf8());
+        if (serveProcess_ && serveProcess_->isRunning()) serveProcess_->stopAsync(0);
+        runConfigPanel_->setLaunchEnabled(true);
+        runConfigPanel_->setConnectionStatus(tr("Idle"));
+        statusBar()->showMessage(tr("Not connected: the session's security mechanism is not supported"));
+        QMessageBox::warning(this, tr("Live session"), tr("Cannot join the session at %1:\n%2").arg(commands, why));
+        return;
+    }
+
     // Each command waits as long as MIME may take to answer it: hello, status
     // and pause at once (a few seconds), even while a chunk compiles; set,
     // record, pace, start and step at the end of the chunk in hand (30 s, a
@@ -911,7 +932,8 @@ void MainWindow::connectLiveSession(const QString& commands, const QString& fram
     // written (LiveClient::Timeouts).
     // hello is asked on the client's commands lane; the session is taken up
     // when it answers (onLiveConnected), the window answering meanwhile.
-    auto client = std::make_shared<live::LiveClient>(commands.toStdString(), frames.toStdString());
+    auto client = std::make_shared<live::LiveClient>(commands.toStdString(), frames.toStdString(),
+                                                     live::LiveClient::Timeouts{}, security);
     connectingClient_ = client;
     const quint64 session = ++liveSessionId_;
     runConfigPanel_->setLaunchEnabled(false);
@@ -947,8 +969,16 @@ void MainWindow::onLiveConnected(quint64 session, const QString& commands, const
         if (serveProcess_ && serveProcess_->isRunning()) serveProcess_->stopAsync(0);
         runConfigPanel_->setLaunchEnabled(true);
         runConfigPanel_->setConnectionStatus(tr("Idle"));
+        QString hint;
+        if (liveOut_.isEmpty()) {
+            // A Manual endpoint (a Local session has its ready file's run
+            // folder): a server speaking another mechanism than the settings
+            // name does not answer at all.
+            hint = tr("\n\nIf that server uses CurveZMQ, set its mechanism and public key in "
+                      "File → Settings → Manual endpoint security.");
+        }
         QMessageBox::warning(this, tr("Live session"),
-            tr("No mime.live/1 session answered at %1:\n%2").arg(commands, why));
+            tr("No mime.live/1 session answered at %1:\n%2").arg(commands, why) + hint);
         return;
     }
     const live::Hello& hello = client->hello();

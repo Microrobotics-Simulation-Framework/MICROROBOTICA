@@ -62,6 +62,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **A session's security mechanism** (mime.live/1's rule for the ready file, MIME designs #214 and #215): the ready
+  file's `mechanism` (absent: null) and the server's public key are read, unknown keys ignored; a Manual endpoint's
+  come from File → Settings → Manual endpoint security. A mechanism this client cannot speak (CurveZMQ, until MIME's
+  CURVE servers exist) is refused with a clear message before any socket is made, never reached with the null
+  mechanism.
 - **Run folders as the main entry** (File → Open Run Folder, or a run folder on the command line): a MIME 0.3 run
   folder opens with its recording playing (or its experiment's stage), its experiment (Launch runs it again, live), its
   topology in the graph inspector, its recorded series in the plots panel and MIME's claims about it. A

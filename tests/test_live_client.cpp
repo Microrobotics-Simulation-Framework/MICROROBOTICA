@@ -349,6 +349,26 @@ TEST_CASE("Live client: close() ends a request in flight at once, and every late
     CHECK_THROWS_AS(client.request(statusRequest()), std::runtime_error);
 }
 
+TEST_CASE("Live client: a session whose mechanism it cannot speak is refused, nothing sent, never reached with null",
+          "[integration][live]") {
+    using Clock = std::chrono::steady_clock;
+    const std::string commands = "tcp://127.0.0.1:15581";
+    const std::string frames = "tcp://127.0.0.1:15582";
+    StandIn standIn(commands, frames);  // a null-mechanism server: it would answer, were anything sent
+    LiveClient client(commands, frames, LiveClient::Timeouts::all(3000), securityOf("curve", std::string(40, 'x')));
+    const auto t0 = Clock::now();
+    try {
+        client.connect();
+        FAIL("a CURVE session was connected with the null mechanism");
+    } catch (const ProtocolError& e) {
+        CHECK(std::string(e.what()).find("CurveZMQ") != std::string::npos);
+    }
+    CHECK(std::chrono::duration<double>(Clock::now() - t0).count() < 0.5);  // before any socket or handshake
+    CHECK_THROWS_AS(client.request(statusRequest()), ProtocolError);
+    std::this_thread::sleep_for(std::chrono::milliseconds(200));
+    CHECK(standIn.received().empty());
+}
+
 TEST_CASE("Live client: each command waits as long as MIME may take to answer it", "[unit][live]") {
     const LiveClient::Timeouts t;
     CHECK(t.forCommand("hello") == t.atOnceMs);

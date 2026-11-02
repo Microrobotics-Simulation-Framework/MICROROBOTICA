@@ -311,6 +311,22 @@ waits for MIME no longer. `close()` on the client ends a request in flight
 within 100 ms. The synchronous `request()`, `connect()` and `stop()` remain,
 as waits on the same lanes, for tests and teardown.
 
+**The security mechanism, from the ready file** (MIME designs #214, #215):
+remote sessions will use CurveZMQ over ZMQ end to end. The ready file is
+read by mime.live/1's rule: a key the reader does not know is ignored, an
+absent `mechanism` means null, and a CURVE session adds `"mechanism":
+"curve"` and the server's public key (Z85) there, never in `hello`. For a
+Manual endpoint the same two values come from Settings. A client that
+cannot speak the named mechanism refuses with a clear message and never
+falls back to null: `live::mechanismRefusal` says why, the main window
+shows it before connecting, and `LiveClient` refuses every request before
+making a socket. This client speaks null alone until MIME's CURVE servers
+exist; then each socket (the two command lanes and the frames socket) gets
+the server key and the install's own key pair before connecting. The ready
+file's key for the server's public key is `server_key` (Z85 text, 40
+characters), present only alongside `"mechanism": "curve"`, as MIME's
+docs/live.md reserves it.
+
 **The build report** (`mime.report/1`, `src/runs/build_report.*`): `hello`
 and a run folder's `report.json` give the validity lines (declared and not
 yet checked, computed at the build, or a capability record's limit), the
