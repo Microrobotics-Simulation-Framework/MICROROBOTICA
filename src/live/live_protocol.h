@@ -296,7 +296,8 @@ std::optional<std::string> mechanismRefusal(const Security& security);
 
 // ── mime serve's ready file ──────────────────────────────────────────────────
 
-/// The ready file's key for the server's public key. Provisional: MIME has yet to name it in docs/live.md.
+/// The ready file's key for the server's public key: Z85 text (40 characters), present only alongside
+/// `"mechanism": "curve"`. Reserved in MIME's docs/live.md from dev1, written from dev2's S5.
 inline constexpr const char* kReadyServerKey = "server_key";
 
 /// What `mime serve --ready-file` writes once its sockets listen. Fields may be added: a reader ignores any key it does

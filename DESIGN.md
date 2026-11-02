@@ -323,7 +323,9 @@ shows it before connecting, and `LiveClient` refuses every request before
 making a socket. This client speaks null alone until MIME's CURVE servers
 exist; then each socket (the two command lanes and the frames socket) gets
 the server key and the install's own key pair before connecting. The ready
-file's key field is read as `server_key`, provisionally, until MIME names it.
+file's key for the server's public key is `server_key` (Z85 text, 40
+characters), present only alongside `"mechanism": "curve"`, as MIME's
+docs/live.md reserves it.
 
 **The build report** (`mime.report/1`, `src/runs/build_report.*`): `hello`
 and a run folder's `report.json` give the validity lines (declared and not
