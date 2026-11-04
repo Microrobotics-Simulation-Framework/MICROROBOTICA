@@ -8,12 +8,18 @@ on:
       - "src/**"            # doxygen-generated XML feeds breathe
       - "Doxyfile"
       - ".github/workflows/docs.yml"
+      - "scripts/fetch_mime_docs.py"
+      - "scripts/check_mime_docs.py"
+      - "scripts/pages_server.py"
   pull_request:
     branches: [main]
     paths:
       - "docs/**"
       - "Doxyfile"
       - ".github/workflows/docs.yml"
+      - "scripts/fetch_mime_docs.py"
+      - "scripts/check_mime_docs.py"
+      - "scripts/pages_server.py"
   workflow_dispatch:
 
 # Allow only one concurrent deployment.
@@ -66,7 +72,27 @@ jobs:
           # parallel mode those worker-process mutations never reach
           # the build-finished hook that writes _static/tippy/*.js.
           # -W (warnings-as-errors) is intentionally not enabled yet.
+          # MIME 0.3 on is built from the pages its GitHub release attaches
+          # (mime-docs-<version>.tar.gz, MIME_RELEASES in docs/Makefile),
+          # fetched here: the build fails if the release has none.
           SPHINXOPTS="-q" DOCS_DEPLOY_BASE=https://microrobotica.org make all-versions
+
+      # Every refusal MIME prints links to
+      # https://microrobotica.org/mime/<release>/pages/errors/<code>, with no
+      # .html: every code MIME's catalogue lists must have its page, its
+      # extensionless URL must answer with it under GitHub Pages' rules
+      # (scripts/pages_server.py), and every link of the release's pages must
+      # land.  Writes the codes the post-deploy check samples.
+      - name: Check MIME's error pages and links
+        run: make -C docs check-mime-docs
+
+      - name: Upload MIME's error codes for the post-deploy check
+        if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+        uses: actions/upload-artifact@v4
+        with:
+          name: mime-error-codes
+          path: docs/_build/mime-error-codes.json
+          retention-days: 7
 
       - name: Upload Pages artifact
         if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
@@ -86,3 +112,29 @@ jobs:
       - name: Deploy
         id: deployment
         uses: actions/deploy-pages@v4
+
+  verify:
+    name: Sample the deployed MIME error pages
+    needs: deploy
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout (the scripts only)
+        uses: actions/checkout@v4
+        with:
+          sparse-checkout: scripts
+          submodules: false
+
+      - name: Download MIME's error codes
+        uses: actions/download-artifact@v4
+        with:
+          name: mime-error-codes
+
+      # The extensionless URLs MIME's errors print, on the live site: a
+      # sample of the codes (always the ones whose last part reads as a file
+      # extension, e.g. asset.manifest), the version roots and the switcher,
+      # retried for a while since the CDN may still hold an earlier answer.
+      - name: Sample extensionless URLs on microrobotica.org
+        run: python3 scripts/check_mime_docs.py live --manifest mime-error-codes.json --base https://microrobotica.org

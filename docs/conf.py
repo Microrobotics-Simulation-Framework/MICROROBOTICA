@@ -22,10 +22,13 @@ sys.path.insert(0, str(Path(__file__).parent / "_ext"))
 # ── multiproject ─────────────────────────────────────────────────────
 from multiproject.utils import get_project
 
+# The sub-projects' sources carry no conf.py of their own (this file is the
+# configuration of all three), so multiproject is told not to look for one;
+# it warned "The .../conf.py file doesn't exist." on every sub-project build.
 multiproject_projects = {
     "microrobotica": {"path": "."},
-    "maddening":     {"path": "projects/maddening/docs"},
-    "mime":          {"path": "projects/mime/docs"},
+    "maddening":     {"path": "projects/maddening/docs", "use_config_file": False},
+    "mime":          {"path": "projects/mime/docs", "use_config_file": False},
 }
 
 # Allow the multi-version preview Makefile target to point a project at
@@ -38,6 +41,15 @@ for _p in multiproject_projects:
         multiproject_projects[_p]["path"] = _override
 
 current_project = get_project(multiproject_projects)
+
+# MIME 0.3 on: the sources are the pages `mime docs build` generates (fetched
+# from MIME's release by the Makefile), `index.md` and `pages/`, which hold
+# the marker that build writes and the error catalogue.
+_mime_pages = Path(multiproject_projects["mime"]["path"])
+_mime_generated = current_project == "mime" and (
+    (_mime_pages / "pages" / ".mime-docs-build").is_file()
+    or (_mime_pages / "pages" / "errors" / "index.md").is_file()
+)
 
 # ── per-project metadata ─────────────────────────────────────────────
 _GH_ORG = "https://github.com/Microrobotics-Simulation-Framework"
@@ -121,6 +133,11 @@ tippy_js = (
     "https://unpkg.com/tippy.js@6.3.7/dist/tippy-bundle.umd.min.js",
 )
 
+# MIME's generated pages link one another and hold no toctree
+# (docs/_ext/mime_pages.py).
+if _mime_generated:
+    extensions.append("mime_pages")
+
 # Breathe (C++ via Doxygen XML) only for MICROROBOTICA.
 if current_project == "microrobotica":
     extensions.append("breathe")
@@ -185,6 +202,12 @@ _subproject_static = os.path.abspath(
 )
 if current_project != "microrobotica" and os.path.isdir(_subproject_static):
     html_static_path.append(_subproject_static)
+# A sub-project whose sources hold no _static/ of their own (MIME's generated
+# pages, 0.3 on) has its switcher.json here instead; copied last, it is the
+# one at /<project>/_static/switcher.json that every version reads.
+_site_switcher = Path(__file__).parent / "_switchers" / current_project
+if current_project != "microrobotica" and _site_switcher.is_dir():
+    html_static_path.append(str(_site_switcher))
 html_css_files = ["custom.css"]
 # msf-mermaid-tippy.js promotes mermaid <title> tags and the sidecar
 # `mermaid-tips` directive into tippy.js bubbles — needed on every project.
@@ -244,6 +267,10 @@ _DEPLOY_BASE = os.environ.get("DOCS_DEPLOY_BASE", "https://microrobotica.org")
 #                          published builds.
 _multiversion = os.environ.get("DOCS_MULTIVERSION") == "1"
 _docs_version = os.environ.get("DOCS_VERSION", "latest")
+# The switcher row a build marks as its own: its version, except where the
+# unversioned build is a release's pages (MIME's /mime/ is 0.3.0's, and its
+# switcher has no "latest" row).
+_switcher_match = os.environ.get("DOCS_SWITCHER_MATCH") or _docs_version
 
 # A sitemap belongs to the canonical (latest) build only.  A versioned
 # build canonicalises every page to the latest URL (see html_baseurl
@@ -315,7 +342,7 @@ if _multiversion:
     _project_root = f"/{current_project}/" if current_project != "microrobotica" else "/"
     html_theme_options["switcher"] = {
         "json_url": f"{_project_root}_static/switcher.json",
-        "version_match": _docs_version,
+        "version_match": _switcher_match,
     }
     # When set, also include `check_switcher: False` to silence
     # the theme's startup warning if the JSON URL isn't reachable
