@@ -53,14 +53,16 @@ public:
     static const core::ComponentMeta& meta() {
         static const core::ComponentMeta m{
             .component_id      = "MBCA-COMP-070",
-            .component_version = "1.1.0",
+            .component_version = "1.2.0",
             .stability         = core::StabilityLevel::Experimental,
             .description       = "A MIME 0.3 run folder read for playback, plots and claims.",
             .preconditions     = {"The folder holds outputs.json or run.json, as MIME 0.3 writes them"},
             .postconditions    = {"Recorded series come back at their steps' times, in their units",
                                   "Flags and validity watches come back as MIME states them",
                                   "The build report's validity lines come back as report.json states them, or why "
-                                  "it was not read"},
+                                  "it was not read",
+                                  "The meshes mime visuals view says a folder lacks come back by set, with the command "
+                                  "that fetches them for that folder, quoted for a shell (runs/visuals.h)"},
             .invariants        = {"The folder is only read"},
             .design_rationale  = "One reader of MIME's run-folder layout (results/README.md), shared by the "
                                  "plots and claims panels and the playback of recordings.",
@@ -68,7 +70,9 @@ public:
             .limitations       = {"A run that recorded no series per step has none to plot (its final state only)",
                                   "A run folder written before MIME 0.3's phase 7n-b has no report.json: its "
                                   "watches and flags are all it says of its claims",
-                                  "A report.json of a newer format than mime.report/1 is not read"},
+                                  "A report.json of a newer format than mime.report/1 is not read",
+                                  "mime visuals view's counts are read from its text: a wording MIME changes reads "
+                                  "as nothing drawn and nothing missing"},
             .validated_regimes = {},
             .hazard_hints      = {"A layout MIME changes reads as fewer series, not as wrong ones: each is "
                                   "found by the name the manifest gives"},

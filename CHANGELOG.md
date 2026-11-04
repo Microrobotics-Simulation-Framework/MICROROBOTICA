@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **The command that fetches missing meshes names the folder you opened**: `mime visuals fetch <saved or run
+  folder>`, quoted for a shell, in place of `mime visuals fetch <set>`. Since MIME's saved form 6 (MIME PR #136) a
+  folder's lock records the manifests of the meshes its stage draws, and a set's name such as `ar4_mk5` works only
+  where an installed package ships that set (MIME from PyPI does not). A run folder whose meshes are missing now says
+  so in the viewport's notices too, as a live session does, and while meshes are drawn their credit stays in view
+  (Annin Robotics', for the AR4). A remote session's meshes are drawn from this machine's asset cache (`mime visuals
+  view` of the saved experiment open here): `hello`'s visuals describe the server's. A notice of a stage no longer
+  outlives it (`src/runs/visuals.*`; MBCA-VER-019).
 - **The window stays responsive during a live session** (it froze while MIME compiled a first chunk, or answered a
   `set` at a chunk's end, or wrote a run folder; MIME 0.2's client froze the same way). Commands go out on the live
   client's worker threads, in the order given, and their replies come back to the UI as they arrive: connecting,

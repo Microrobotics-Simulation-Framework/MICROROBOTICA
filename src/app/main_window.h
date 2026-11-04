@@ -6,6 +6,7 @@
 #include <QString>
 #include <cstdint>
 #include <functional>
+#include <map>
 #include <memory>
 #include <string>
 #include <vector>
@@ -178,9 +179,20 @@ private:
     /// Replay the open run folder's live session (`mime run <experiment>
     /// --commands commands.jsonl`) into a new run folder, then open it.
     void onReplayRequested();
-    /// `mime visuals view <run folder>`: the layer that draws MIME's meshes
-    /// over the recording, opened in its place when it differs.
-    void requestVisualsView(const QString& runFolder, const QString& opened);
+    /// `mime visuals view <folder>` with this machine's MIME: for a run
+    /// folder, the layer that draws MIME's meshes over its recording, opened
+    /// in its place when it differs; for a remote session (`remoteSession`,
+    /// `folder` the saved experiment open here), the overlay added over the
+    /// stage, since hello's visuals are the server's asset cache's.
+    void requestVisualsView(const QString& folder, const QString& opened, bool remoteSession);
+    /// MIME's visuals in the viewport's notices: the sets the asset cache
+    /// lacks, with the command that fetches them for `folder` (a saved or
+    /// run folder; `again` says what to do after it), or, while meshes are
+    /// drawn, their credit; no notice when the stage names none. The console
+    /// gets the same, with each set's whole notice when `noticesInConsole`.
+    void showVisuals(const QString& folder, long drawn, const std::map<std::string, long>& missing,
+                     const std::vector<std::string>& notices, const QString& again, const QString& tag,
+                     bool noticesInConsole);
 
     /// Settings → MIME command (MICROROBOTICA_MIME overrides it).
     QString mimeCommand() const;

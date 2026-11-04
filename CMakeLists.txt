@@ -115,6 +115,7 @@ target_sources(microbotica PRIVATE
     src/live/live_physics_process.cpp
     src/runs/npz.cpp
     src/runs/build_report.cpp
+    src/runs/visuals.cpp
     src/runs/run_folder.cpp
     src/experiment/experiment_runner.cpp
     src/experiment/cloud_job_launcher.cpp

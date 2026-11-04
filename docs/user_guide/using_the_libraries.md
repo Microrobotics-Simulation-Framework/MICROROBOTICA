@@ -117,8 +117,23 @@ set `MICROROBOTICA_MIME`.
   is where `--out` told it to write.
 
 The AR4's meshes are Annin Robotics' design and are never shipped: the arm
-draws as simple shapes until `mime visuals fetch ar4_mk5` puts them in
-MIME's asset cache, from which the session's overlay draws them.
+draws as simple shapes until you fetch them into MIME's asset cache, naming
+the saved or run folder you opened:
+
+```sh
+mime visuals fetch path/to/a0_run
+```
+
+The folder's lock records the meshes its stage draws, so this works
+wherever MIME is installed; a set's name (`ar4_mk5`) works only where an
+installed package ships that set, which MIME from PyPI does not. MIME
+downloads each mesh from Annin Robotics' repository at a pinned commit and
+converts it on your machine, into its asset cache only. The viewport's
+notice gives the command for the folder you opened, quoted for your shell;
+open the folder again (or launch the session again) and the meshes are
+drawn, with Annin Robotics' credit shown beside them. They are always drawn
+from this machine's asset cache, a remote session's too: fetch them here,
+for the saved experiment you opened, with MIME installed here.
 
 ## The viewport needs no NVIDIA GPU
 
