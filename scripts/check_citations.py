@@ -32,6 +32,10 @@ def find_citations(docs_dir: Path) -> dict:
     for md_file in docs_dir.rglob("*.md"):
         if "_template" in md_file.name:
             continue
+        # docs/_build/ is build output, MIME's fetched pages included
+        # (docs/_build/mime-pages/), whose citations are MIME's own.
+        if md_file.relative_to(docs_dir).parts[0] == "_build":
+            continue
         with open(md_file) as f:
             for line_num, line in enumerate(f, 1):
                 for match in CITATION_PATTERN.finditer(line):
