@@ -20,6 +20,22 @@ inline bool meetsStormMinimum(int major, int minor) {
     return major > kStormGlMajor || (major == kStormGlMajor && minor >= kStormGlMinor);
 }
 
+/// Why Storm cannot draw in a context of version major.minor and this profile, or "" when it can. A Core context of
+/// any version is refused: Storm's glPushAttrib and the like fail in it on every frame ("GL error: invalid enum") and
+/// nothing is drawn.
+inline std::string stormContextProblem(int major, int minor, bool compatibilityProfile) {
+    const std::string got = std::to_string(major) + "." + std::to_string(minor)
+        + (compatibilityProfile ? " Compatibility" : " Core");
+    if (!compatibilityProfile) {
+        return "OpenGL " + got + " profile: Storm draws only in the Compatibility profile";
+    }
+    if (!meetsStormMinimum(major, minor)) {
+        return "OpenGL " + got + " profile: below the " + std::to_string(kStormGlMajor) + "."
+            + std::to_string(kStormGlMinor) + " Storm needs";
+    }
+    return {};
+}
+
 /// "4.5" — the minimum, as the viewport's messages print it.
 inline std::string stormMinimumText() {
     return std::to_string(kStormGlMajor) + "." + std::to_string(kStormGlMinor);

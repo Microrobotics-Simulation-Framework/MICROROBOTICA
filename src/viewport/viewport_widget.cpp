@@ -2,6 +2,7 @@
 #include "viewport/local_viewport.h"
 #include "viewport/software_viewport.h"
 #include "viewport/gl_requirements.h"
+#include "viewport/storm_surface_format.h"
 
 #include "core/stability.h"
 #include <QOpenGLContext>
@@ -59,25 +60,18 @@ void ViewportWidget::setRenderMode(core::RenderMode mode)
             // on Software. This prevents "failed to create drawable" crashes on
             // headless setups. Mesa provides it on the Intel GPU (/dev/dri) and on
             // its software rasteriser, llvmpipe; no NVIDIA GPU is needed.
-            QSurfaceFormat probeFmt;
-            probeFmt.setVersion(kStormGlMajor, kStormGlMinor);
-            probeFmt.setProfile(QSurfaceFormat::CompatibilityProfile);
-
+            // The probe asks for exactly what the viewport's window asks for
+            // (stormSurfaceFormat()), and refuses a Core context as well as an
+            // old one: Storm draws nothing in either.
             QOpenGLContext testCtx;
-            testCtx.setFormat(probeFmt);
+            testCtx.setFormat(stormSurfaceFormat(0));
             bool ctxOk = testCtx.create();
 
             if (ctxOk) {
-                auto actual = testCtx.format();
-                int maj = actual.majorVersion();
-                int min = actual.minorVersion();
-                if (!meetsStormMinimum(maj, min)) {
+                if (const std::string problem = stormContextProblem(testCtx.format()); !problem.empty()) {
                     ctxOk = false;
-                    spdlog::warn("ViewportWidget: GL probe got {}.{} {} — need {} Compat",
-                                 maj, min,
-                                 actual.profile() == QSurfaceFormat::CompatibilityProfile
-                                     ? "Compatibility" : "Core",
-                                 stormMinimumText());
+                    spdlog::warn("ViewportWidget: GL probe got {} — need {} Compatibility",
+                                 problem, stormMinimumText());
                 }
             }
 

@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **The viewport draws on Mesa** (it stayed empty, with "GL error: invalid enum" on every frame, on the Intel GPU and
+  on llvmpipe alike: the end-to-end walk of 2026-11-05). Its window asked for OpenGL 4.5 Compatibility without
+  `QSurfaceFormat::DeprecatedFunctions`, so Qt asked GLX for a forward-compatible context and Mesa answered with a Core
+  one, in which Storm draws nothing (the NVIDIA driver ignores the flag). Every context the viewport makes now uses one
+  format (`stormSurfaceFormat()`, `src/viewport/storm_surface_format.h`), the application's default too, and a Core or
+  pre-4.5 context falls back to the Software viewport with the reason in the log instead of drawing nothing. The
+  launcher's offscreen smoke test could not see this (Qt's offscreen platform has no OpenGL): new GUI tests draw
+  through the viewport's own window on an X display (MBCA-VER-020, `microbotica_gui_tests`; CI under Xvfb on
+  llvmpipe, `scripts/check-display.sh` on a desktop's display, the Intel GPU by default).
+- **The viewport's notices no longer hide it.** Their window covered the whole viewport, and a desktop that does not
+  blend its transparent pixels showed it black: it is now only as large as its cards, at the viewport's top right. It
+  is kept above MICROROBOTICA's window only, no longer above every application, and hides while the window is
+  minimised (it stayed up as a ghost).
+
 ### Changed
 
 - **The command that fetches missing meshes names the folder you opened**: `mime visuals fetch <saved or run

@@ -138,3 +138,38 @@ if(OpenUSD_FOUND AND OpenGL_OpenGL_FOUND AND OpenGL_EGL_FOUND)
 else()
     message(STATUS "Screenshot tests not built (they need OpenUSD and an EGL library)")
 endif()
+
+# --- GUI tests: the viewport's window on an X display, and widgets -------------------------------------------------------
+# MBCA-VER-020: the viewport's OpenGL context and first frames through Qt's xcb platform and GLX, as the app gets them on
+# a desktop (Qt's offscreen platform has no OpenGL): skipped without an X display; CI runs them under Xvfb, and
+# scripts/check-display.sh on this machine's display.
+if(OpenUSD_FOUND)
+    add_executable(microbotica_gui_tests
+        gui/test_viewport_display.cpp
+        ${CMAKE_SOURCE_DIR}/src/viewport/local_viewport.cpp
+        ${CMAKE_SOURCE_DIR}/src/viewport/camera_controller.cpp
+        ${CMAKE_SOURCE_DIR}/src/viewport/storm_renderer.cpp
+    )
+    target_include_directories(microbotica_gui_tests PRIVATE
+        ${CMAKE_SOURCE_DIR}/src
+        ${CMAKE_SOURCE_DIR}/tests
+    )
+    target_include_directories(microbotica_gui_tests SYSTEM PRIVATE ${OpenUSD_INCLUDE_DIRS})
+    target_link_libraries(microbotica_gui_tests PRIVATE
+        microbotica_core
+        Catch2::Catch2WithMain
+        Qt6::Core
+        Qt6::Gui
+        Qt6::Widgets
+        Qt6::OpenGLWidgets
+        ${OpenUSD_LIBRARIES}
+    )
+    target_compile_definitions(microbotica_gui_tests PRIVATE MICROBOTICA_HAS_USD=1)
+    target_enable_warnings(microbotica_gui_tests)
+    catch_discover_tests(microbotica_gui_tests
+        TEST_PREFIX "gui: "
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+        DISCOVERY_MODE PRE_TEST
+        PROPERTIES SKIP_RETURN_CODE 4
+    )
+endif()

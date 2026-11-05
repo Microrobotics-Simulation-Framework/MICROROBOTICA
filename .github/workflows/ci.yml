@@ -51,6 +51,16 @@ jobs:
       - name: Run tests
         run: cd build/debug && ctest --output-on-failure
 
+      # The viewport on an X display (MBCA-VER-020): the OpenGL context Qt makes for the viewport's window through its
+      # xcb platform and GLX, and Storm's first frames in it, on Mesa's llvmpipe under Xvfb. The run above skips them:
+      # Qt's offscreen platform has no OpenGL. On a desktop: scripts/check-display.sh.
+      - name: Viewport on an X display (Xvfb, llvmpipe)
+        run: |
+          apt-get update -qq
+          apt-get install -y -qq --no-install-recommends xvfb xauth > /dev/null
+          LIBGL_ALWAYS_SOFTWARE=1 xvfb-run -a -s "-screen 0 1280x1024x24" \
+            build/debug/tests/microbotica_gui_tests --reporter console
+
       # The screenshot tests' pictures, drawn by Storm on Mesa's llvmpipe.
       - name: Upload screenshots
         if: always()
