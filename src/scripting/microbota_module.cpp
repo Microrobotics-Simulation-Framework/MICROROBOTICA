@@ -43,7 +43,7 @@ struct SimProxy {};
 PYBIND11_EMBEDDED_MODULE(microrobotica, m) {
     using namespace microbotica::scripting;
 
-    m.doc() = "MICROBOTICA embedded Python module — scene and simulation access";
+    m.doc() = "MICROROBOTICA embedded Python module — scene and simulation access";
 
     // Scene proxy
     py::class_<SceneProxy>(m, "SceneProxy")

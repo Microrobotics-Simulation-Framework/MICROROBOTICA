@@ -1,14 +1,46 @@
 # Changelog
 
-All notable changes to MICROBOTICA will be documented in this file.
+All notable changes to MICROROBOTICA will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- **The viewport draws on Mesa** (it stayed empty, with "GL error: invalid enum" on every frame, on the Intel GPU and
+  on llvmpipe alike: the end-to-end walk of 2026-11-05). Its window asked for OpenGL 4.5 Compatibility without
+  `QSurfaceFormat::DeprecatedFunctions`, so Qt asked GLX for a forward-compatible context and Mesa answered with a Core
+  one, in which Storm draws nothing (the NVIDIA driver ignores the flag). Every context the viewport makes now uses one
+  format (`stormSurfaceFormat()`, `src/viewport/storm_surface_format.h`), the application's default too, and a Core or
+  pre-4.5 context falls back to the Software viewport with the reason in the log instead of drawing nothing. The
+  launcher's offscreen smoke test could not see this (Qt's offscreen platform has no OpenGL): new GUI tests draw
+  through the viewport's own window on an X display (MBCA-VER-020, `microbotica_gui_tests`; CI under Xvfb on
+  llvmpipe, `scripts/check-display.sh` on a desktop's display, the Intel GPU by default).
+- **The viewport's notices no longer hide it.** Their window covered the whole viewport, and a desktop that does not
+  blend its transparent pixels showed it black: it is now only as large as its cards, at the viewport's top right. It
+  is kept above MICROROBOTICA's window only, no longer above every application, and hides while the window is
+  minimised (it stayed up as a ghost).
+
 ### Changed
 
+- **MIME's command to fetch missing meshes is shown as MIME wrote it, and can be copied**: hello's `visuals.fetch`
+  (MIME's release candidate) for a live session, and the command in `mime visuals view`'s line for a run folder or a
+  remote session, its folder quoted for a shell by MIME; MICROROBOTICA no longer builds one. It sits in a bar under
+  the viewport (MBCA-COMP-033), in a field that can be selected, with a Copy button that puts it on the clipboard
+  whole: the notices are painted on a window that takes no input, where nothing could be selected
+  (`src/viewport/command_bar.*`; MBCA-VER-019, MBCA-VER-021).
+- **The application is called MICROROBOTICA** in its title, its About box and the settings it keeps (settings saved
+  under the old name, MICROBOTICA, are carried over once).
+- **The command that fetches missing meshes names the folder you opened**: `mime visuals fetch <saved or run
+  folder>`, quoted for a shell, in place of `mime visuals fetch <set>`. Since MIME's saved form 6 (MIME PR #136) a
+  folder's lock records the manifests of the meshes its stage draws, and a set's name such as `ar4_mk5` works only
+  where an installed package ships that set (MIME from PyPI does not). A run folder whose meshes are missing now says
+  so in the viewport's notices too, as a live session does, and while meshes are drawn their credit stays in view
+  (Annin Robotics', for the AR4). A remote session's meshes are drawn from this machine's asset cache (`mime visuals
+  view` of the saved experiment open here): `hello`'s visuals describe the server's. A notice of a stage no longer
+  outlives it (`src/runs/visuals.*`; MBCA-VER-019).
 - **The window stays responsive during a live session** (it froze while MIME compiled a first chunk, or answered a
   `set` at a chunk's end, or wrote a run folder; MIME 0.2's client froze the same way). Commands go out on the live
   client's worker threads, in the order given, and their replies come back to the UI as they arrive: connecting,

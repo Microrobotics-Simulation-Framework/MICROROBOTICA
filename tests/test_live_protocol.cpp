@@ -112,6 +112,20 @@ TEST_CASE("mime.live/1: A0's hello reads whole", "[unit][live]") {
     CHECK(vector->atPath() == "umr.pose");
 }
 
+TEST_CASE("mime.live/1: hello's visuals carry MIME's command for each missing set, as MIME wrote it", "[unit][live]") {
+    // A0's hello with `visuals.fetch` as MIME's release candidate sends it (mime.live's Session._visuals at v0.3
+    // a6769bc: by set, the command with its folder quoted for a shell), for a folder that needs the quotes. The fixture,
+    // captured at 62d7604, predates `fetch`: as captured it reads as no command.
+    nlohmann::json reply = json("hello_a0_callback.json");
+    reply["visuals"]["fetch"] = {{"ar4_mk5", "mime visuals fetch '/data/My Runs/a0_callback_saved/'"}};
+    const Hello h = parseHello(reply);
+    REQUIRE(h.visuals.has_value());
+    CHECK(h.visuals->missing.at("ar4_mk5") == 18);
+    CHECK(h.visuals->fetch == std::map<std::string, std::string>{
+                                  {"ar4_mk5", "mime visuals fetch '/data/My Runs/a0_callback_saved/'"}});
+    CHECK(a0Hello().visuals->fetch.empty());
+}
+
 TEST_CASE("mime.live/1: a binary frame reads as the same frame sent as JSON, value for value", "[unit][live]") {
     const Hello& h = a0Hello();
     const auto binary = bytes("frame_1.bin");

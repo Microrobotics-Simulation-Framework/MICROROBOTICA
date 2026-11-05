@@ -1,5 +1,8 @@
 #include "scripting/pybind11_guard.h"
 #include "app/application.h"
+#include "viewport/storm_surface_format.h"
+
+#include <QSettings>
 
 // Suppress pybind11 visibility warnings
 #pragma GCC diagnostic push
@@ -16,17 +19,26 @@ Application::Application(int& argc, char** argv)
 {
     MBCA_EXPERIMENTAL_WARN("Application");
 
-    setApplicationName("MICROBOTICA");
+    setApplicationName("MICROROBOTICA");
     setApplicationVersion("0.1.0");
-    setOrganizationName("MICROBOTICA");
+    setOrganizationName("MICROROBOTICA");
 
-    // Set OpenGL surface format before any QOpenGLWidget is created
-    QSurfaceFormat format;
-    format.setVersion(4, 5);
-    format.setProfile(QSurfaceFormat::CoreProfile);
-    format.setDepthBufferSize(24);
-    format.setStencilBufferSize(8);
-    QSurfaceFormat::setDefaultFormat(format);
+    // The settings live under the application's name, which was MICROBOTICA:
+    // what was saved under it is carried over once, the first time the new
+    // name has none (the old file is left as it was).
+    QSettings current;
+    if (current.allKeys().isEmpty()) {
+        const QSettings old(QStringLiteral("MICROBOTICA"), QStringLiteral("MICROBOTICA"));
+        for (const QString& key : old.allKeys()) {
+            current.setValue(key, old.value(key));
+        }
+    }
+
+    // The default surface format, before any OpenGL window or context is
+    // created: what Storm needs (4.5 Compatibility, with the deprecated
+    // functions), so a context made without a format of its own can draw it.
+    // A Core default here once made every such context one Storm cannot use.
+    QSurfaceFormat::setDefaultFormat(viewport::stormSurfaceFormat(0));
 
     // Initialize the embedded Python interpreter
     pimpl_ = new Impl();

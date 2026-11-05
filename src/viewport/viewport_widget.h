@@ -30,11 +30,13 @@ public:
     static const core::ComponentMeta& interfaceMeta() {
         static const core::ComponentMeta meta{
             .component_id      = "MBCA-COMP-030",
-            .component_version = "1.0.0",
+            .component_version = "1.1.0",
             .stability         = core::StabilityLevel::Experimental,
             .description       = "Viewport container that switches between local Hydra "
                                  "and software fallback rendering.",
-            .preconditions     = {"Qt OpenGL context is available for LocalHydra mode"},
+            .preconditions     = {"Qt OpenGL context is available for LocalHydra mode",
+                                  "LocalHydra draws only when the context Qt gives for stormSurfaceFormat() "
+                                  "is OpenGL 4.5 or newer in the Compatibility profile; otherwise Software"},
             .postconditions    = {"After setRenderMode(), the visible child widget matches the mode"},
             .invariants        = {"Exactly one child viewport is visible at any time"},
             .design_rationale  = "QStackedWidget provides zero-cost switching between render "

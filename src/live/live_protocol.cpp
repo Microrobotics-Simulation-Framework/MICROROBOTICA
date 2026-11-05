@@ -513,6 +513,11 @@ Hello parseHello(const nlohmann::json& reply) {
                 info.missing[set] = count.is_number() ? count.get<long>() : 0;
             }
         }
+        if (v.contains("fetch") && v["fetch"].is_object()) {
+            for (const auto& [set, command] : v["fetch"].items()) {
+                if (command.is_string()) info.fetch[set] = command.get<std::string>();
+            }
+        }
         info.notice = v.contains("notice") ? v["notice"] : nlohmann::json();
         h.visuals = info;
     }

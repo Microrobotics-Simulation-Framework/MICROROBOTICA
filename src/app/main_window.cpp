@@ -36,11 +36,13 @@
 #include "panels/plots_panel.h"
 #include "panels/claims_panel.h"
 #include "runs/run_folder.h"
+#include "runs/visuals.h"
 #include <nlohmann/json.hpp>
 #include "viewport/camera_toolbar.h"
 #include "viewport/camera_controller.h"
 #include "viewport/local_viewport.h"
 #include "viewport/notice_overlay.h"
+#include "viewport/command_bar.h"
 #include <QTimer>
 #include <chrono>
 #include "stubs/local_compute_backend.h"
@@ -60,7 +62,7 @@ MainWindow::MainWindow(QWidget* parent)
 {
     MBCA_EXPERIMENTAL_WARN("MainWindow");
 
-    setWindowTitle(tr("MICROBOTICA"));
+    setWindowTitle(tr("MICROROBOTICA"));
     resize(1600, 900);
 
     // Apply theme before creating widgets
@@ -84,6 +86,14 @@ MainWindow::MainWindow(QWidget* parent)
     // Camera toolbar will be created after viewport is set up (needs camera controller)
     // Add viewport first, toolbar is prepended in createToolBars()
     viewportLayout->addWidget(viewportWidget_);
+    // Under the viewport, the commands a notice asks the user to run (MIME's
+    // fetch command), selectable and copied in one click: the notice overlay
+    // is input-transparent, so nothing on it can be selected or clicked.
+    commandBar_ = new viewport::CommandBar(viewportContainer);
+    viewportLayout->addWidget(commandBar_);
+    connect(commandBar_, &viewport::CommandBar::copied, this, [this](const QString& command) {
+        statusBar()->showMessage(tr("Copied: %1").arg(command), 8000);
+    });
     setCentralWidget(viewportContainer);
 
     // Top-level transparent-input notice overlay that follows the viewport
@@ -323,7 +333,7 @@ void MainWindow::createMenuBar()
     // Help menu
     auto* helpMenu = menuBar()->addMenu(tr("&Help"));
 
-    auto* aboutAction = helpMenu->addAction(tr("&About MICROBOTICA"));
+    auto* aboutAction = helpMenu->addAction(tr("&About MICROROBOTICA"));
     connect(aboutAction, &QAction::triggered, this, &MainWindow::onAbout);
 }
 
@@ -554,6 +564,9 @@ bool MainWindow::openStage(const QString& filePath)
         primSelection_->clear();
         sceneMgr_->closeScene();
     }
+    // What MIME's visuals said was of the stage closed (the session's or the
+    // run folder's say it again of theirs).
+    clearVisuals();
 
     if (!sceneMgr_->loadScene(filePath.toStdString())) {
         return false;
@@ -1132,27 +1145,19 @@ bool MainWindow::applyHello(const live::Hello& hello)
     }
 
     // MIME's visuals: the overlay that draws meshes MIME does not ship, or
-    // what is missing and how to fetch it (the arm then draws as bones).
-    if (hello.visuals) {
+    // what is missing and how to fetch it (the arm then draws as bones), for
+    // the folder open here. hello's are of the server's asset cache: a
+    // session whose stage is not on this machine asks this machine's MIME.
+    clearVisuals();
+    if (!here) {
+        requestVisualsView(QString::fromStdString(experimentDir_), QString(), true);
+    } else if (hello.visuals) {
         const auto& v = *hello.visuals;
-        if (v.overlay && QFile::exists(QString::fromStdString(*v.overlay))) {
-            sceneMgr_->setOverlayLayer(*v.overlay);
-        } else if (!v.missing.empty()) {
-            QStringList sets;
-            for (const auto& [set, count] : v.missing) {
-                sets << QStringLiteral("%1 (%2 meshes)").arg(QString::fromStdString(set)).arg(count);
-            }
-            QString text = tr("Drawn as simple shapes: MIME's asset cache lacks %1. "
-                              "To draw them: mime visuals fetch <set>.").arg(sets.join(QStringLiteral(", ")));
-            for (const auto& line : v.noticeLines()) {
-                text += QLatin1Char('\n') + QString::fromStdString(line);
-            }
-            mimeConsole_->appendStdout(("[session] " + text + QLatin1Char('\n')).toUtf8());
-            if (noticeOverlay_) {
-                noticeOverlay_->addNotice(QStringLiteral("visuals"), viewport::NoticeOverlay::Severity::Info,
-                                          tr("Visuals not fetched"), text);
-            }
-        }
+        const bool overlay = v.overlay && QFile::exists(QString::fromStdString(*v.overlay))
+            && sceneMgr_->setOverlayLayer(*v.overlay);
+        showVisuals(overlay ? v.drawn : 0, v.missing, v.fetch, v.noticeLines(),
+                    liveOut_.isEmpty() ? tr("connect again") : tr("launch the session again"),
+                    QStringLiteral("session"), true);
     }
 
     if (hello.report.report) {
@@ -1502,12 +1507,12 @@ bool MainWindow::openRunFolder(const QString& folder)
         .arg(QFileInfo(folder).fileName()).arg(run->duration())
         .arg(recording.isEmpty() ? tr(", no recording: its stage is shown") : QString()));
     if (!recording.isEmpty()) {
-        requestVisualsView(folder, open);
+        requestVisualsView(folder, open, false);
     }
     return true;
 }
 
-void MainWindow::requestVisualsView(const QString& runFolder, const QString& opened)
+void MainWindow::requestVisualsView(const QString& folder, const QString& opened, bool remoteSession)
 {
     if (visualsProcess_) {
         visualsProcess_->kill();
@@ -1516,25 +1521,126 @@ void MainWindow::requestVisualsView(const QString& runFolder, const QString& ope
     }
     visualsProcess_ = new QProcess(this);
     QProcess* process = visualsProcess_;
-    connect(process, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished), this,
-            [this, process, runFolder, opened](int code, QProcess::ExitStatus) {
+    // Still wanted when it answers: the same run folder open, or the same
+    // live session.
+    const quint64 session = liveSessionId_;
+    auto wanted = [this, folder, remoteSession, session]() {
+        return remoteSession ? session == liveSessionId_ && liveClient_ != nullptr : runFolder_ == folder;
+    };
+    connect(process, &QProcess::errorOccurred, this, [this, process, remoteSession, wanted](QProcess::ProcessError e) {
+        if (e != QProcess::FailedToStart) return;
         process->deleteLater();
         if (visualsProcess_ == process) visualsProcess_ = nullptr;
-        if (code != 0 || runFolder_ != runFolder) return;  // MIME absent, or another folder opened since
-        // Its notes, then the layer to open: the recording itself when nothing
-        // is fetched, or a layer in MIME's cache that draws the meshes over it.
-        const QStringList lines = QString::fromUtf8(process->readAllStandardOutput()).trimmed().split('\n');
-        if (lines.isEmpty()) return;
-        const QString layer = lines.last().trimmed();
-        for (int i = 0; i + 1 < lines.size(); ++i) {
-            mimeConsole_->appendStdout(("[visuals] " + lines[i] + '\n').toUtf8());
-        }
-        if (QFileInfo::exists(layer) && QFileInfo(layer).canonicalFilePath() != QFileInfo(opened).canonicalFilePath()) {
-            spdlog::info("openRunFolder: drawing MIME's visuals: {}", layer.toStdString());
-            openStage(layer);
+        if (remoteSession && wanted()) {
+            mimeConsole_->appendStdout(tr("[session] No MIME on this machine (Settings → MIME command): the meshes "
+                                          "MIME does not ship are drawn from this machine's asset cache, so the "
+                                          "session draws as simple shapes\n").toUtf8());
         }
     });
-    process->start(mimeCommand(), {QStringLiteral("visuals"), QStringLiteral("view"), runFolder});
+    connect(process, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished), this,
+            [this, process, opened, remoteSession, wanted](int code, QProcess::ExitStatus status) {
+        process->deleteLater();
+        if (visualsProcess_ == process) visualsProcess_ = nullptr;
+        // MIME refused or was stopped, or another folder or session since.
+        if (status != QProcess::NormalExit || code != 0 || !wanted()) return;
+        // Its notes, then the layer to open: the recording itself when nothing
+        // is fetched, or a layer in MIME's cache that draws the meshes over it.
+        const runs::VisualsView view = runs::parseVisualsView(process->readAllStandardOutput().toStdString());
+        if (view.layer.empty()) return;
+        const QString tag = remoteSession ? QStringLiteral("session") : QStringLiteral("visuals");
+        for (const std::string& line : view.lines) {
+            mimeConsole_->appendStdout(QStringLiteral("[%1] %2\n").arg(tag, QString::fromStdString(line)).toUtf8());
+        }
+        bool drawn = false;
+        if (remoteSession) {
+            // The overlay alone, over the stage the session's frames move.
+            drawn = !view.overlay.empty() && QFileInfo::exists(QString::fromStdString(view.overlay))
+                && sceneMgr_->setOverlayLayer(view.overlay);
+        } else {
+            const QString layer = QString::fromStdString(view.layer).trimmed();
+            drawn = QFileInfo::exists(layer)
+                && QFileInfo(layer).canonicalFilePath() != QFileInfo(opened).canonicalFilePath();
+            if (drawn) {
+                spdlog::info("openRunFolder: drawing MIME's visuals: {}", layer.toStdString());
+                openStage(layer);
+            }
+        }
+        showVisuals(drawn ? view.drawn : 0, view.missing, view.fetch, view.notice,
+                    remoteSession ? tr("connect again") : tr("open the run folder again"), tag, false);
+    });
+    process->start(mimeCommand(), {QStringLiteral("visuals"), QStringLiteral("view"), folder});
+}
+
+void MainWindow::clearVisuals()
+{
+    if (noticeOverlay_) noticeOverlay_->removeNotice(QStringLiteral("visuals"));
+    if (commandBar_) commandBar_->clear();
+}
+
+void MainWindow::showVisuals(long drawn, const std::map<std::string, long>& missing,
+                             const std::map<std::string, std::string>& fetch, const std::vector<std::string>& notices,
+                             const QString& again, const QString& tag, bool noticesInConsole)
+{
+    clearVisuals();
+    auto say = [this, &tag](const QString& text) {
+        mimeConsole_->appendStdout(QStringLiteral("[%1] %2\n").arg(tag, text).toUtf8());
+        spdlog::info("visuals: {}", text.toStdString());
+    };
+    QStringList all;
+    for (const auto& notice : notices) all << QString::fromStdString(notice);
+    if (!missing.empty()) {
+        QStringList sets;
+        QStringList commands;
+        for (const auto& [set, count] : missing) {
+            sets << tr("%1 (%2 meshes)").arg(QString::fromStdString(set)).arg(count);
+            // The command MIME gave for the set, exactly (its folder quoted
+            // for a shell, by MIME): never one built here.
+            if (const auto it = fetch.find(set); it != fetch.end() && !it->second.empty()) {
+                const QString command = QString::fromStdString(it->second);
+                if (!commands.contains(command)) commands << command;
+            }
+        }
+        const QString lacks = sets.join(QStringLiteral(", "));
+        if (commands.isEmpty()) {
+            const QString text = tr("Drawn as simple shapes: MIME's asset cache lacks %1, and MIME named no "
+                                    "command to fetch them (mime visuals view <the saved or run folder> says "
+                                    "how).").arg(lacks);
+            say(text);
+            if (noticesInConsole) say(all.join(QLatin1Char('\n')));
+            if (noticeOverlay_) {
+                noticeOverlay_->addNotice(QStringLiteral("visuals"), viewport::NoticeOverlay::Severity::Info,
+                                          tr("Visuals not fetched"), text + QLatin1Char('\n') + all.join(QLatin1Char('\n')));
+            }
+            return;
+        }
+        say(tr("Drawn as simple shapes: MIME's asset cache lacks %1. To draw them, run\n%2\nthen %3.")
+                .arg(lacks, commands.join(QLatin1Char('\n')), again));
+        if (noticesInConsole) say(all.join(QLatin1Char('\n')));
+        if (commandBar_) {
+            commandBar_->setCommands(tr("To draw the meshes MIME's asset cache lacks (%1), run this in a terminal, "
+                                        "then %2:").arg(lacks, again), commands);
+        }
+        if (noticeOverlay_) {
+            noticeOverlay_->addNotice(QStringLiteral("visuals"), viewport::NoticeOverlay::Severity::Info,
+                tr("Visuals not fetched"),
+                tr("Drawn as simple shapes: MIME's asset cache lacks %1. To draw them, run the command under the "
+                   "viewport (Copy puts it on the clipboard), then %2.").arg(lacks, again)
+                    + QLatin1Char('\n') + all.join(QLatin1Char('\n')));
+        }
+    } else if (drawn > 0) {
+        // The meshes drawn are their makers' design: their credit stays in
+        // view with them (each set's whole notice is in the console).
+        QStringList credit;
+        for (const auto& line : runs::noticeCredit(notices)) credit << QString::fromStdString(line);
+        if (noticesInConsole) {
+            say(tr("%1 meshes drawn from MIME's asset cache").arg(drawn));
+            say(all.join(QLatin1Char('\n')));
+        }
+        if (noticeOverlay_ && !credit.isEmpty()) {
+            noticeOverlay_->addNotice(QStringLiteral("visuals"), viewport::NoticeOverlay::Severity::Info,
+                                      tr("Meshes from MIME's asset cache"), credit.join(QLatin1Char('\n')));
+        }
+    }
 }
 
 void MainWindow::onReplayRequested()
@@ -1643,8 +1749,8 @@ void MainWindow::onSimulationStop()
 
 void MainWindow::onAbout()
 {
-    QMessageBox::about(this, tr("About MICROBOTICA"),
-        tr("<h3>MICROBOTICA v0.1.0</h3>"
+    QMessageBox::about(this, tr("About MICROROBOTICA"),
+        tr("<h3>MICROROBOTICA v0.1.0</h3>"
            "<p>Medical microrobotics simulation platform.</p>"
            "<p>Phase 0 — Experimental</p>"
            "<p>Licensed under AGPL-3.0</p>"));
