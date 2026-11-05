@@ -20,11 +20,18 @@ for you).
 cd MICROROBOTICA/docs
 
 # One-shot build of every version + serve locally
-make preview-versions     # builds, then runs http.server on :8000
+make preview-versions     # builds, then serves _build/html on :8000
 
 # Open http://localhost:8000/maddening/ in a browser.
 # The version switcher is in the top navbar.
 ```
+
+The server is `scripts/pages_server.py`, which resolves a URL the way
+GitHub Pages does (`/x` serves `x.html`, `/dir` redirects to `/dir/`,
+`/x.html/` is a 404; its docstring lists each rule with what
+microrobotica.org answered).  `python3 -m http.server` does not serve
+`x.html` for `/x`, so the extensionless links MIME's errors print
+cannot be checked with it.
 
 `sphinx-build` must be reachable.  The Makefile auto-detects the
 sibling shared venv (`../../.venv`); otherwise activate your docs
@@ -45,13 +52,56 @@ _build/html/
 │   ├── v0.1/index.html              ← MADDENING v0.1.0 tag
 │   └── v0.2/index.html              ← MADDENING v0.2.0 tag
 └── mime/
-    ├── index.html                   ← MIME latest
-    └── _static/switcher.json        ← MIME version list (one entry)
+    ├── index.html                   ← MIME latest (= the 0.3.0 pages)
+    ├── _static/switcher.json        ← MIME version list (docs/_switchers/mime/)
+    ├── 0.3.0/index.html             ← MIME 0.3.0 release pages
+    ├── v0.1/index.html              ← MIME v0.1.0 tag
+    └── v0.2/index.html              ← MIME v0.2.0 tag
 ```
 
 Every version's HTML references `/maddening/_static/switcher.json` via
 a root-relative URL, so v0.1 pages pick up the switcher dropdown even
 though v0.1's source tree predates the switcher.
+
+## MIME 0.3 on: the release's pages
+
+MIME's documentation is generated from 0.3 on: `mime docs build --out
+<dir>` writes `index.md` and `pages/` from a MIME checkout and its
+installed registry, and no git ref's `docs/` holds an `index.md`.  So
+MIME 0.3 is not built from a worktree:
+
+* `MIME_RELEASES` in `docs/Makefile` lists `label:tag` pairs
+  (`0.3.0:v0.3.0.dev1`).  `make mime-pages` downloads each release's
+  asset, `https://github.com/Microrobotics-Simulation-Framework/MIME/releases/download/<tag>/mime-docs-<version>.tar.gz`
+  (`<version>` is the tag without its `v`), unpacks it into
+  `_build/mime-pages/<label>/` (ignored by git; never commit MIME's
+  pages here) and builds it to `/mime/<label>/`.  The label is the
+  release number with no `v`, because MIME's errors link to
+  `https://microrobotica.org/mime/<release>/pages/errors/<code>`.
+* `MIME_LATEST` is built a second time to `/mime/`, and the switcher
+  marks it as that release (`DOCS_SWITCHER_MATCH`).  MIME's `main` is
+  the 0.3 line from its release on, so `latest` no longer follows it.
+* The switcher list is `docs/_switchers/mime/switcher.json`, here,
+  since the generated pages have no `_static/`.
+* **Fallback** (no asset yet, or to read a change before it is
+  released): in a MIME checkout whose environment has MIME's `verify`
+  extra, `uv run --no-sync mime docs build --out <dir>`, then
+  `make all-versions MIME_PAGES_DIR=<dir>`.  Such pages print every
+  evidence count as "not read" (no lane report); the release asset,
+  built in MIME's CI, reads them.
+* `make check-mime-docs` (a step of the docs workflow): every code in
+  MIME's catalogue (`pages/errors/index.md`) has its page under
+  `/mime/<release>/` and `/mime/`, its extensionless URL answers with
+  it under GitHub Pages' rules, and every link of the release's pages
+  lands, anchor included.  After a deploy, the workflow samples the
+  same extensionless URLs on microrobotica.org
+  (`scripts/check_mime_docs.py live`).
+* The pages are built with the `html` builder: GitHub Pages serves
+  `/x/bundle.referenced-copy` from `bundle.referenced-copy.html`, dots
+  and all, with no redirect.  `dirhtml` would put a 301 on every error
+  link and writes `pages/errors.md` (reading an error) and
+  `pages/errors/index.md` (the catalogue) to the same
+  `pages/errors/index.html`, losing the first.
 
 ## Iterating on docs without committing
 
@@ -113,9 +163,13 @@ and the version switcher is the only way readers reach older docs.
 ## Adding a version
 
 `MADDENING/docs/_static/switcher.json` is the source of truth for the
-MADDENING dropdown; `MICROROBOTICA/docs/_static/switcher.json` and
-`MIME/docs/_static/switcher.json` are the (currently single-entry)
-lists for the other two.  When a project cuts a release:
+MADDENING dropdown; `MICROROBOTICA/docs/_static/switcher.json` is the
+(single-entry) list for the root, and MIME's list is
+`MICROROBOTICA/docs/_switchers/mime/switcher.json` from 0.3 on.  A MIME
+release from 0.3 on adds its `label:tag` to `MIME_RELEASES`, moves
+`MIME_LATEST` to it, and adds its row to that list; a later
+pre-release of the same release (0.3.0.dev2) changes only the tag.
+When a project cuts a release:
 
 1. Tag the release in that project's repo (e.g. `v0.3.0`).
 2. Add a row to that project's `switcher.json` — `version` is the
@@ -134,6 +188,9 @@ The `latest` row builds from `origin/main`; the canonical
 make clean              # rm -rf _build/
 make clean-worktrees    # remove /tmp/msf-docs-worktree-*
 ```
+
+(`WORKTREES=<dir>` puts the worktrees somewhere other than `/tmp`, for
+both targets.)
 
 `clean-worktrees` is safe to run anytime — it removes the git
 worktrees the multi-version build creates under `/tmp/`.  Subsequent

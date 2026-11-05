@@ -1,0 +1,20 @@
+[
+  {
+    "version": "0.3.0",
+    "name": "0.3.0",
+    "url": "https://microrobotica.org/mime/0.3.0/",
+    "preferred": true
+  },
+  {
+    "version": "v0.2",
+    "name": "v0.2",
+    "url": "https://microrobotica.org/mime/v0.2/",
+    "preferred": false
+  },
+  {
+    "version": "v0.1",
+    "name": "v0.1",
+    "url": "https://microrobotica.org/mime/v0.1/",
+    "preferred": false
+  }
+]
