@@ -62,7 +62,7 @@ MainWindow::MainWindow(QWidget* parent)
 {
     MBCA_EXPERIMENTAL_WARN("MainWindow");
 
-    setWindowTitle(tr("MICROBOTICA"));
+    setWindowTitle(tr("MICROROBOTICA"));
     resize(1600, 900);
 
     // Apply theme before creating widgets
@@ -333,7 +333,7 @@ void MainWindow::createMenuBar()
     // Help menu
     auto* helpMenu = menuBar()->addMenu(tr("&Help"));
 
-    auto* aboutAction = helpMenu->addAction(tr("&About MICROBOTICA"));
+    auto* aboutAction = helpMenu->addAction(tr("&About MICROROBOTICA"));
     connect(aboutAction, &QAction::triggered, this, &MainWindow::onAbout);
 }
 
@@ -1749,8 +1749,8 @@ void MainWindow::onSimulationStop()
 
 void MainWindow::onAbout()
 {
-    QMessageBox::about(this, tr("About MICROBOTICA"),
-        tr("<h3>MICROBOTICA v0.1.0</h3>"
+    QMessageBox::about(this, tr("About MICROROBOTICA"),
+        tr("<h3>MICROROBOTICA v0.1.0</h3>"
            "<p>Medical microrobotics simulation platform.</p>"
            "<p>Phase 0 — Experimental</p>"
            "<p>Licensed under AGPL-3.0</p>"));

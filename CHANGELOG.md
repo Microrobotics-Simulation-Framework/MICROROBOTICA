@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to MICROBOTICA will be documented in this file.
+All notable changes to MICROROBOTICA will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
@@ -31,6 +31,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the viewport (MBCA-COMP-033), in a field that can be selected, with a Copy button that puts it on the clipboard
   whole: the notices are painted on a window that takes no input, where nothing could be selected
   (`src/viewport/command_bar.*`; MBCA-VER-019, MBCA-VER-021).
+- **The application is called MICROROBOTICA** in its title, its About box and the settings it keeps (settings saved
+  under the old name, MICROBOTICA, are carried over once).
 - **The command that fetches missing meshes names the folder you opened**: `mime visuals fetch <saved or run
   folder>`, quoted for a shell, in place of `mime visuals fetch <set>`. Since MIME's saved form 6 (MIME PR #136) a
   folder's lock records the manifests of the meshes its stage draws, and a set's name such as `ar4_mk5` works only

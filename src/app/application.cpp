@@ -2,6 +2,8 @@
 #include "app/application.h"
 #include "viewport/storm_surface_format.h"
 
+#include <QSettings>
+
 // Suppress pybind11 visibility warnings
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wattributes"
@@ -17,9 +19,20 @@ Application::Application(int& argc, char** argv)
 {
     MBCA_EXPERIMENTAL_WARN("Application");
 
-    setApplicationName("MICROBOTICA");
+    setApplicationName("MICROROBOTICA");
     setApplicationVersion("0.1.0");
-    setOrganizationName("MICROBOTICA");
+    setOrganizationName("MICROROBOTICA");
+
+    // The settings live under the application's name, which was MICROBOTICA:
+    // what was saved under it is carried over once, the first time the new
+    // name has none (the old file is left as it was).
+    QSettings current;
+    if (current.allKeys().isEmpty()) {
+        const QSettings old(QStringLiteral("MICROBOTICA"), QStringLiteral("MICROBOTICA"));
+        for (const QString& key : old.allKeys()) {
+            current.setValue(key, old.value(key));
+        }
+    }
 
     // The default surface format, before any OpenGL window or context is
     // created: what Storm needs (4.5 Compatibility, with the deprecated
