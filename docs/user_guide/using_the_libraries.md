@@ -128,9 +128,10 @@ The folder's lock records the meshes its stage draws, so this works
 wherever MIME is installed; a set's name (`ar4_mk5`) works only where an
 installed package ships that set, which MIME from PyPI does not. MIME
 downloads each mesh from Annin Robotics' repository at a pinned commit and
-converts it on your machine, into its asset cache only. The viewport's
-notice gives the command for the folder you opened, quoted for your shell;
-open the folder again (or launch the session again) and the meshes are
+converts it on your machine, into its asset cache only. MIME gives the
+command for the folder you opened, quoted for your shell, and MICROROBOTICA
+shows it as MIME wrote it in a bar under the viewport: select it, or press
+**Copy** and paste it in a terminal. Then open the folder again (or launch the session again) and the meshes are
 drawn, with Annin Robotics' credit shown beside them. They are always drawn
 from this machine's asset cache, a remote session's too: fetch them here,
 for the saved experiment you opened, with MIME installed here.

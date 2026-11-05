@@ -30,6 +30,7 @@ namespace microbotica::viewport {
 class ViewportWidget;
 class CameraToolbar;
 class NoticeOverlay;
+class CommandBar;
 } // namespace microbotica::viewport
 
 namespace microbotica::panels {
@@ -186,13 +187,17 @@ private:
     /// stage, since hello's visuals are the server's asset cache's.
     void requestVisualsView(const QString& folder, const QString& opened, bool remoteSession);
     /// MIME's visuals in the viewport's notices: the sets the asset cache
-    /// lacks, with the command that fetches them for `folder` (a saved or
-    /// run folder; `again` says what to do after it), or, while meshes are
-    /// drawn, their credit; no notice when the stage names none. The console
-    /// gets the same, with each set's whole notice when `noticesInConsole`.
-    void showVisuals(const QString& folder, long drawn, const std::map<std::string, long>& missing,
-                     const std::vector<std::string>& notices, const QString& again, const QString& tag,
-                     bool noticesInConsole);
+    /// lacks, with the command MIME gave to fetch each (`fetch`, by set: hello's
+    /// visuals.fetch or `mime visuals view`'s line, shown as it is) in the
+    /// command bar under the viewport, to select or copy (`again` says what to
+    /// do after running it), or, while meshes are drawn, their credit; no
+    /// notice when the stage names none. The console gets the same, with each
+    /// set's whole notice when `noticesInConsole`.
+    void showVisuals(long drawn, const std::map<std::string, long>& missing,
+                     const std::map<std::string, std::string>& fetch, const std::vector<std::string>& notices,
+                     const QString& again, const QString& tag, bool noticesInConsole);
+    /// Drop what MIME's visuals said of the stage shown (its notice and commands).
+    void clearVisuals();
 
     /// Settings → MIME command (MICROROBOTICA_MIME overrides it).
     QString mimeCommand() const;
@@ -258,6 +263,7 @@ private:
     // Central widget
     viewport::ViewportWidget* viewportWidget_ = nullptr;
     viewport::NoticeOverlay* noticeOverlay_ = nullptr;
+    viewport::CommandBar* commandBar_ = nullptr;
 
     // Toolbars
     viewport::CameraToolbar* cameraToolbar_ = nullptr;

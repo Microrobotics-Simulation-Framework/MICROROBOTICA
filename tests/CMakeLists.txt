@@ -142,13 +142,15 @@ endif()
 # --- GUI tests: the viewport's window on an X display, and widgets -------------------------------------------------------
 # MBCA-VER-020: the viewport's OpenGL context and first frames through Qt's xcb platform and GLX, as the app gets them on
 # a desktop (Qt's offscreen platform has no OpenGL): skipped without an X display; CI runs them under Xvfb, and
-# scripts/check-display.sh on this machine's display.
+# scripts/check-display.sh on this machine's display. MBCA-VER-021: the command bar under the viewport, on any platform.
 if(OpenUSD_FOUND)
     add_executable(microbotica_gui_tests
         gui/test_viewport_display.cpp
+        gui/test_command_bar.cpp
         ${CMAKE_SOURCE_DIR}/src/viewport/local_viewport.cpp
         ${CMAKE_SOURCE_DIR}/src/viewport/camera_controller.cpp
         ${CMAKE_SOURCE_DIR}/src/viewport/storm_renderer.cpp
+        ${CMAKE_SOURCE_DIR}/src/viewport/command_bar.cpp
     )
     target_include_directories(microbotica_gui_tests PRIVATE
         ${CMAKE_SOURCE_DIR}/src

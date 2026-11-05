@@ -1,8 +1,8 @@
-// MIME's visuals as the viewer says them (src/runs/visuals.*): the command that fetches a folder's meshes, quoted for a
-// shell; the saved or run folder a stage is in, found as MIME finds it; `mime visuals view`'s output, read from what
-// MIME printed for A0's run folder with an empty asset cache (tests/fixtures/runs/visuals_view_a0_run.txt: MIME's v0.3 on
-// 2026-11-04, at a25d8ea before its history rewrite, A0 from scripts/make_a0_fixtures.sh, local paths replaced by
-// /data/...); and the credit shown while meshes are drawn.
+// MIME's visuals as the viewer says them (src/runs/visuals.*): `mime visuals view`'s output, read from what MIME printed
+// for A0's run folder with an empty asset cache (tests/fixtures/runs/visuals_view_a0_run.txt: MIME's v0.3 on 2026-11-04,
+// at a25d8ea before its history rewrite, A0 from scripts/make_a0_fixtures.sh, local paths replaced by /data/...; the
+// release candidate a6769bc printed the same lines), with the command that fetches the missing meshes as MIME wrote it;
+// and the credit shown while meshes are drawn.
 
 #include <catch2/catch_test_macros.hpp>
 
@@ -11,10 +11,8 @@
 #include "runs/visuals.h"
 #include "test_config.h"
 
-#include <filesystem>
 #include <fstream>
 #include <iterator>
-#include <unistd.h>
 
 using namespace microbotica::runs;
 
@@ -23,8 +21,8 @@ REGISTER_VERIFICATION_BENCHMARK(
     "MBCA-VER-019",
     "MBCA-COMP-070",
     microbotica::core::BenchmarkType::DataIntegrity,
-    "The meshes a run folder lacks are read from mime visuals view's output as MIME printed it, and the command that "
-    "fetches them names the folder, quoted for a shell",
+    "The meshes a run folder lacks are read from mime visuals view's output as MIME printed it, with the command that "
+    "fetches them exactly as MIME wrote it (its folder quoted for a shell by MIME)",
     __FILE__,
     "Visuals: mime visuals view's output for A0's run folder, with an empty asset cache"
 )
@@ -39,40 +37,14 @@ std::string fixtureText(const std::string& name) {
 
 } // namespace
 
-TEST_CASE("Visuals: a folder quoted for a shell", "[unit][runs]") {
-    CHECK(shellQuoted("/data/runs/a0_run") == "/data/runs/a0_run");
-    CHECK(shellQuoted("runs/a0-run_2.x/") == "runs/a0-run_2.x/");
-    CHECK(shellQuoted("/home/me/My Runs/a0") == "'/home/me/My Runs/a0'");
-    CHECK(shellQuoted("/data/it's here") == "'/data/it'\\''s here'");
-    CHECK(shellQuoted("$HOME/a0") == "'$HOME/a0'");
-    CHECK(shellQuoted("~/a0") == "'~/a0'");
-    CHECK(shellQuoted("") == "''");
-    CHECK(visualsFetchCommand("/data/runs/a0 run") == "mime visuals fetch '/data/runs/a0 run'");
-}
-
-TEST_CASE("Visuals: the saved or run folder a stage is in", "[unit][runs]") {
-    namespace fs = std::filesystem;
-    const fs::path root = fs::temp_directory_path() / ("mr_visuals_" + std::to_string(::getpid()));
-    fs::remove_all(root);
-    fs::create_directories(root / "saved" / "scene");
-    std::ofstream(root / "saved" / "mime.lock") << "{}";
-    fs::create_directories(root / "run" / "experiment");
-    std::ofstream(root / "run" / "experiment" / "mime.lock") << "{}";
-    fs::create_directories(root / "loose");
-
-    CHECK(folderOfStage((root / "saved" / "scene" / "scene.usda").string()) == (root / "saved").string());
-    CHECK(folderOfStage((root / "run" / "recording.usdc").string()) == (root / "run").string());
-    CHECK(folderOfStage((root / "loose" / "stage.usda").string()).empty());
-    CHECK(folderOfStage("").empty());
-    fs::remove_all(root);
-}
-
 TEST_CASE("Visuals: mime visuals view's output for A0's run folder, with an empty asset cache", "[unit][runs]") {
     const VisualsView view = parseVisualsView(fixtureText("runs/visuals_view_a0_run.txt"));
     CHECK(view.layer == "/data/a0_run/recording.usdc");
     CHECK(view.drawn == 0);
     CHECK(view.overlay.empty());
     CHECK(view.missing == std::map<std::string, long>{{"ar4_mk5", 18}});
+    // The command as MIME wrote it, folder and trailing slash included: shown as it is, never rebuilt.
+    CHECK(view.fetch == std::map<std::string, std::string>{{"ar4_mk5", "mime visuals fetch /data/a0_run/"}});
     REQUIRE_FALSE(view.notice.empty());
     CHECK(view.notice.front().find("Annin Robotics") != std::string::npos);
     CHECK(view.lines.size() == view.notice.size() + 2);  // the count of drawn meshes, the missing set, the notice
@@ -102,6 +74,18 @@ TEST_CASE("Visuals: meshes drawn, an output of another shape, and a notice with 
     CHECK(noticeCredit({"the visual meshes of a robot arm\ncredit: its maker\nIts terms."}) ==
           std::vector<std::string>{"the visual meshes of a robot arm", "credit: its maker"});
     CHECK(noticeCredit({"A notice of one line."}) == std::vector<std::string>{"A notice of one line."});
+
+    // A folder MIME quoted for a shell (shlex.quote, mime.viz's Overlay.fetch_command) is kept with its quotes; a line
+    // with no command leaves the set without one.
+    const VisualsView quoted = parseVisualsView(
+        "0 meshes drawn from the asset cache\n"
+        "18 meshes of ar4_mk5 are not in the asset cache: drawn as simple shapes from the description's frames; to "
+        "draw them, `mime visuals fetch '/data/My Runs/it'\"'\"'s a0/'`\n"
+        "2 meshes of other_set are not in the asset cache: drawn as simple shapes\n"
+        "/data/My Runs/it's a0/recording.usdc\n");
+    CHECK(quoted.missing == std::map<std::string, long>{{"ar4_mk5", 18}, {"other_set", 2}});
+    CHECK(quoted.fetch == std::map<std::string, std::string>{
+                              {"ar4_mk5", "mime visuals fetch '/data/My Runs/it'\"'\"'s a0/'"}});
 
     // A wording MIME changes reads as nothing drawn and nothing missing, never as a wrong count.
     const VisualsView other = parseVisualsView("Meshes: 18 drawn\n/data/a0_run/recording.usdc\n");

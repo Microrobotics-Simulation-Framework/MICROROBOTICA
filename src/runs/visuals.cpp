@@ -1,7 +1,5 @@
 #include "runs/visuals.h"
 
-#include <cctype>
-#include <filesystem>
 #include <regex>
 #include <sstream>
 
@@ -26,45 +24,6 @@ bool startsWith(const std::string& text, const char* prefix) {
 
 } // namespace
 
-std::string shellQuoted(const std::string& text) {
-    // The characters a POSIX shell takes literally anywhere in a word ('~' and '=' only mean something at its start or
-    // in an assignment, so they are quoted too).
-    auto literal = [](unsigned char c) {
-        return std::isalnum(c) != 0 || c == '/' || c == '.' || c == '_' || c == '-' || c == '+' || c == ':' ||
-               c == ',' || c == '@' || c == '%';
-    };
-    bool plain = !text.empty();
-    for (unsigned char c : text) plain = plain && literal(c);
-    if (plain) return text;
-    std::string quoted = "'";
-    for (char c : text) {
-        if (c == '\'') {
-            quoted += "'\\''";
-        } else {
-            quoted += c;
-        }
-    }
-    return quoted + "'";
-}
-
-std::string visualsFetchCommand(const std::string& folder) {
-    return "mime visuals fetch " + shellQuoted(folder);
-}
-
-std::string folderOfStage(const std::string& stagePath) {
-    namespace fs = std::filesystem;
-    if (stagePath.empty()) return {};
-    const fs::path stage(stagePath);
-    std::error_code ec;
-    for (const fs::path& folder : {stage.parent_path().parent_path(), stage.parent_path()}) {
-        if (folder.empty()) continue;
-        if (fs::is_regular_file(folder / "mime.lock", ec) || fs::is_regular_file(folder / "experiment" / "mime.lock", ec)) {
-            return folder.string();
-        }
-    }
-    return {};
-}
-
 VisualsView parseVisualsView(const std::string& output) {
     static const std::regex drawnLine(R"(^(\d+) meshes drawn from the asset cache(?: \((.+)\))?\s*$)");
     static const std::regex missingLine(R"(^(\d+) meshes of (\S+) are not in the asset cache\b.*)");
@@ -81,6 +40,13 @@ VisualsView parseVisualsView(const std::string& output) {
             view.overlay = m[2].matched ? m[2].str() : std::string();
         } else if (std::regex_match(line, m, missingLine)) {
             view.missing[m[2].str()] = std::stol(m[1].str());
+            // The command MIME wrote for the set: between the line's last pair of backquotes.
+            const std::size_t close = line.rfind('`');
+            const std::size_t open = close == std::string::npos || close == 0 ? std::string::npos
+                                                                               : line.rfind('`', close - 1);
+            if (open != std::string::npos && close > open + 1) {
+                view.fetch[m[2].str()] = line.substr(open + 1, close - open - 1);
+            }
         } else {
             view.notice.push_back(line);
         }
