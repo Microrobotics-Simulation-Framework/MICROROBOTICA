@@ -7,27 +7,27 @@ MICROROBOTics Iterative simulation for Clinical Adoption.
 
 ## What is MICROROBOTICA?
 
-MICROBOTICA is an open-source research simulator for microrobot-assisted
+MICROROBOTICA is an open-source research simulator for microrobot-assisted
 drug delivery in cerebrospinal fluid and other confined biological
 geometries. Built on C++17/Qt 6 with OpenUSD as the primary scene
-format, MICROBOTICA provides a desktop application for interactive
+format, MICROROBOTICA provides a desktop application for interactive
 visualisation, scripting, and analysis of microrobotics simulations.
 
-MICROBOTICA sits at Layer 3 of an open-source stack: MADDENING (physics
-framework) → MIME (microrobotics engine) → MICROBOTICA (simulator UI).
+MICROROBOTICA sits at Layer 3 of an open-source stack: MADDENING (physics
+framework) → MIME (microrobotics engine) → MICROROBOTICA (simulator UI).
 
 ## Intended Use and Disclaimers
 
-> **MICROBOTICA is research software.** It is not a medical device as
+> **MICROROBOTICA is research software.** It is not a medical device as
 > defined by EU MDR (EU 2017/745) or US FDA regulations. It has no
 > medical purpose. It is not intended for clinical use, clinical
 > decision-making, or patient diagnosis. It has not been CE-marked,
 > cleared, or approved by any regulatory body.
 >
 > When used as a component within regulated medical software,
-> MICROBOTICA is classified as SOUP (Software of Unknown Provenance)
+> MICROROBOTICA is classified as SOUP (Software of Unknown Provenance)
 > under IEC 62304. The device manufacturer is responsible for
-> assessing MICROBOTICA's suitability and performing all required
+> assessing MICROROBOTICA's suitability and performing all required
 > verification and validation. See
 > [Regulatory Documentation](docs/regulatory/) for details.
 
@@ -68,7 +68,7 @@ and IDE integration.
 
 ## Citation
 
-If you use MICROBOTICA in academic work, please cite:
+If you use MICROROBOTICA in academic work, please cite:
 
 ```bibtex
 @software{microbotica,

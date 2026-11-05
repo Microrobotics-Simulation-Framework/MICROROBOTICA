@@ -6,6 +6,7 @@
 #include <QString>
 #include <cstdint>
 #include <functional>
+#include <map>
 #include <memory>
 #include <string>
 #include <vector>
@@ -29,6 +30,7 @@ namespace microbotica::viewport {
 class ViewportWidget;
 class CameraToolbar;
 class NoticeOverlay;
+class CommandBar;
 } // namespace microbotica::viewport
 
 namespace microbotica::panels {
@@ -178,9 +180,24 @@ private:
     /// Replay the open run folder's live session (`mime run <experiment>
     /// --commands commands.jsonl`) into a new run folder, then open it.
     void onReplayRequested();
-    /// `mime visuals view <run folder>`: the layer that draws MIME's meshes
-    /// over the recording, opened in its place when it differs.
-    void requestVisualsView(const QString& runFolder, const QString& opened);
+    /// `mime visuals view <folder>` with this machine's MIME: for a run
+    /// folder, the layer that draws MIME's meshes over its recording, opened
+    /// in its place when it differs; for a remote session (`remoteSession`,
+    /// `folder` the saved experiment open here), the overlay added over the
+    /// stage, since hello's visuals are the server's asset cache's.
+    void requestVisualsView(const QString& folder, const QString& opened, bool remoteSession);
+    /// MIME's visuals in the viewport's notices: the sets the asset cache
+    /// lacks, with the command MIME gave to fetch each (`fetch`, by set: hello's
+    /// visuals.fetch or `mime visuals view`'s line, shown as it is) in the
+    /// command bar under the viewport, to select or copy (`again` says what to
+    /// do after running it), or, while meshes are drawn, their credit; no
+    /// notice when the stage names none. The console gets the same, with each
+    /// set's whole notice when `noticesInConsole`.
+    void showVisuals(long drawn, const std::map<std::string, long>& missing,
+                     const std::map<std::string, std::string>& fetch, const std::vector<std::string>& notices,
+                     const QString& again, const QString& tag, bool noticesInConsole);
+    /// Drop what MIME's visuals said of the stage shown (its notice and commands).
+    void clearVisuals();
 
     /// Settings → MIME command (MICROROBOTICA_MIME overrides it).
     QString mimeCommand() const;
@@ -246,6 +263,7 @@ private:
     // Central widget
     viewport::ViewportWidget* viewportWidget_ = nullptr;
     viewport::NoticeOverlay* noticeOverlay_ = nullptr;
+    viewport::CommandBar* commandBar_ = nullptr;
 
     // Toolbars
     viewport::CameraToolbar* cameraToolbar_ = nullptr;

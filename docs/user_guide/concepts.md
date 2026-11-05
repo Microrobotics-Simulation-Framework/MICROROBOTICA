@@ -2,7 +2,7 @@
 
 ## Three-Layer USD Architecture
 
-MICROBOTICA uses a three-layer USD composition stack:
+MICROROBOTICA uses a three-layer USD composition stack:
 
 1. **Base Layer** — the original scene file (immutable after load)
 2. **Override Layer** — user parameter overrides via scripting

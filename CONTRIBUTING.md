@@ -91,7 +91,14 @@ cd build/debug && ctest --output-on-failure && cd ../..
 # picture, rewrite them with:
 MICROROBOTICA_UPDATE_SCREENSHOTS=1 ./build/debug/tests/microbotica_screenshot_tests
 
-# Run headless (no window, just verifies it starts)
+# The viewport's own window on a display (MBCA-VER-020): the OpenGL context Qt
+# makes for it must be Compatibility, and Storm must draw with no GL error. An
+# offscreen run cannot check this (Qt's offscreen platform has no OpenGL); CI
+# runs these tests under Xvfb. On your desktop, from the host (a window shows
+# for a few seconds; MICROROBOTICA_RENDER=llvmpipe for Mesa's rasteriser):
+scripts/check-display.sh build/debug
+
+# Run headless (no window, just verifies it starts; it cannot see the viewport)
 QT_QPA_PLATFORM=offscreen ./build/debug/microbotica &
 sleep 2 && kill %1
 ```

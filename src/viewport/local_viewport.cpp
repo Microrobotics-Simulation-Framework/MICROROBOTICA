@@ -12,6 +12,7 @@
 #include "core/profiler.h"
 
 #include "viewport/gl_requirements.h"
+#include "viewport/storm_surface_format.h"
 
 namespace microbotica::viewport {
 
@@ -24,18 +25,15 @@ LocalViewport::LocalViewport(int samples, QWindow* parent)
     // GL state (glPushAttrib etc.) that only exists in Compatibility Profile;
     // without it Storm spams "invalid enum" errors on every frame. 4.5 is what
     // Storm needs and what Mesa gives on every driver, its software rasteriser
-    // (llvmpipe) included; the Intel GPU through Mesa gives 4.6.
-    QSurfaceFormat fmt;
-    fmt.setVersion(kStormGlMajor, kStormGlMinor);
-    fmt.setProfile(QSurfaceFormat::CompatibilityProfile);
-    fmt.setDepthBufferSize(24);
-    fmt.setStencilBufferSize(8);
+    // (llvmpipe) included; the Intel GPU through Mesa gives 4.6. The format
+    // asks for the deprecated functions too, or Mesa gives Core whatever the
+    // profile asked (stormSurfaceFormat()).
     // 4x MSAA by default (viewportSamples()). Also required by
     // params.enableSampleAlphaToCoverage (StormRenderer): Storm fakes
     // order-independent transparency by turning fragment alpha into
     // multisample coverage, so the translucent vessel / tube materials only
     // render see-through when a multisample buffer exists.
-    fmt.setSamples(samples);
+    QSurfaceFormat fmt = stormSurfaceFormat(samples);
     // Swap interval 0 — do NOT vsync this window. It is a native window
     // composited by the desktop compositor, which already presents at the
     // display refresh. Vsyncing here too creates a double-sync: this window's
@@ -144,13 +142,13 @@ void LocalViewport::initializeGL()
                          "tube for speed on a large window)", fmt.samples());
         }
 
-        // Storm (HgiGL) requires OpenGL 4.5 Compatibility Profile.
-        // Below that, mark as failed — don't try Render().
-        if (!meetsStormMinimum(major, minor)) {
-            spdlog::error("LocalViewport: GL {}.{} {} Profile is below the "
-                          "{} minimum required by Hydra/Storm. "
-                          "Falling back to Software viewport.",
-                          major, minor, profile, stormMinimumText());
+        // Storm (HgiGL) requires OpenGL 4.5 Compatibility Profile. In a
+        // Core context, or below 4.5, every frame fails with GL errors and
+        // draws nothing: mark as failed, don't try Render().
+        if (const std::string problem = stormContextProblem(fmt); !problem.empty()) {
+            spdlog::error("LocalViewport: {}; Hydra/Storm needs OpenGL {} "
+                          "Compatibility. Falling back to Software viewport.",
+                          problem, stormMinimumText());
             renderFailed_ = true;
             Q_EMIT renderFailed();
             return;

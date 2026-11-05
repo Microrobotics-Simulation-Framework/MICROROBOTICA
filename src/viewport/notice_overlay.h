@@ -21,7 +21,11 @@ namespace microbotica::viewport {
 /// QOpenGLWindow embedded via QWidget::createWindowContainer, and sibling
 /// Qt widgets cannot be composited on top of a native window. The overlay
 /// is therefore a separate top-level frameless tool window that tracks the
-/// geometry of a target widget (the viewport) via an event filter.
+/// geometry of a target widget (the viewport) via an event filter. It is
+/// only as large as its cards, at the target's top right (a desktop that
+/// does not blend its transparent pixels then hides nothing else of the
+/// viewport), and a tool window of the target's window: above that window
+/// only, hidden while it is minimised.
 ///
 /// Notices are keyed by a stable string id so the same notice can be
 /// updated (changing body text) without flicker, and removed by the same

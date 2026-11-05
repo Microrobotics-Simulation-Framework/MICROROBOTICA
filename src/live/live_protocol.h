@@ -247,6 +247,9 @@ struct VisualsInfo {
     std::optional<std::string> overlay;    ///< a layer to add over the stage, or none
     long drawn = 0;
     std::map<std::string, long> missing;   ///< visual sets the cache lacks, and how many meshes each
+    /// The command that fetches each missing set, as MIME sends it (`mime visuals fetch <folder>`, the folder quoted
+    /// for a shell): shown as it is, never rebuilt here. Empty from a MIME that sends none.
+    std::map<std::string, std::string> fetch;
     nlohmann::json notice;                 ///< the credit and terms text (its shape may still change)
     /// The notice as lines of text, whatever shape it arrives in (a string, a list of strings, a list of objects).
     std::vector<std::string> noticeLines() const;
